@@ -1,0 +1,130 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------
+// ENUMS
+// ------------------------------------
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum Sport {
+  FUTBOL_5
+  FUTBOL_7
+  PADEL
+  TENIS
+}
+
+enum Surface {
+  SINTETICO
+  CEMENTO
+  POLVO_LADRILLO
+  PARQUET
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  MERCADOPAGO
+}
+
+// ------------------------------------
+// MODELOS
+// ------------------------------------
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique @db.VarChar(255)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  firstName    String    @map("first_name") @db.VarChar(100)
+  lastName     String    @map("last_name") @db.VarChar(100)
+  phone        String?   @db.VarChar(30)
+  role         Role      @default(USER)
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
+
+  bookings     Booking[]
+
+  @@map("users")
+}
+
+model Complex {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @db.VarChar(150)
+  address   String   @db.VarChar(255)
+  phone     String?  @db.VarChar(30)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  courts    Court[]
+
+  @@map("complexes")
+}
+
+model Court {
+  id           String          @id @default(uuid()) @db.Uuid
+  complexId    String          @map("complex_id") @db.Uuid
+  name         String          @db.VarChar(100)
+  sport        Sport
+  surface      Surface
+  pricePerSlot Decimal         @map("price_per_slot") @db.Decimal(10, 2)
+  isIndoor     Boolean         @default(false) @map("is_indoor")
+  isActive     Boolean         @default(true) @map("is_active")
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz()
+
+  complex      Complex         @relation(fields: [complexId], references: [id], onDelete: Cascade)
+  schedules    CourtSchedule[]
+  bookings     Booking[]
+
+  @@index([complexId, sport])
+  @@map("courts")
+}
+
+model CourtSchedule {
+  id                  String   @id @default(uuid()) @db.Uuid
+  courtId             String   @map("court_id") @db.Uuid
+  dayOfWeek           Int      @map("day_of_week")
+  openTime            DateTime @map("open_time") @db.Time()
+  closeTime           DateTime @map("close_time") @db.Time()
+  slotDurationMinutes Int      @default(60) @map("slot_duration_minutes")
+
+  court               Court    @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@unique([courtId, dayOfWeek])
+  @@map("court_schedules")
+}
+
+model Booking {
+  id            String        @id @default(uuid()) @db.Uuid
+  userId        String        @map("user_id") @db.Uuid
+  courtId       String        @map("court_id") @db.Uuid
+  startTime     DateTime      @map("start_time") @db.Timestamptz()
+  endTime       DateTime      @map("end_time") @db.Timestamptz()
+  totalPrice    Decimal       @map("total_price") @db.Decimal(10, 2)
+  status        BookingStatus @default(CONFIRMED)
+  paymentMethod PaymentMethod @default(CASH) @map("payment_method")
+  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz()
+
+  user          User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  court         Court         @relation(fields: [courtId], references: [id], onDelete: Restrict)
+
+  @@index([courtId, startTime, endTime])
+  @@index([userId, startTime])
+  @@map("bookings")
+}
