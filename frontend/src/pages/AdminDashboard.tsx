@@ -14,6 +14,13 @@ import {
   MapPin,
   XCircle,
   Layers,
+  LayoutGrid,
+  Plus,
+  RefreshCw,
+  User,
+  CheckCircle2,
+  X,
+  ShieldAlert,
 } from "lucide-react";
 import type { Sport, Surface, Court } from "../types/index.js";
 
@@ -26,23 +33,31 @@ interface MetricsSummary {
 
 interface AdminBooking {
   id: string;
+  courtId: string;
   startTime: string;
   endTime: string;
-  status: "CONFIRMED" | "CANCELLED" | "PENDING";
+  status: "CONFIRMED" | "CANCELLED" | "COMPLETED" | "PENDING";
   totalPrice: string | number;
-  paymentMethod: string;
+  paymentMethod: "CASH" | "TRANSFER" | string;
   court: {
+    id?: string;
     name: string;
     sport: string;
   };
   user?: {
+    id?: string;
+    firstName?: string;
+    lastName?: string;
     name?: string;
-    email?: string;
+    email: string;
+    phone?: string;
   };
 }
 
 export const AdminDashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<"courts" | "bookings">("courts");
+  const [activeTab, setActiveTab] = useState<"grid" | "courts" | "bookings">(
+    "grid",
+  );
 
   // Métricas
   const [metrics, setMetrics] = useState<MetricsSummary | null>(null);
@@ -57,9 +72,27 @@ export const AdminDashboard: React.FC = () => {
   const [pricePerSlot, setPricePerSlot] = useState(25000);
   const [isIndoor, setIsIndoor] = useState(false);
 
-  // Reservas del complejo
+  // Grilla Diaria de Turnos
+  const [selectedDate, setSelectedDate] = useState<string>(
+    new Date().toISOString().split("T")[0],
+  );
+  const [dailyBookings, setDailyBookings] = useState<AdminBooking[]>([]);
+  const [loadingDaily, setLoadingDaily] = useState(true);
+  const [refreshGridKey, setRefreshGridKey] = useState(0);
+
+  // Modal Cargar Turno Manual
+  const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [manualCourtId, setManualCourtId] = useState("");
+  const [manualTime, setManualTime] = useState("18:00");
+  const [manualPayment, setManualPayment] = useState<"CASH" | "TRANSFER">(
+    "CASH",
+  );
+  const [manualLoading, setManualLoading] = useState(false);
+  const [manualError, setManualError] = useState<string | null>(null);
+
+  // Historial de Todas las Reservas
   const [allBookings, setAllBookings] = useState<AdminBooking[]>([]);
-  const [loadingBookings, setLoadingBookings] = useState(false);
+  const [loadingBookings, setLoadingBookings] = useState(true);
 
   // Estados generales
   const [formLoading, setFormLoading] = useState(false);
@@ -68,7 +101,25 @@ export const AdminDashboard: React.FC = () => {
     message: string;
   } | null>(null);
 
-  // Cargar métricas y canchas existentes
+  const timeSlots = [
+    "08:00",
+    "09:00",
+    "10:00",
+    "11:00",
+    "12:00",
+    "13:00",
+    "14:00",
+    "15:00",
+    "16:00",
+    "17:00",
+    "18:00",
+    "19:00",
+    "20:00",
+    "21:00",
+    "22:00",
+  ];
+
+  // 1. Cargar métricas y canchas existentes al montar
   useEffect(() => {
     let isMounted = true;
 
@@ -88,8 +139,11 @@ export const AdminDashboard: React.FC = () => {
         if (isMounted) {
           setMetrics(metricsRes.data.summary);
           setCourts(courtsRes.data);
-          if (courtsRes.data.length > 0 && courtsRes.data[0].complexId) {
-            setComplexId(courtsRes.data[0].complexId);
+          if (courtsRes.data.length > 0) {
+            setManualCourtId(courtsRes.data[0].id);
+            if (courtsRes.data[0].complexId) {
+              setComplexId(courtsRes.data[0].complexId);
+            }
           }
         }
       })
@@ -109,27 +163,57 @@ export const AdminDashboard: React.FC = () => {
     };
   }, []);
 
-  // Cargar todas las reservas cuando se active la pestaña correspondiente
+  // 2. Cargar grilla diaria
+  useEffect(() => {
+    let isMounted = true;
+
+    if (activeTab === "grid" && selectedDate) {
+      api
+        .get<AdminBooking[]>(`/bookings/admin/daily?date=${selectedDate}`)
+        .then((res) => {
+          if (isMounted) {
+            setDailyBookings(res.data);
+          }
+        })
+        .catch((err: unknown) => {
+          if (isMounted) {
+            console.error("Error al cargar turnos del día:", err);
+          }
+        })
+        .finally(() => {
+          if (isMounted) {
+            setLoadingDaily(false);
+          }
+        });
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeTab, selectedDate, refreshGridKey]);
+
+  // 3. Cargar historial completo de reservas
   useEffect(() => {
     let isMounted = true;
 
     if (activeTab === "bookings") {
-      const loadAllBookings = async () => {
-        try {
-          const res = await api.get<AdminBooking[]>("/bookings");
+      api
+        .get<AdminBooking[]>("/bookings")
+        .then((res) => {
           if (isMounted) {
             setAllBookings(res.data);
           }
-        } catch (err) {
-          console.error("Error al obtener reservas del sistema:", err);
-        } finally {
+        })
+        .catch((err: unknown) => {
+          if (isMounted) {
+            console.error("Error al obtener reservas:", err);
+          }
+        })
+        .finally(() => {
           if (isMounted) {
             setLoadingBookings(false);
           }
-        }
-      };
-
-      loadAllBookings();
+        });
     }
 
     return () => {
@@ -137,6 +221,61 @@ export const AdminDashboard: React.FC = () => {
     };
   }, [activeTab]);
 
+  // Cambiar estado en la grilla diaria
+  const handleDailyStatusChange = async (
+    bookingId: string,
+    status: "CONFIRMED" | "COMPLETED" | "CANCELLED",
+  ) => {
+    try {
+      await api.patch(`/bookings/admin/${bookingId}/status`, { status });
+      setLoadingDaily(true);
+      setRefreshGridKey((prev) => prev + 1);
+    } catch (err: unknown) {
+      console.error("Error al actualizar estado:", err);
+      alert("No se pudo actualizar el estado de la reserva.");
+    }
+  };
+
+  // Crear turno manual
+  const handleCreateManualBooking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualCourtId) return;
+
+    setManualLoading(true);
+    setManualError(null);
+
+    try {
+      const startTime = `${selectedDate}T${manualTime}:00.000Z`;
+      const endHour = (parseInt(manualTime.split(":")[0], 10) + 1)
+        .toString()
+        .padStart(2, "0");
+      const endTime = `${selectedDate}T${endHour}:00:00.000Z`;
+
+      await api.post("/bookings/admin/create", {
+        courtId: manualCourtId,
+        startTime,
+        endTime,
+        paymentMethod: manualPayment,
+      });
+
+      setIsManualModalOpen(false);
+      setLoadingDaily(true);
+      setRefreshGridKey((prev) => prev + 1);
+    } catch (err: unknown) {
+      if (isAxiosError<{ message?: string }>(err)) {
+        setManualError(
+          err.response?.data?.message ||
+            "Error al registrar la reserva manual.",
+        );
+      } else {
+        setManualError("Error inesperado al registrar la reserva manual.");
+      }
+    } finally {
+      setManualLoading(false);
+    }
+  };
+
+  // Crear cancha
   const handleCreateCourt = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormLoading(true);
@@ -186,6 +325,7 @@ export const AdminDashboard: React.FC = () => {
     }
   };
 
+  // Cancelar reserva desde historial general
   const handleCancelBooking = async (bookingId: string) => {
     const confirmCancel = window.confirm(
       "¿Seguro que deseás cancelar este turno como administrador?",
@@ -199,7 +339,6 @@ export const AdminDashboard: React.FC = () => {
           b.id === bookingId ? { ...b, status: "CANCELLED" } : b,
         ),
       );
-      // Actualizar conteo de métricas localmente
       setMetrics((prev) =>
         prev
           ? {
@@ -209,10 +348,34 @@ export const AdminDashboard: React.FC = () => {
             }
           : null,
       );
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error al cancelar reserva:", err);
       alert("No se pudo cancelar el turno.");
     }
+  };
+
+  const getBookingForSlot = (courtId: string, time: string) => {
+    if (!Array.isArray(dailyBookings)) return undefined;
+
+    return dailyBookings.find((b) => {
+      // Validar que el objeto exista y tenga startTime
+      if (!b || !b.startTime || b.status === "CANCELLED") return false;
+
+      // Coincidencia de cancha
+      const matchedCourtId = b.courtId || b.court?.id;
+      if (matchedCourtId !== courtId) return false;
+
+      try {
+        const d = new Date(b.startTime);
+        if (isNaN(d.getTime())) return false;
+
+        const hours = String(d.getUTCHours()).padStart(2, "0");
+        const minutes = String(d.getUTCMinutes()).padStart(2, "0");
+        return `${hours}:${minutes}` === time;
+      } catch {
+        return false;
+      }
+    });
   };
 
   return (
@@ -226,13 +389,24 @@ export const AdminDashboard: React.FC = () => {
               Panel Administrativo
             </h1>
             <p className="text-slate-400 text-sm">
-              Métricas financieras, gestión del catálogo y control de turnos
+              Control de turnos diarios, gestión de canchas y métricas
             </p>
           </div>
         </div>
 
-        {/* Pestañas de Navegación */}
+        {/* Pestañas */}
         <div className="flex bg-slate-900 border border-slate-800 p-1 rounded-xl">
+          <button
+            onClick={() => setActiveTab("grid")}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
+              activeTab === "grid"
+                ? "bg-emerald-500 text-slate-950"
+                : "text-slate-400 hover:text-white"
+            }`}
+          >
+            <LayoutGrid className="w-4 h-4" />
+            Grilla del Día
+          </button>
           <button
             onClick={() => setActiveTab("courts")}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
@@ -245,10 +419,7 @@ export const AdminDashboard: React.FC = () => {
             Canchas
           </button>
           <button
-            onClick={() => {
-              setLoadingBookings(true);
-              setActiveTab("bookings");
-            }}
+            onClick={() => setActiveTab("bookings")}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition flex items-center gap-2 ${
               activeTab === "bookings"
                 ? "bg-emerald-500 text-slate-950"
@@ -261,7 +432,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Tarjetas de Métricas Financieras */}
+      {/* Tarjetas de Métricas */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
         <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl flex items-center gap-4 shadow-lg">
           <div className="p-3.5 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
@@ -327,10 +498,176 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Contenido según Pestaña Activa */}
-      {activeTab === "courts" ? (
+      {/* 1. PESTAÑA: GRILLA DIARIA (PANEL CANCHERO) */}
+      {activeTab === "grid" && (
+        <div className="space-y-6">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Calendar className="w-5 h-5 text-emerald-400" />
+              <span className="text-sm font-semibold text-slate-300">
+                Fecha de la grilla:
+              </span>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => {
+                  setLoadingDaily(true);
+                  setSelectedDate(e.target.value);
+                }}
+                className="bg-slate-950 border border-slate-800 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:border-emerald-500"
+              />
+            </div>
+
+            <div className="flex items-center gap-3 w-full md:w-auto">
+              <button
+                onClick={() => setIsManualModalOpen(true)}
+                className="w-full md:w-auto px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-500/20"
+              >
+                <Plus className="w-4 h-4" />
+                Cargar Turno Manual
+              </button>
+              <button
+                onClick={() => {
+                  setLoadingDaily(true);
+                  setRefreshGridKey((prev) => prev + 1);
+                }}
+                className="p-2 bg-slate-950 border border-slate-800 text-slate-300 hover:text-white rounded-xl transition"
+                title="Refrescar"
+              >
+                <RefreshCw className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+          {loadingDaily ? (
+            <div className="text-center py-16 text-slate-400 text-sm">
+              Cargando grilla del día...
+            </div>
+          ) : (
+            <div className="overflow-x-auto bg-slate-900 border border-slate-800 rounded-2xl shadow-lg">
+              <table className="w-full text-left border-collapse min-w-[700px]">
+                <thead>
+                  <tr className="border-b border-slate-800">
+                    <th className="py-3 px-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-24">
+                      Horario
+                    </th>
+                    {courts.map((c) => (
+                      <th
+                        key={c.id}
+                        className="py-3 px-4 text-sm font-bold text-white"
+                      >
+                        {c.name}
+                        <span className="block text-[10px] text-emerald-400 font-normal">
+                          {c.sport}
+                        </span>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {timeSlots.map((time) => (
+                    <tr key={time} className="hover:bg-slate-950/40 transition">
+                      <td className="py-3 px-4 text-xs font-semibold text-slate-400">
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5 text-slate-500" />
+                          {time} hs
+                        </div>
+                      </td>
+                      {courts.map((court) => {
+                        const booking = getBookingForSlot(court.id, time);
+
+                        return (
+                          <td key={court.id} className="py-2.5 px-3">
+                            {booking ? (
+                              <div
+                                className={`p-2.5 rounded-xl border text-xs flex flex-col justify-between gap-1.5 transition ${
+                                  booking.status === "COMPLETED"
+                                    ? "bg-slate-950/80 border-slate-800 text-slate-500"
+                                    : "bg-emerald-500/10 border-emerald-500/30 text-emerald-300"
+                                }`}
+                              >
+                                <div className="flex justify-between items-start">
+                                  <div className="flex items-center gap-1.5 font-bold">
+                                    <User className="w-3.5 h-3.5 flex-shrink-0" />
+                                    <span className="truncate max-w-[110px]">
+                                      {booking.user
+                                        ? `${booking.user.firstName || ""} ${booking.user.lastName || ""}`.trim() ||
+                                          booking.user.name ||
+                                          booking.user.email.split("@")[0]
+                                        : "Cliente"}
+                                    </span>
+                                  </div>
+                                  <span
+                                    className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                      booking.paymentMethod === "TRANSFER"
+                                        ? "bg-sky-500/20 text-sky-400"
+                                        : "bg-amber-500/20 text-amber-400"
+                                    }`}
+                                  >
+                                    {booking.paymentMethod === "TRANSFER"
+                                      ? "MP"
+                                      : "Efectivo"}
+                                  </span>
+                                </div>
+
+                                <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[10px]">
+                                  <span>
+                                    $
+                                    {Number(booking.totalPrice).toLocaleString(
+                                      "es-AR",
+                                    )}
+                                  </span>
+
+                                  <div className="flex items-center gap-1">
+                                    {booking.status !== "COMPLETED" && (
+                                      <button
+                                        onClick={() =>
+                                          handleDailyStatusChange(
+                                            booking.id,
+                                            "COMPLETED",
+                                          )
+                                        }
+                                        className="p-1 hover:bg-emerald-500/30 text-emerald-400 rounded transition"
+                                        title="Marcar como jugado"
+                                      >
+                                        <CheckCircle2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() =>
+                                        handleDailyStatusChange(
+                                          booking.id,
+                                          "CANCELLED",
+                                        )
+                                      }
+                                      className="p-1 hover:bg-rose-500/30 text-rose-400 rounded transition"
+                                      title="Cancelar turno"
+                                    >
+                                      <XCircle className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="h-10 rounded-lg border border-dashed border-slate-800 flex items-center justify-center text-[10px] text-slate-600 font-medium">
+                                Libre
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 2. PESTAÑA: CANCHAS */}
+      {activeTab === "courts" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Formulario Alta de Cancha */}
           <div className="lg:col-span-1 bg-slate-900 border border-slate-800 p-6 rounded-2xl shadow-lg h-fit">
             <h2 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
               <PlusCircle className="w-5 h-5 text-emerald-400" />
@@ -365,8 +702,7 @@ export const AdminDashboard: React.FC = () => {
                     onChange={(e) => setSport(e.target.value as Sport)}
                     className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 px-2 text-white text-xs focus:outline-none focus:border-emerald-500 transition cursor-pointer"
                   >
-                    <option value="FUTBOL_5">Fútbol 5</option>
-                    <option value="FUTBOL_7">Fútbol 7</option>
+                    <option value="FUTBOL_5">Fútbol</option>
                     <option value="PADEL">Pádel</option>
                     <option value="TENIS">Tenis</option>
                   </select>
@@ -430,7 +766,6 @@ export const AdminDashboard: React.FC = () => {
             </form>
           </div>
 
-          {/* Listado de Canchas Existentes */}
           <div className="lg:col-span-2">
             <h2 className="text-lg font-bold text-white mb-4">
               Canchas Activas ({courts.length})
@@ -457,8 +792,10 @@ export const AdminDashboard: React.FC = () => {
             </div>
           </div>
         </div>
-      ) : (
-        /* Vista de Todas las Reservas */
+      )}
+
+      {/* 3. PESTAÑA: TODAS LAS RESERVAS */}
+      {activeTab === "bookings" && (
         <div>
           {loadingBookings ? (
             <div className="py-12 text-center text-slate-400 text-sm">
@@ -487,7 +824,7 @@ export const AdminDashboard: React.FC = () => {
                     <div>
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-sm font-bold text-white">
-                          {b.court.name}
+                          {b.court?.name || "Cancha"}
                         </span>
                         <span
                           className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
@@ -510,7 +847,7 @@ export const AdminDashboard: React.FC = () => {
                         </span>
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-slate-500" />
-                          {b.court.sport}
+                          {b.court?.sport || "Deporte"}
                         </span>
                         {b.user?.email && (
                           <span className="text-slate-500">
@@ -540,6 +877,118 @@ export const AdminDashboard: React.FC = () => {
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal Cargar Turno Manual */}
+      {isManualModalOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl relative">
+            <button
+              onClick={() => setIsManualModalOpen(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-xl font-bold text-white mb-1">
+              Registrar Turno Manual
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Cargá una reserva telefónica o presencial en el club
+            </p>
+
+            {manualError && (
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl flex items-center gap-2 text-red-400 text-xs">
+                <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+                <span>{manualError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateManualBooking} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Cancha
+                </label>
+                <select
+                  value={manualCourtId}
+                  onChange={(e) => setManualCourtId(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                >
+                  {courts.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.sport}) - $
+                      {Number(c.pricePerSlot).toLocaleString("es-AR")}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Horario
+                </label>
+                <select
+                  value={manualTime}
+                  onChange={(e) => setManualTime(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
+                >
+                  {timeSlots.map((t) => (
+                    <option key={t} value={t}>
+                      {t} hs
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Método de Pago
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setManualPayment("CASH")}
+                    className={`py-2 rounded-xl text-xs font-bold border transition ${
+                      manualPayment === "CASH"
+                        ? "bg-emerald-500/20 border-emerald-500 text-emerald-400"
+                        : "bg-slate-950 border-slate-800 text-slate-400"
+                    }`}
+                  >
+                    Efectivo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setManualPayment("TRANSFER")}
+                    className={`py-2 rounded-xl text-xs font-bold border transition ${
+                      manualPayment === "TRANSFER"
+                        ? "bg-sky-500/20 border-sky-500 text-sky-400"
+                        : "bg-slate-950 border-slate-800 text-slate-400"
+                    }`}
+                  >
+                    Transferencia / MP
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsManualModalOpen(false)}
+                  className="w-1/2 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold rounded-xl text-sm transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={manualLoading}
+                  className="w-1/2 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-sm transition disabled:opacity-50"
+                >
+                  {manualLoading ? "Guardando..." : "Confirmar Turno"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

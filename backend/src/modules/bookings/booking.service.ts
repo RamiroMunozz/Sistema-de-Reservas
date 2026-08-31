@@ -106,7 +106,6 @@ export class BookingService {
   }
 
   async getOccupiedSlots(courtId: string, dateStr: string) {
-    // Definir el rango del día en UTC exacto
     const startOfDay = new Date(`${dateStr}T00:00:00.000Z`);
     const endOfDay = new Date(`${dateStr}T23:59:59.999Z`);
 
@@ -124,12 +123,114 @@ export class BookingService {
       },
     });
 
-    // Extraer horas y minutos usando UTC
     return bookings.map((b) => {
       const d = new Date(b.startTime);
       const hours = String(d.getUTCHours()).padStart(2, "0");
       const minutes = String(d.getUTCMinutes()).padStart(2, "0");
       return `${hours}:${minutes}`;
+    });
+  }
+
+  async getDailyBookingsForAdmin(dateStr: string) {
+    const startOfDay = new Date(`${dateStr}T00:00:00.000Z`);
+    const endOfDay = new Date(`${dateStr}T23:59:59.999Z`);
+
+    return prisma.booking.findMany({
+      where: {
+        startTime: {
+          gte: startOfDay,
+          lte: endOfDay,
+        },
+        status: {
+          not: BookingStatus.CANCELLED,
+        },
+      },
+      include: {
+        court: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        startTime: "asc",
+      },
+    });
+  }
+
+  async updateBookingStatus(bookingId: string, status: BookingStatus) {
+    return prisma.booking.update({
+      where: { id: bookingId },
+      data: { status },
+      include: {
+        court: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+    });
+  }
+
+  async createAdminBooking(
+    data: {
+      courtId: string;
+      startTime: string;
+      endTime: string;
+      paymentMethod: PaymentMethod;
+    },
+    adminUserId: string,
+  ) {
+    const start = new Date(data.startTime);
+    const end = new Date(data.endTime);
+
+    const existing = await prisma.booking.findFirst({
+      where: {
+        courtId: data.courtId,
+        status: BookingStatus.CONFIRMED,
+        AND: [{ startTime: { lt: end } }, { endTime: { gt: start } }],
+      },
+    });
+
+    if (existing) {
+      throw new Error("El horario seleccionado ya no está disponible.");
+    }
+
+    const court = await prisma.court.findUnique({
+      where: { id: data.courtId },
+    });
+
+    if (!court) throw new Error("Cancha no encontrada.");
+
+    return prisma.booking.create({
+      data: {
+        courtId: data.courtId,
+        userId: adminUserId,
+        startTime: start,
+        endTime: end,
+        totalPrice: court.pricePerSlot,
+        status: BookingStatus.CONFIRMED,
+        paymentMethod: data.paymentMethod,
+      },
+      include: {
+        court: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
     });
   }
 }

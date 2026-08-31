@@ -51,7 +51,7 @@ export const Navbar: React.FC = () => {
                 className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 px-3 py-2 rounded-lg text-sm font-semibold transition"
               >
                 <Shield className="w-4 h-4" />
-                <span>Admin</span>
+                <span>Panel Canchero</span>
               </Link>
             )}
 

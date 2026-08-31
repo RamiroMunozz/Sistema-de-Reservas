@@ -86,4 +86,61 @@ export class BookingController {
       next(error);
     }
   };
+
+  getDailyAdmin = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const date = String(req.query.date);
+
+      if (!date || date === "undefined") {
+        return res
+          .status(400)
+          .json({ message: "El parámetro date es requerido (YYYY-MM-DD)." });
+      }
+
+      const bookings = await bookingService.getDailyBookingsForAdmin(date);
+      return res.status(200).json(bookings);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateStatus = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const id = String(req.params.id);
+      const { status } = req.body;
+
+      if (!id || !status) {
+        return res.status(400).json({ message: "ID y status son requeridos." });
+      }
+
+      const updated = await bookingService.updateBookingStatus(id, status);
+      return res.status(200).json(updated);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  createAdmin = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // @ts-ignore
+      const user = req.user;
+      const adminUserId = (user?.id || user?.userId || user?.sub) as string;
+      const { courtId, startTime, endTime, paymentMethod } = req.body;
+
+      if (!courtId || !startTime || !endTime) {
+        return res.status(400).json({ message: "Faltan campos obligatorios." });
+      }
+
+      const booking = await bookingService.createAdminBooking(
+        { courtId, startTime, endTime, paymentMethod },
+        adminUserId,
+      );
+
+      return res.status(201).json(booking);
+    } catch (error: any) {
+      return res.status(400).json({
+        message: error.message || "Error al crear la reserva manual.",
+      });
+    }
+  };
 }
