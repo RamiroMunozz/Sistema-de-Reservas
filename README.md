@@ -110,6 +110,8 @@ JWT_SECRET="tu_jwt_secret_seguro"
 MP_ACCESS_TOKEN="tu_access_token_de_mercadopago"
 FRONTEND_URL="http://localhost:5173"
 
+`JWT_SECRET` es obligatorio: el backend no arranca sin él. Para `docker compose`, copiá `.env.example` como `.env` en la raíz y definilo ahí.
+
 ## Aplicar las migraciones de Prisma e iniciar el servidor:
 
 npx prisma migrate dev

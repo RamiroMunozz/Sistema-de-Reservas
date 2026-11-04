@@ -20,7 +20,7 @@ Rama: fix/security-audit. Estrategia de entrega: ask-on-risk. Runner de tests: v
 - [x] T8 (S8), inline, informe en `auditoria.md`.
 - [ ] T3 (S4), inline, autenticación y control de dueño en `create-preference`. Pendiente de confirmación.
 - [ ] T4 (S4), inline, firma del webhook de Mercado Pago y `notification_url` configurable. Pendiente de confirmación.
-- [ ] T5 (S4), inline, eliminar los secretos JWT por defecto. Pendiente de confirmación.
+- [x] T5 (S4), inline, eliminar los secretos JWT por defecto, un solo punto de verificación, HS256 y arranque fallido sin `JWT_SECRET`. RED: un token con `default_secret` y uno HS512 recibían 200. GREEN: 9/9 en `tests/secretosJwt.test.ts`.
 - [ ] T6 (S5), inline, prevención de solapamientos garantizada por la base de datos. Pendiente de confirmación.
 
 ## Log
@@ -31,4 +31,5 @@ Rama: fix/security-audit. Estrategia de entrega: ask-on-risk. Runner de tests: v
 - L4: El hook de pre-commit de GGA rechazó `booking.controller.ts` por usos previos de `any` y `@ts-ignore` (`AGENTS.md`, "Cero `any`"). No se salteó el hook; S3 pasó a T2.
 - L6: Verificador independiente de T2 sobre b02075e: S3 cumple, alcance T2 de S4 cumple, sin bloqueantes. Advertencias previas: 500 con UUID inexistente en `PATCH` admin y `cancel`; `booking.service.ts:90` loguea `userId`. Sus sondas de 401 pasaron a `tests/rutasAdminReservas.test.ts`.
 - L7 (2026-11-04), usuario: "olvidate de health.test.ts.(era un test para ver probarte si estabas trabjando bajo ODD + Gentle), deja a gentle bien configurado, deben trabajar Gentle-ai + ODD + pi + Claude. Sigue con la auditoria completa, una vez finalizada dejamela en un archivo llamado auditoria.md en la raiz del proyecto." T3 a T6 no se confirmaron y siguen pendientes.
+- L8 (2026-11-04), usuario: "Primero vamos a corregir todos los errores, uno por uno como propusiste, luego antes de seguir avanzando en el proyecto me ayudaras a crear las specs necesarias para que el proyecto funcione correctamente y para que tu trabajes correctamente." Confirma T3 a T6 y el plan de `auditoria.md`, en ese orden.
 - L5 (2026-11-04), usuario: "Si, pero tambien quiero que las variables, las specs, task, logs, y todo lo que sea relacionado a este proyecto sea en español".

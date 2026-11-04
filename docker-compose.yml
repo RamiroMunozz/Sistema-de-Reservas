@@ -24,7 +24,7 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: "postgresql://postgres:password@postgres:5432/sistema_reservas?schema=public"
-      JWT_SECRET: "super_secret_jwt_key_development_2026"
+      JWT_SECRET: "${JWT_SECRET:?Definí JWT_SECRET en el archivo .env de la raíz}"
       PORT: 3000
     volumes:
       - ./backend:/app

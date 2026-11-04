@@ -1,11 +1,14 @@
 import "dotenv/config";
 import app from "./app.js";
 import { prisma } from "./core/config/prisma.js";
+import { validarConfiguracionDeSeguridad } from "./core/config/security.js";
 
 const PORT = Number(process.env.PORT) || 3000;
 
 async function bootstrap() {
   try {
+    validarConfiguracionDeSeguridad();
+
     // Validar conexión a PostgreSQL
     await prisma.$connect();
     console.log("✅ Conexión con PostgreSQL establecida correctamente.");
