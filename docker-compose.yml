@@ -15,7 +15,7 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: DockerFile
     container_name: reservas_backend
     restart: always
     depends_on:
@@ -33,7 +33,7 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: DockerFile
     container_name: reservas_frontend
     restart: always
     depends_on:
@@ -41,7 +41,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:3000/api
+      - VITE_API_URL=http://localhost:3000/api/v1
     volumes:
       - ./frontend:/app
       - /app/node_modules
