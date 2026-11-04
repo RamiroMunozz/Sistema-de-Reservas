@@ -107,13 +107,27 @@ npm install
 PORT=3000
 DATABASE_URL="postgresql://usuario:password@localhost:5432/sports_booking?schema=public"
 JWT_SECRET="tu_jwt_secret_seguro"
-MP_ACCESS_TOKEN="tu_access_token_de_mercadopago"
+MERCADOPAGO_ACCESS_TOKEN="tu_access_token_de_mercadopago"
+MERCADOPAGO_WEBHOOK_SECRET="tu_clave_secreta_de_webhooks"
+BACKEND_URL="https://url-publica-del-backend"
 FRONTEND_URL="http://localhost:5173"
+
+`JWT_SECRET` es obligatorio: el backend no arranca sin él. Para `docker compose`, copiá `.env.example` como `.env` en la raíz y definilo ahí.
+
+Las variables de Mercado Pago y `BACKEND_URL` solo hacen falta para cobrar. Sin ellas no se generan pagos, y el webhook rechaza toda notificación con 401. En desarrollo, `BACKEND_URL` debe ser la URL de un túnel público para que Mercado Pago pueda llegar al backend.
 
 ## Aplicar las migraciones de Prisma e iniciar el servidor:
 
 npx prisma migrate dev
 npm run dev
+
+La migración `reservas_sin_solapamiento` instala la extensión `btree_gist`, por lo que el usuario de la base necesita permisos para crearla.
+
+## Ejecutar los tests del backend:
+
+npm test
+
+Los tests de concurrencia solo corren si definís `DATABASE_URL_PRUEBA` con el mismo valor que `DATABASE_URL`, apuntando a una base descartable con las migraciones aplicadas. Escriben y borran datos: nunca los ejecutes contra una base con datos reales.
 
 ## CONFIGURAR Y LEVANTAR EL FRONTEND:
 

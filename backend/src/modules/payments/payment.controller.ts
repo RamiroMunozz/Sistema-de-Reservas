@@ -1,4 +1,9 @@
 import { Request, Response, NextFunction } from "express";
+import {
+  consultaWebhookSchema,
+  crearPreferenciaSchema,
+  cuerpoWebhookSchema,
+} from "./payment.dto.js";
 import { PaymentService } from "./payment.service.js";
 
 export class PaymentController {
@@ -14,14 +19,18 @@ export class PaymentController {
     next: NextFunction,
   ) => {
     try {
-      const { bookingId } = req.body;
+      const idUsuario = req.user?.userId;
 
-      if (!bookingId) {
-        return res.status(400).json({ message: "El bookingId es requerido" });
+      if (!idUsuario) {
+        return res.status(401).json({ message: "Usuario no autenticado." });
       }
 
-      const preference =
-        await this.paymentService.createPaymentPreference(bookingId);
+      const { bookingId } = crearPreferenciaSchema.parse(req.body);
+
+      const preference = await this.paymentService.createPaymentPreference(
+        bookingId,
+        idUsuario,
+      );
       return res.status(200).json(preference);
     } catch (error) {
       next(error);
@@ -30,19 +39,15 @@ export class PaymentController {
 
   handleWebhook = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const paymentId =
-        req.body?.data?.id || req.query?.["data.id"] || req.query?.id;
+      const cuerpo = cuerpoWebhookSchema.parse(req.body);
+      const consulta = consultaWebhookSchema.parse(req.query);
 
-      const type = req.body?.type || req.query?.type || req.query?.topic;
-
-      if (
-        (type === "payment" ||
-          type === "payment.created" ||
-          type === "payment.updated") &&
-        paymentId
-      ) {
-        await this.paymentService.processWebhook(String(paymentId));
-      }
+      await this.paymentService.procesarNotificacion({
+        firma: req.headers["x-signature"],
+        idPedido: req.headers["x-request-id"],
+        idPago: consulta["data.id"],
+        tipo: cuerpo.type || consulta.type,
+      });
 
       return res.status(200).json({ received: true });
     } catch (error) {

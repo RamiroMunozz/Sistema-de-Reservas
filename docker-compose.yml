@@ -15,7 +15,7 @@ services:
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile
+      dockerfile: DockerFile
     container_name: reservas_backend
     restart: always
     depends_on:
@@ -24,8 +24,12 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: "postgresql://postgres:password@postgres:5432/sistema_reservas?schema=public"
-      JWT_SECRET: "super_secret_jwt_key_development_2026"
+      JWT_SECRET: "${JWT_SECRET:?Definí JWT_SECRET en el archivo .env de la raíz}"
       PORT: 3000
+      BACKEND_URL: "${BACKEND_URL:-}"
+      FRONTEND_URL: "${FRONTEND_URL:-http://localhost:5173}"
+      MERCADOPAGO_ACCESS_TOKEN: "${MERCADOPAGO_ACCESS_TOKEN:-}"
+      MERCADOPAGO_WEBHOOK_SECRET: "${MERCADOPAGO_WEBHOOK_SECRET:-}"
     volumes:
       - ./backend:/app
       - /app/node_modules
@@ -33,7 +37,7 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: DockerFile
     container_name: reservas_frontend
     restart: always
     depends_on:
@@ -41,7 +45,7 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_URL=http://localhost:3000/api
+      - VITE_API_URL=http://localhost:3000/api/v1
     volumes:
       - ./frontend:/app
       - /app/node_modules

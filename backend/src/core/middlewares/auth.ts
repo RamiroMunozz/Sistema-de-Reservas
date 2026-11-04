@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import jwt from "jsonwebtoken";
+import { verifyAccessToken } from "../config/security.js";
 
 export const authenticate = (
   req: Request,
@@ -17,16 +17,11 @@ export const authenticate = (
   const token = authHeader.split(" ")[1];
 
   try {
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || "default_secret",
-    ) as any;
-
     // Asignar el usuario decodificado a req.user
-    (req as any).user = decoded;
+    req.user = verifyAccessToken(token);
 
     next();
-  } catch (error) {
+  } catch {
     return res.status(401).json({ message: "Token inválido o expirado." });
   }
 };

@@ -1,36 +1,70 @@
 import { Request, Response, NextFunction } from "express";
+import { BookingStatus, PaymentMethod } from "@prisma/client";
+import { AppError } from "../../core/errors/AppError.js";
 import { BookingService } from "./booking.service.js";
 
 const bookingService = new BookingService();
 
+interface CuerpoCrearReserva {
+  courtId: string;
+  startTime: string;
+  endTime: string;
+  paymentMethod?: PaymentMethod;
+}
+
+interface CuerpoCrearReservaAdmin extends CuerpoCrearReserva {
+  paymentMethod: PaymentMethod;
+}
+
+interface CuerpoActualizarEstado {
+  status: BookingStatus;
+}
+
+const obtenerMensajeDeError = (error: unknown, mensajePorDefecto: string) =>
+  (error instanceof Error && error.message) || mensajePorDefecto;
+
+const responderNoAutenticado = (res: Response) =>
+  res.status(401).json({ message: "Usuario no autenticado." });
+
 export class BookingController {
   create = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // @ts-ignore
-      const user = req.user;
-      const userId = (user?.id || user?.userId || user?.sub) as string;
-      const { courtId, startTime, endTime, paymentMethod } = req.body;
+      const idUsuario = req.user?.userId;
+
+      if (!idUsuario) {
+        return responderNoAutenticado(res);
+      }
+
+      const { courtId, startTime, endTime, paymentMethod } =
+        req.body as CuerpoCrearReserva;
 
       const booking = await bookingService.createBooking(
         { courtId, startTime, endTime, paymentMethod },
-        userId,
+        idUsuario,
       );
 
       return res.status(201).json(booking);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        return next(error);
+      }
+
       // Retorna 400 Bad Request con el mensaje específico de validación
-      return res
-        .status(400)
-        .json({ message: error.message || "Error al crear la reserva" });
+      return res.status(400).json({
+        message: obtenerMensajeDeError(error, "Error al crear la reserva"),
+      });
     }
   };
 
   getMyBookings = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // @ts-ignore
-      const userId = (req.user?.id || req.user?.userId) as string;
+      const idUsuario = req.user?.userId;
 
-      const bookings = await bookingService.getUserBookings(userId);
+      if (!idUsuario) {
+        return responderNoAutenticado(res);
+      }
+
+      const bookings = await bookingService.getUserBookings(idUsuario);
       return res.status(200).json(bookings);
     } catch (error) {
       next(error);
@@ -39,27 +73,18 @@ export class BookingController {
 
   cancel = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      console.log("--> REQ.USER COMPLETO:", (req as any).user);
-
-      const user = (req as any).user;
-      // Extrae ID cubriendo todas las estructuras comunes de JWT
-      const userId =
-        user?.id ||
-        user?.userId ||
-        user?.sub ||
-        (typeof user === "string" ? user : null);
+      const idUsuario = req.user?.userId;
       const id = req.params.id as string;
 
-      if (!userId) {
-        console.error("No se pudo extraer userId de req.user:", user);
-        return res.status(401).json({ message: "Usuario no autenticado." });
+      if (!idUsuario) {
+        return responderNoAutenticado(res);
       }
 
       if (!id) {
         return res.status(400).json({ message: "ID de reserva no provisto." });
       }
 
-      const updated = await bookingService.cancelBooking(id, userId);
+      const updated = await bookingService.cancelBooking(id, idUsuario);
       return res.status(200).json(updated);
     } catch (error) {
       next(error);
@@ -107,7 +132,7 @@ export class BookingController {
   updateStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const id = String(req.params.id);
-      const { status } = req.body;
+      const { status } = req.body as CuerpoActualizarEstado;
 
       if (!id || !status) {
         return res.status(400).json({ message: "ID y status son requeridos." });
@@ -122,10 +147,14 @@ export class BookingController {
 
   createAdmin = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // @ts-ignore
-      const user = req.user;
-      const adminUserId = (user?.id || user?.userId || user?.sub) as string;
-      const { courtId, startTime, endTime, paymentMethod } = req.body;
+      const idAdmin = req.user?.userId;
+
+      if (!idAdmin) {
+        return responderNoAutenticado(res);
+      }
+
+      const { courtId, startTime, endTime, paymentMethod } =
+        req.body as CuerpoCrearReservaAdmin;
 
       if (!courtId || !startTime || !endTime) {
         return res.status(400).json({ message: "Faltan campos obligatorios." });
@@ -133,13 +162,20 @@ export class BookingController {
 
       const booking = await bookingService.createAdminBooking(
         { courtId, startTime, endTime, paymentMethod },
-        adminUserId,
+        idAdmin,
       );
 
       return res.status(201).json(booking);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        return next(error);
+      }
+
       return res.status(400).json({
-        message: error.message || "Error al crear la reserva manual.",
+        message: obtenerMensajeDeError(
+          error,
+          "Error al crear la reserva manual.",
+        ),
       });
     }
   };

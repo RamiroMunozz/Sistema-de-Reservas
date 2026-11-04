@@ -1,1 +1,11 @@
-node_modules/\n.env\ndist/\n*.log
+node_modules/
+.env
+dist/
+*.log
+
+# Archivos locales generados por Gentle AI y CodeGraph
+/.atl/
+/.claude/
+/.codegraph/
+/.mcp.json
+/.pi/
