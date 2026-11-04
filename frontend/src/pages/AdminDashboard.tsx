@@ -38,7 +38,7 @@ interface AdminBooking {
   endTime: string;
   status: "CONFIRMED" | "CANCELLED" | "COMPLETED" | "PENDING";
   totalPrice: string | number;
-  paymentMethod: "CASH" | "TRANSFER" | string;
+  paymentMethod: "CASH" | "TRANSFER" | "MERCADOPAGO";
   court: {
     id?: string;
     name: string;
@@ -48,7 +48,6 @@ interface AdminBooking {
     id?: string;
     firstName?: string;
     lastName?: string;
-    name?: string;
     email: string;
     phone?: string;
   };
@@ -124,15 +123,19 @@ export const AdminDashboard: React.FC = () => {
     let isMounted = true;
 
     const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, "0");
-    const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+    const year = now.getUTCFullYear();
+    const month = String(now.getUTCMonth() + 1).padStart(2, "0");
+    const lastDay = new Date(
+      Date.UTC(year, now.getUTCMonth() + 1, 0),
+    ).getUTCDate();
 
     const startDate = `${year}-${month}-01`;
     const endDate = `${year}-${month}-${lastDay}`;
 
     Promise.all([
-      api.get(`/admin/metrics?startDate=${startDate}&endDate=${endDate}`),
+      api.get<{ summary: MetricsSummary }>(
+        `/admin/metrics?startDate=${startDate}&endDate=${endDate}`,
+      ),
       api.get<Court[]>("/courts"),
     ])
       .then(([metricsRes, courtsRes]) => {
@@ -262,9 +265,10 @@ export const AdminDashboard: React.FC = () => {
       setLoadingDaily(true);
       setRefreshGridKey((prev) => prev + 1);
     } catch (err: unknown) {
-      if (isAxiosError<{ message?: string }>(err)) {
+      if (isAxiosError<{ detail?: string; message?: string }>(err)) {
         setManualError(
-          err.response?.data?.message ||
+          err.response?.data?.detail ||
+            err.response?.data?.message ||
             "Error al registrar la reserva manual.",
         );
       } else {
@@ -592,7 +596,6 @@ export const AdminDashboard: React.FC = () => {
                                     <span className="truncate max-w-[110px]">
                                       {booking.user
                                         ? `${booking.user.firstName || ""} ${booking.user.lastName || ""}`.trim() ||
-                                          booking.user.name ||
                                           booking.user.email.split("@")[0]
                                         : "Cliente"}
                                     </span>
@@ -809,9 +812,15 @@ export const AdminDashboard: React.FC = () => {
             <div className="space-y-3">
               {allBookings.map((b) => {
                 const startDate = new Date(b.startTime);
-                const dateStr = startDate.toLocaleDateString("es-AR");
+                const dateStr = startDate.toLocaleDateString("es-AR", {
+                  timeZone: "UTC",
+                });
                 const hours = startDate
                   .getUTCHours()
+                  .toString()
+                  .padStart(2, "0");
+                const minutes = startDate
+                  .getUTCMinutes()
                   .toString()
                   .padStart(2, "0");
                 const isCancelled = b.status === "CANCELLED";
@@ -843,7 +852,7 @@ export const AdminDashboard: React.FC = () => {
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-3.5 h-3.5 text-slate-500" />
-                          {hours}:00 hs
+                          {hours}:{minutes} hs
                         </span>
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-slate-500" />
@@ -851,7 +860,10 @@ export const AdminDashboard: React.FC = () => {
                         </span>
                         {b.user?.email && (
                           <span className="text-slate-500">
-                            ({b.user.name || b.user.email})
+                            (
+                            {`${b.user.firstName || ""} ${b.user.lastName || ""}`.trim() ||
+                              b.user.email}
+                            )
                           </span>
                         )}
                       </div>
