@@ -15,6 +15,7 @@ export const conBloqueoDeCancha = async <T>(
 ): Promise<T> => {
   try {
     return await prisma.$transaction(async (transaccion) => {
+      await transaccion.$executeRaw`SET LOCAL lock_timeout = '5s'`;
       await transaccion.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${idCancha}))`;
       return operacion(transaccion);
     }, OPCIONES_DE_TRANSACCION);

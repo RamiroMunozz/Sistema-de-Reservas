@@ -11,14 +11,14 @@ async function bootstrap() {
 
     // Validar conexión a PostgreSQL
     await prisma.$connect();
-    console.log("✅ Conexión con PostgreSQL establecida correctamente.");
+    console.log("Conexión con PostgreSQL establecida correctamente.");
 
     app.listen(PORT, () => {
-      console.log(`🚀 Servidor corriendo en: http://localhost:${PORT}`);
-      console.log(`📡 Health check: http://localhost:${PORT}/health`);
+      console.log(`Servidor corriendo en: http://localhost:${PORT}`);
+      console.log(`Health check: http://localhost:${PORT}/health`);
     });
   } catch (error) {
-    console.error("❌ Error fatal al iniciar la aplicación:", error);
+    console.error("Error fatal al iniciar la aplicación:", error);
     await prisma.$disconnect();
     process.exit(1);
   }

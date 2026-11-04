@@ -68,9 +68,11 @@ describe("Suite de Integración - API de Reservas", () => {
   });
 
   describe("Lógica de Reservas y Concurrencia Transaccional", () => {
+    const fechaDelTurno = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const dia = fechaDelTurno.toISOString().slice(0, 10);
     const testSlot = {
-      startTime: "2026-11-20T19:00:00.000Z",
-      endTime: "2026-11-20T20:00:00.000Z",
+      startTime: `${dia}T19:00:00.000Z`,
+      endTime: `${dia}T20:00:00.000Z`,
     };
 
     // Deja la base como estaba: el turno es fijo y sus reservas son de este test.

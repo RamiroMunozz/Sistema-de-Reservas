@@ -16,6 +16,7 @@ Rama: fix/security-audit. Estrategia de entrega: ask-on-risk. Runner de tests: v
 
 - [x] T1 (S1, S2), inline, arreglos de Docker. Verificado solo con parseo de YAML; `docker compose` no está disponible en este entorno. Commit: 8971a02.
 - [x] T2 (S3, S4), inline, tipar `req.user`, quitar `any` de `booking.controller.ts` y exigir ADMIN en las rutas admin de reservas. RED: un USER recibía 200, 500 y 400 en las tres rutas. GREEN: 10/10 en `tests/rutasAdminReservas.test.ts`. Commits: b02075e y 24a9868. Revisión nativa aprobada.
+- [x] T9 (S4), inline, validación con DTOs en reservas, rate limit de autenticación, CORS con `FRONTEND_URL`, `lock_timeout`, errores internos ocultos y disponibilidad que no marca libre lo completado. RED: 23 de 28 tests fallaban. GREEN: `npm test` 84 pasan y 12 omitidos; concurrencia 12/12 en base descartable.
 - [x] T7 (S7), inline, configuración de Gentle AI en el repositorio. Pi queda sin funcionar por una API key inválida, que debe corregir el usuario.
 - [x] T8 (S8), inline, informe en `auditoria.md`.
 - [x] T3 (S4), inline, autenticación, control de dueño y de estado en `create-preference`. RED: 8 de 9 tests fallaban. GREEN: 9/9 en `tests/preferenciaPago.test.ts`. Commit: df82fb6.
@@ -38,4 +39,5 @@ Rama: fix/security-audit. Estrategia de entrega: ask-on-risk. Runner de tests: v
 - L12: Se versiona `20261031231330_nueva_migracion`, del usuario, porque sin ella una base nueva no coincide con `schema.prisma`.
 - L13: Correcciones de los avisos sobre T3 y T4: no se cobra sin `MERCADOPAGO_WEBHOOK_SECRET` y solo se procesan IDs de pago numéricos.
 - L14: Verificador de T6 sobre 7d14d8f: S5 cumple, un bloqueante en `AdminDashboard.tsx:265`, que solo leía `message`. Corregido para leer `detail`. Advertencias para el paso 5: sin `lock_timeout`, errores crudos de Prisma en el 400 admin, y `getOccupiedSlots` no marca `PENDING` ni `COMPLETED`.
+- L15: Decisiones de T9. La regla de turno pasado aplica solo a usuarios; el admin puede registrar turnos pasados. La duración máxima y los horarios de cada cancha quedan para las specs, porque no hay criterio definido. Las respuestas de error de reservas pasan de `message` a `detail`; el frontend lee ambos.
 - L5 (2026-11-04), usuario: "Si, pero tambien quiero que las variables, las specs, task, logs, y todo lo que sea relacionado a este proyecto sea en español".

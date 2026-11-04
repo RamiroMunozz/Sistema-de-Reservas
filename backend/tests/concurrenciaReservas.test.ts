@@ -196,6 +196,38 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Concurrencia de reservas", () => {
     expect(original?.status).toBe("CANCELLED");
   });
 
+  it("no marca libre un turno completado en la disponibilidad", async () => {
+    const reserva = await reservar(horario(10, 11));
+    await request(app)
+      .patch(`/api/v1/bookings/admin/${reserva.body.id}/status`)
+      .set(conToken("ADMIN"))
+      .send({ status: "COMPLETED" });
+
+    const respuesta = await request(app).get(
+      `/api/v1/bookings/availability?courtId=${idCancha}&date=2030-01-15`,
+    );
+
+    expect(respuesta.body).toEqual(["10:00"]);
+  });
+
+  it("corta la espera si otra transacción retiene el bloqueo de la cancha", async () => {
+    const inicio = Date.now();
+    let respuestaEnEspera;
+
+    await prisma.$transaction(
+      async (transaccion) => {
+        await transaccion.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${idCancha}))`;
+        vi.spyOn(console, "error").mockImplementation(() => undefined);
+        respuestaEnEspera = await reservar(horario(10, 11));
+      },
+      { timeout: 9000 },
+    );
+
+    vi.mocked(console.error).mockRestore();
+    expect(respuestaEnEspera).toMatchObject({ status: 500 });
+    expect(Date.now() - inicio).toBeLessThan(8000);
+  });
+
   it("la base rechaza un horario con fin anterior al inicio", async () => {
     await expect(
       prisma.booking.create({
