@@ -18,7 +18,7 @@ Rama: fix/security-audit. Estrategia de entrega: ask-on-risk. Runner de tests: v
 - [x] T2 (S3, S4), inline, tipar `req.user`, quitar `any` de `booking.controller.ts` y exigir ADMIN en las rutas admin de reservas. RED: un USER recibía 200, 500 y 400 en las tres rutas. GREEN: 10/10 en `tests/rutasAdminReservas.test.ts`. Commits: b02075e y 24a9868. Revisión nativa aprobada.
 - [x] T7 (S7), inline, configuración de Gentle AI en el repositorio. Pi queda sin funcionar por una API key inválida, que debe corregir el usuario.
 - [x] T8 (S8), inline, informe en `auditoria.md`.
-- [ ] T3 (S4), inline, autenticación y control de dueño en `create-preference`. Pendiente de confirmación.
+- [x] T3 (S4), inline, autenticación, control de dueño y de estado en `create-preference`. RED: 8 de 10 tests fallaban con 500. GREEN: 10/10 en `tests/preferenciaPago.test.ts`.
 - [ ] T4 (S4), inline, firma del webhook de Mercado Pago y `notification_url` configurable. Pendiente de confirmación.
 - [x] T5 (S4), inline, eliminar los secretos JWT por defecto, un solo punto de verificación, HS256 y arranque fallido sin `JWT_SECRET`. RED: un token con `default_secret` y uno HS512 recibían 200. GREEN: 9/9 en `tests/secretosJwt.test.ts`.
 - [ ] T6 (S5), inline, prevención de solapamientos garantizada por la base de datos. Pendiente de confirmación.

@@ -1,10 +1,19 @@
 import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
-import { PrismaClient } from "@prisma/client";
+import { BookingStatus } from "@prisma/client";
+import { prisma } from "../../core/config/prisma.js";
+import {
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+} from "../../core/errors/AppError.js";
 
-const prisma = new PrismaClient();
+const ESTADOS_PAGABLES: BookingStatus[] = [
+  BookingStatus.PENDING,
+  BookingStatus.CONFIRMED,
+];
 
 export class PaymentService {
-  async createPaymentPreference(bookingId: string) {
+  async createPaymentPreference(bookingId: string, idUsuario: string) {
     const booking = await prisma.booking.findUnique({
       where: { id: bookingId },
       include: {
@@ -14,7 +23,17 @@ export class PaymentService {
     });
 
     if (!booking) {
-      throw new Error("Reserva no encontrada");
+      throw new NotFoundError("Reserva no encontrada");
+    }
+
+    if (booking.userId !== idUsuario) {
+      throw new ForbiddenError(
+        "No tienes autorización para pagar esta reserva.",
+      );
+    }
+
+    if (!ESTADOS_PAGABLES.includes(booking.status)) {
+      throw new ConflictError("Esta reserva no se puede pagar.");
     }
 
     const client = new MercadoPagoConfig({
