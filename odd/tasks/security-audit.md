@@ -25,4 +25,5 @@ Rama: fix/security-audit. Estrategia de entrega: ask-on-risk. Runner de tests: v
 - L2 (2026-11-04), usuario: "los cambios que has notado los hice yo". La edición de `server.ts` y el borrado de `src/health.ts` son del usuario y quedan fuera de esta tarea.
 - L3: `npm run build || true` se mantiene en el DockerFile hasta corregir los errores de `tsc`, porque quitarlo ahora rompería el build de la imagen.
 - L4: El hook de pre-commit de GGA rechazó `booking.controller.ts` por usos previos de `any` y `@ts-ignore` (`AGENTS.md`, "Cero `any`"). No se salteó el hook; S3 pasó a T2.
+- L6: Verificador independiente de T2 sobre b02075e: S3 cumple, alcance T2 de S4 cumple, sin bloqueantes. Advertencias previas: 500 con UUID inexistente en `PATCH` admin y `cancel`; `booking.service.ts:90` loguea `userId`. Sus sondas de 401 pasaron a `tests/rutasAdminReservas.test.ts`.
 - L5 (2026-11-04), usuario: "Si, pero tambien quiero que las variables, las specs, task, logs, y todo lo que sea relacionado a este proyecto sea en español".

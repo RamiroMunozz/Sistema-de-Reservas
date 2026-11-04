@@ -71,6 +71,27 @@ describe("Rutas admin de reservas", () => {
       expect(respuesta.status).toBe(401);
     });
 
+    it("un pedido sin token recibe 401 en PATCH /admin/:id/status", async () => {
+      const respuesta = await request(app)
+        .patch(`/api/v1/bookings/admin/${randomUUID()}/status`)
+        .send({ status: "CANCELLED" });
+
+      expect(respuesta.status).toBe(401);
+    });
+
+    it("un pedido sin token recibe 401 en POST /admin/create", async () => {
+      const respuesta = await request(app)
+        .post("/api/v1/bookings/admin/create")
+        .send({
+          courtId: randomUUID(),
+          startTime: "2000-01-01T10:00:00.000Z",
+          endTime: "2000-01-01T11:00:00.000Z",
+          paymentMethod: "CASH",
+        });
+
+      expect(respuesta.status).toBe(401);
+    });
+
     it("un ADMIN accede a GET /admin/daily", async () => {
       const respuesta = await request(app)
         .get(`/api/v1/bookings/admin/daily?date=${FECHA_SIN_RESERVAS}`)
