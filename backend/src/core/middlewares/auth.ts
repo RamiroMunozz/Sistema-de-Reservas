@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
+import type { JwtPayload } from "../config/security.js";
 
 export const authenticate = (
   req: Request,
@@ -20,10 +21,10 @@ export const authenticate = (
     const decoded = jwt.verify(
       token,
       process.env.JWT_SECRET || "default_secret",
-    ) as any;
+    ) as unknown as JwtPayload;
 
     // Asignar el usuario decodificado a req.user
-    (req as any).user = decoded;
+    req.user = decoded;
 
     next();
   } catch (error) {
