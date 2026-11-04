@@ -45,6 +45,7 @@ describe("POST /payments/create-preference", () => {
     vi.stubEnv("JWT_SECRET", SECRETO_DE_PRUEBA);
     vi.stubEnv("BACKEND_URL", "https://api.ejemplo.test");
     vi.stubEnv("MERCADOPAGO_ACCESS_TOKEN", "token_de_prueba");
+    vi.stubEnv("MERCADOPAGO_WEBHOOK_SECRET", "secreto_webhook_de_prueba");
   });
 
   afterAll(() => {
@@ -178,6 +179,21 @@ describe("POST /payments/create-preference", () => {
       .send({ bookingId: ID_RESERVA });
 
     vi.stubEnv("BACKEND_URL", "https://api.ejemplo.test");
+    expect(respuesta.status).toBe(500);
+    expect(crearPreferencia).not.toHaveBeenCalled();
+  });
+
+  it("no genera el cobro si falta MERCADOPAGO_WEBHOOK_SECRET", async () => {
+    vi.stubEnv("MERCADOPAGO_WEBHOOK_SECRET", "");
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    buscarReserva.mockResolvedValue(reserva("CONFIRMED"));
+
+    const respuesta = await request(app)
+      .post(RUTA)
+      .set(conToken(ID_DUENO))
+      .send({ bookingId: ID_RESERVA });
+
+    vi.stubEnv("MERCADOPAGO_WEBHOOK_SECRET", "secreto_webhook_de_prueba");
     expect(respuesta.status).toBe(500);
     expect(crearPreferencia).not.toHaveBeenCalled();
   });

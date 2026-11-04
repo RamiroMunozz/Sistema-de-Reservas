@@ -14,6 +14,7 @@ import {
   NotFoundError,
   UnauthorizedError,
 } from "../../core/errors/AppError.js";
+import { conBloqueoDeCancha } from "../bookings/bloqueoCancha.js";
 
 const ESTADOS_PAGABLES: BookingStatus[] = [
   BookingStatus.PENDING,
@@ -21,6 +22,8 @@ const ESTADOS_PAGABLES: BookingStatus[] = [
 ];
 
 const EVENTOS_DE_PAGO = ["payment", "payment.created", "payment.updated"];
+
+const ID_PAGO_VALIDO = /^\d+$/;
 
 const referenciaReservaSchema = z.string().uuid();
 
@@ -70,6 +73,8 @@ export class PaymentService {
       throw new ConflictError("Esta reserva no se puede pagar.");
     }
 
+    // Sin el secreto el webhook rechazaría la notificación de un pago ya cobrado
+    obtenerVariableRequerida("MERCADOPAGO_WEBHOOK_SECRET");
     const backendUrl = obtenerVariableRequerida("BACKEND_URL");
     const preference = new Preference(crearClienteMercadoPago());
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -113,7 +118,12 @@ export class PaymentService {
 
     const { idPago, tipo } = notificacion;
 
-    if (idPago && tipo && EVENTOS_DE_PAGO.includes(tipo)) {
+    if (
+      idPago &&
+      ID_PAGO_VALIDO.test(idPago) &&
+      tipo &&
+      EVENTOS_DE_PAGO.includes(tipo)
+    ) {
       await this.processWebhook(idPago);
     }
   }
@@ -190,31 +200,24 @@ export class PaymentService {
       return;
     }
 
-    if (booking.status === BookingStatus.CANCELLED) {
-      const solapada = await prisma.booking.findFirst({
-        where: {
-          id: { not: idReserva },
-          courtId: booking.courtId,
-          status: { in: ESTADOS_PAGABLES },
-          startTime: { lt: booking.endTime },
-          endTime: { gt: booking.startTime },
-        },
-      });
-
-      if (solapada) {
-        console.warn(
-          `[PAGO] El pago ${idPago} requiere revisión manual: el turno de la reserva ${idReserva} ya está ocupado.`,
-        );
-        return;
+    try {
+      await conBloqueoDeCancha(booking.courtId, (transaccion) =>
+        transaccion.booking.updateMany({
+          where: { id: idReserva, status: booking.status },
+          data: {
+            status: BookingStatus.CONFIRMED,
+            paymentMethod: "TRANSFER",
+          },
+        }),
+      );
+    } catch (error) {
+      if (!(error instanceof ConflictError)) {
+        throw error;
       }
-    }
 
-    await prisma.booking.updateMany({
-      where: { id: idReserva, status: booking.status },
-      data: {
-        status: BookingStatus.CONFIRMED,
-        paymentMethod: "TRANSFER",
-      },
-    });
+      console.warn(
+        `[PAGO] El pago ${idPago} requiere revisión manual: el turno de la reserva ${idReserva} ya está ocupado.`,
+      );
+    }
   }
 }

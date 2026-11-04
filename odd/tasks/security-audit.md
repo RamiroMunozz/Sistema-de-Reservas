@@ -21,7 +21,7 @@ Rama: fix/security-audit. Estrategia de entrega: ask-on-risk. Runner de tests: v
 - [x] T3 (S4), inline, autenticación, control de dueño y de estado en `create-preference`. RED: 8 de 9 tests fallaban. GREEN: 9/9 en `tests/preferenciaPago.test.ts`. Commit: df82fb6.
 - [x] T4 (S4), inline, firma del webhook con `WebhookSignatureValidator`, control de monto, `notification_url` desde `BACKEND_URL` y sin reconfirmar sobre un turno ocupado. RED: 18 tests fallaban. GREEN: 19 en `tests/webhookPago.test.ts` y 12 en `tests/preferenciaPago.test.ts`.
 - [x] T5 (S4), inline, eliminar los secretos JWT por defecto, un solo punto de verificación, HS256 y arranque fallido sin `JWT_SECRET`. RED: un token con `default_secret` y uno HS512 recibían 200. GREEN: 9/9 en `tests/secretosJwt.test.ts`.
-- [ ] T6 (S5), inline, prevención de solapamientos garantizada por la base de datos. Pendiente de confirmación.
+- [x] T6 (S5), inline, restricción `EXCLUDE`, bloqueo por cancha y respuesta 409. RED: de 20 pedidos simultáneos, 11 reservaron. GREEN: 300 rondas de 10 pedidos con exactamente una reserva por turno, 0 deadlocks y 49 ms de máximo. `npm test`: 56 pasan y 10 omitidos; `tests/concurrenciaReservas.test.ts`: 10/10 en base descartable.
 
 ## Log
 
@@ -34,4 +34,7 @@ Rama: fix/security-audit. Estrategia de entrega: ask-on-risk. Runner de tests: v
 - L8 (2026-11-04), usuario: "Primero vamos a corregir todos los errores, uno por uno como propusiste, luego antes de seguir avanzando en el proyecto me ayudaras a crear las specs necesarias para que el proyecto funcione correctamente y para que tu trabajes correctamente." Confirma T3 a T6 y el plan de `auditoria.md`, en ese orden.
 - L9: Decisiones de T4. Solo se procesa `data.id` de la URL, porque es lo que cubre la firma. No se usa tolerancia de tiempo: la documentación no aclara si los reintentos renuevan `ts`, así que la protección ante repetición viene de que cada transición de estado es idempotente. Un pago aprobado sobre una reserva cancelada la reconfirma si el turno sigue libre, porque Mercado Pago permite reintentar tras un rechazo; si está ocupado, queda un aviso para revisión manual. Un pago rechazado sigue cancelando reservas activas hasta resolver A3. Se mantiene `paymentMethod: "TRANSFER"`.
 - L10: El verificador de T5 detectó que el `JWT_SECRET` de `backend/.env` parece ser el valor viejo del compose, público en el historial. Debe rotarlo el usuario.
+- L11: Decisiones de T6. No se usa Redis: la restricción en PostgreSQL es la garantía y no puede expirar. Bloquea toda reserva distinta de `CANCELLED`. Solo con `EXCLUDE` hubo 324 deadlocks en 2700 pedidos y esperas de hasta 9 s, sin duplicados; por eso se agregó `pg_advisory_xact_lock` por cancha. La migración se aplicó a la base de desarrollo, que no tenía solapamientos. `npm test` borró la reserva residual del 2026-11-20 al limpiar su turno.
+- L12: Se versiona `20261031231330_nueva_migracion`, del usuario, porque sin ella una base nueva no coincide con `schema.prisma`.
+- L13: Correcciones de los avisos sobre T3 y T4: no se cobra sin `MERCADOPAGO_WEBHOOK_SECRET` y solo se procesan IDs de pago numéricos.
 - L5 (2026-11-04), usuario: "Si, pero tambien quiero que las variables, las specs, task, logs, y todo lo que sea relacionado a este proyecto sea en español".

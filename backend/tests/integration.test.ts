@@ -73,6 +73,20 @@ describe("Suite de Integración - API de Reservas", () => {
       endTime: "2026-11-20T20:00:00.000Z",
     };
 
+    // Deja la base como estaba: el turno es fijo y sus reservas son de este test.
+    const borrarReservasDelTurno = () =>
+      prisma.booking.deleteMany({
+        where: {
+          courtId,
+          user: { email: "jugador@example.com" },
+          startTime: new Date(testSlot.startTime),
+          endTime: new Date(testSlot.endTime),
+        },
+      });
+
+    beforeAll(borrarReservasDelTurno);
+    afterAll(borrarReservasDelTurno);
+
     it("debe crear una reserva confirmada con status 201", async () => {
       const res = await request(app)
         .post("/api/v1/bookings")

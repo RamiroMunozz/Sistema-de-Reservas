@@ -121,6 +121,14 @@ Las variables de Mercado Pago y `BACKEND_URL` solo hacen falta para cobrar. Sin 
 npx prisma migrate dev
 npm run dev
 
+La migración `reservas_sin_solapamiento` instala la extensión `btree_gist`, por lo que el usuario de la base necesita permisos para crearla.
+
+## Ejecutar los tests del backend:
+
+npm test
+
+Los tests de concurrencia solo corren si definís `DATABASE_URL_PRUEBA` con el mismo valor que `DATABASE_URL`, apuntando a una base descartable con las migraciones aplicadas. Escriben y borran datos: nunca los ejecutes contra una base con datos reales.
+
 ## CONFIGURAR Y LEVANTAR EL FRONTEND:
 
 cd ../frontend

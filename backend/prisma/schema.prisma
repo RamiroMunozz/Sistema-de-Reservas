@@ -109,6 +109,8 @@ model CourtSchedule {
   @@map("court_schedules")
 }
 
+// La migración 20261104120000_reservas_sin_solapamiento agrega restricciones que
+// Prisma no representa: bookings_horario_valido y bookings_sin_solapamiento.
 model Booking {
   id            String        @id @default(uuid()) @db.Uuid
   userId        String        @map("user_id") @db.Uuid

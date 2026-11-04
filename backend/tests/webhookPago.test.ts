@@ -2,21 +2,23 @@ import { createHmac, randomUUID } from "node:crypto";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { buscarReserva, buscarSolapada, actualizarReservas, obtenerPago } =
-  vi.hoisted(() => ({
-    buscarReserva: vi.fn(),
-    buscarSolapada: vi.fn(),
-    actualizarReservas: vi.fn(),
-    obtenerPago: vi.fn(),
-  }));
+const { buscarReserva, actualizarReservas, obtenerPago } = vi.hoisted(() => ({
+  buscarReserva: vi.fn(),
+  actualizarReservas: vi.fn(),
+  obtenerPago: vi.fn(),
+}));
 
 vi.mock("../src/core/config/prisma.js", () => ({
   prisma: {
     booking: {
       findUnique: buscarReserva,
-      findFirst: buscarSolapada,
       updateMany: actualizarReservas,
     },
+    $transaction: (operacion: (transaccion: unknown) => Promise<unknown>) =>
+      operacion({
+        $executeRaw: async () => 0,
+        booking: { updateMany: actualizarReservas },
+      }),
   },
 }));
 
@@ -75,11 +77,9 @@ describe("POST /payments/webhook", () => {
 
   beforeEach(() => {
     buscarReserva.mockReset();
-    buscarSolapada.mockReset();
     actualizarReservas.mockReset();
     obtenerPago.mockReset();
     actualizarReservas.mockResolvedValue({ count: 1 });
-    buscarSolapada.mockResolvedValue(null);
   });
 
   describe("firma", () => {
@@ -164,12 +164,16 @@ describe("POST /payments/webhook", () => {
     it("no reconfirma una reserva cancelada si el turno ya está ocupado", async () => {
       obtenerPago.mockResolvedValue(pago("approved"));
       buscarReserva.mockResolvedValue(reserva("CANCELLED"));
-      buscarSolapada.mockResolvedValue({ id: randomUUID() });
+      actualizarReservas.mockRejectedValue(
+        new Error('viola la restricción "bookings_sin_solapamiento"'),
+      );
 
       const respuesta = await enviarFirmado();
 
       expect(respuesta.status).toBe(200);
-      expect(actualizarReservas).not.toHaveBeenCalled();
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining("requiere revisión manual"),
+      );
     });
 
     it("reconfirma una reserva cancelada si el turno sigue libre", async () => {
@@ -183,6 +187,17 @@ describe("POST /payments/webhook", () => {
         where: { id: ID_RESERVA, status: "CANCELLED" },
         data: { status: "CONFIRMED", paymentMethod: "TRANSFER" },
       });
+    });
+
+    it("responde 500 para que se reintente si falla otro error de base", async () => {
+      obtenerPago.mockResolvedValue(pago("approved"));
+      buscarReserva.mockResolvedValue(reserva("PENDING"));
+      actualizarReservas.mockRejectedValue(new Error("base no disponible"));
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+      const respuesta = await enviarFirmado();
+
+      expect(respuesta.status).toBe(500);
     });
 
     it("no modifica una reserva ya completada", async () => {
@@ -225,6 +240,16 @@ describe("POST /payments/webhook", () => {
 
       expect(respuesta.status).toBe(200);
       expect(respuesta.body).toEqual({ received: true });
+      expect(obtenerPago).not.toHaveBeenCalled();
+    });
+
+    it("responde 200 sin consultar el pago si el ID firmado no es numérico", async () => {
+      const respuesta = await request(app)
+        .post("/api/v1/payments/webhook?data.id=1%3Brequest-id%3Ax&type=payment")
+        .set(firmar("1;request-id:x"))
+        .send({ type: "payment" });
+
+      expect(respuesta.status).toBe(200);
       expect(obtenerPago).not.toHaveBeenCalled();
     });
 

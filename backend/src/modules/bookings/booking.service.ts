@@ -1,6 +1,7 @@
-import { PrismaClient, BookingStatus, PaymentMethod } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { BookingStatus, PaymentMethod } from "@prisma/client";
+import { prisma } from "../../core/config/prisma.js";
+import { NotFoundError } from "../../core/errors/AppError.js";
+import { conBloqueoDeCancha } from "./bloqueoCancha.js";
 
 export interface CreateBookingInput {
   courtId: string;
@@ -26,43 +27,22 @@ export class BookingService {
       throw new Error("La cancha no existe.");
     }
 
-    // Verificar si ya existe una reserva activa para ese turno
-    const overlappingBooking = await prisma.booking.findFirst({
-      where: {
-        courtId: data.courtId,
-        status: BookingStatus.CONFIRMED,
-        OR: [
-          {
-            startTime: { gte: start, lt: end },
-          },
-          {
-            endTime: { gt: start, lte: end },
-          },
-          {
-            AND: [{ startTime: { lte: start } }, { endTime: { gte: end } }],
-          },
-        ],
-      },
-    });
-
-    if (overlappingBooking) {
-      throw new Error("El horario seleccionado ya no está disponible.");
-    }
-
-    return prisma.booking.create({
-      data: {
-        courtId: data.courtId,
-        userId: userId,
-        startTime: start,
-        endTime: end,
-        totalPrice: court.pricePerSlot,
-        paymentMethod: data.paymentMethod || PaymentMethod.CASH,
-        status: BookingStatus.CONFIRMED,
-      },
-      include: {
-        court: true,
-      },
-    });
+    return conBloqueoDeCancha(data.courtId, (transaccion) =>
+      transaccion.booking.create({
+        data: {
+          courtId: data.courtId,
+          userId: userId,
+          startTime: start,
+          endTime: end,
+          totalPrice: court.pricePerSlot,
+          paymentMethod: data.paymentMethod || PaymentMethod.CASH,
+          status: BookingStatus.CONFIRMED,
+        },
+        include: {
+          court: true,
+        },
+      }),
+    );
   }
 
   async getUserBookings(userId: string) {
@@ -163,21 +143,32 @@ export class BookingService {
   }
 
   async updateBookingStatus(bookingId: string, status: BookingStatus) {
-    return prisma.booking.update({
+    const reserva = await prisma.booking.findUnique({
       where: { id: bookingId },
-      data: { status },
-      include: {
-        court: true,
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
+      select: { courtId: true },
     });
+
+    if (!reserva) {
+      throw new NotFoundError("Reserva no encontrada.");
+    }
+
+    return conBloqueoDeCancha(reserva.courtId, (transaccion) =>
+      transaccion.booking.update({
+        where: { id: bookingId },
+        data: { status },
+        include: {
+            court: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+      }),
+    );
   }
 
   async createAdminBooking(
@@ -192,45 +183,35 @@ export class BookingService {
     const start = new Date(data.startTime);
     const end = new Date(data.endTime);
 
-    const existing = await prisma.booking.findFirst({
-      where: {
-        courtId: data.courtId,
-        status: BookingStatus.CONFIRMED,
-        AND: [{ startTime: { lt: end } }, { endTime: { gt: start } }],
-      },
-    });
-
-    if (existing) {
-      throw new Error("El horario seleccionado ya no está disponible.");
-    }
-
     const court = await prisma.court.findUnique({
       where: { id: data.courtId },
     });
 
     if (!court) throw new Error("Cancha no encontrada.");
 
-    return prisma.booking.create({
-      data: {
-        courtId: data.courtId,
-        userId: adminUserId,
-        startTime: start,
-        endTime: end,
-        totalPrice: court.pricePerSlot,
-        status: BookingStatus.CONFIRMED,
-        paymentMethod: data.paymentMethod,
-      },
-      include: {
-        court: true,
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
+    return conBloqueoDeCancha(data.courtId, (transaccion) =>
+      transaccion.booking.create({
+        data: {
+          courtId: data.courtId,
+          userId: adminUserId,
+          startTime: start,
+          endTime: end,
+          totalPrice: court.pricePerSlot,
+          status: BookingStatus.CONFIRMED,
+          paymentMethod: data.paymentMethod,
         },
-      },
-    });
+        include: {
+            court: true,
+            user: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+      }),
+    );
   }
 }

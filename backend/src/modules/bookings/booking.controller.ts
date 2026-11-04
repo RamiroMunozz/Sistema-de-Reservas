@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { BookingStatus, PaymentMethod } from "@prisma/client";
+import { AppError } from "../../core/errors/AppError.js";
 import { BookingService } from "./booking.service.js";
 
 const bookingService = new BookingService();
@@ -44,6 +45,10 @@ export class BookingController {
 
       return res.status(201).json(booking);
     } catch (error: unknown) {
+      if (error instanceof AppError) {
+        return next(error);
+      }
+
       // Retorna 400 Bad Request con el mensaje específico de validación
       return res.status(400).json({
         message: obtenerMensajeDeError(error, "Error al crear la reserva"),
@@ -162,6 +167,10 @@ export class BookingController {
 
       return res.status(201).json(booking);
     } catch (error: unknown) {
+      if (error instanceof AppError) {
+        return next(error);
+      }
+
       return res.status(400).json({
         message: obtenerMensajeDeError(
           error,
