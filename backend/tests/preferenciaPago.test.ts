@@ -43,6 +43,8 @@ const reserva = (status: string) => ({
 describe("POST /payments/create-preference", () => {
   beforeAll(() => {
     vi.stubEnv("JWT_SECRET", SECRETO_DE_PRUEBA);
+    vi.stubEnv("BACKEND_URL", "https://api.ejemplo.test");
+    vi.stubEnv("MERCADOPAGO_ACCESS_TOKEN", "token_de_prueba");
   });
 
   afterAll(() => {
@@ -151,4 +153,47 @@ describe("POST /payments/create-preference", () => {
       expect(crearPreferencia).toHaveBeenCalledOnce();
     },
   );
+
+  it("arma notification_url desde BACKEND_URL", async () => {
+    buscarReserva.mockResolvedValue(reserva("CONFIRMED"));
+
+    await request(app)
+      .post(RUTA)
+      .set(conToken(ID_DUENO))
+      .send({ bookingId: ID_RESERVA });
+
+    expect(crearPreferencia.mock.calls[0][0].body.notification_url).toBe(
+      "https://api.ejemplo.test/api/v1/payments/webhook?source_news=webhooks",
+    );
+  });
+
+  it("no genera el cobro si falta BACKEND_URL", async () => {
+    vi.stubEnv("BACKEND_URL", "");
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    buscarReserva.mockResolvedValue(reserva("CONFIRMED"));
+
+    const respuesta = await request(app)
+      .post(RUTA)
+      .set(conToken(ID_DUENO))
+      .send({ bookingId: ID_RESERVA });
+
+    vi.stubEnv("BACKEND_URL", "https://api.ejemplo.test");
+    expect(respuesta.status).toBe(500);
+    expect(crearPreferencia).not.toHaveBeenCalled();
+  });
+
+  it("no genera el cobro si falta MERCADOPAGO_ACCESS_TOKEN", async () => {
+    vi.stubEnv("MERCADOPAGO_ACCESS_TOKEN", "");
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    buscarReserva.mockResolvedValue(reserva("CONFIRMED"));
+
+    const respuesta = await request(app)
+      .post(RUTA)
+      .set(conToken(ID_DUENO))
+      .send({ bookingId: ID_RESERVA });
+
+    vi.stubEnv("MERCADOPAGO_ACCESS_TOKEN", "token_de_prueba");
+    expect(respuesta.status).toBe(500);
+    expect(crearPreferencia).not.toHaveBeenCalled();
+  });
 });

@@ -42,18 +42,12 @@ export class PaymentController {
       const cuerpo = cuerpoWebhookSchema.parse(req.body);
       const consulta = consultaWebhookSchema.parse(req.query);
 
-      const paymentId = cuerpo.data?.id || consulta["data.id"] || consulta.id;
-
-      const type = cuerpo.type || consulta.type || consulta.topic;
-
-      if (
-        (type === "payment" ||
-          type === "payment.created" ||
-          type === "payment.updated") &&
-        paymentId
-      ) {
-        await this.paymentService.processWebhook(String(paymentId));
-      }
+      await this.paymentService.procesarNotificacion({
+        firma: req.headers["x-signature"],
+        idPedido: req.headers["x-request-id"],
+        idPago: consulta["data.id"],
+        tipo: cuerpo.type || consulta.type,
+      });
 
       return res.status(200).json({ received: true });
     } catch (error) {

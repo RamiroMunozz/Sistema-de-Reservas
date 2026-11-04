@@ -26,6 +26,10 @@ services:
       DATABASE_URL: "postgresql://postgres:password@postgres:5432/sistema_reservas?schema=public"
       JWT_SECRET: "${JWT_SECRET:?Definí JWT_SECRET en el archivo .env de la raíz}"
       PORT: 3000
+      BACKEND_URL: "${BACKEND_URL:-}"
+      FRONTEND_URL: "${FRONTEND_URL:-http://localhost:5173}"
+      MERCADOPAGO_ACCESS_TOKEN: "${MERCADOPAGO_ACCESS_TOKEN:-}"
+      MERCADOPAGO_WEBHOOK_SECRET: "${MERCADOPAGO_WEBHOOK_SECRET:-}"
     volumes:
       - ./backend:/app
       - /app/node_modules

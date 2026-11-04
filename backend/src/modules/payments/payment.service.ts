@@ -1,16 +1,50 @@
-import { MercadoPagoConfig, Preference, Payment } from "mercadopago";
+import {
+  InvalidWebhookSignatureError,
+  MercadoPagoConfig,
+  Payment,
+  Preference,
+  WebhookSignatureValidator,
+} from "mercadopago";
 import { BookingStatus } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "../../core/config/prisma.js";
 import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
+  UnauthorizedError,
 } from "../../core/errors/AppError.js";
 
 const ESTADOS_PAGABLES: BookingStatus[] = [
   BookingStatus.PENDING,
   BookingStatus.CONFIRMED,
 ];
+
+const EVENTOS_DE_PAGO = ["payment", "payment.created", "payment.updated"];
+
+const referenciaReservaSchema = z.string().uuid();
+
+export interface NotificacionWebhook {
+  firma: string | string[] | undefined;
+  idPedido: string | string[] | undefined;
+  idPago: string | undefined;
+  tipo: string | undefined;
+}
+
+const obtenerVariableRequerida = (nombre: string): string => {
+  const valor = process.env[nombre];
+
+  if (!valor) {
+    throw new Error(`${nombre} no está definido.`);
+  }
+
+  return valor;
+};
+
+const crearClienteMercadoPago = () =>
+  new MercadoPagoConfig({
+    accessToken: obtenerVariableRequerida("MERCADOPAGO_ACCESS_TOKEN"),
+  });
 
 export class PaymentService {
   async createPaymentPreference(bookingId: string, idUsuario: string) {
@@ -36,13 +70,9 @@ export class PaymentService {
       throw new ConflictError("Esta reserva no se puede pagar.");
     }
 
-    const client = new MercadoPagoConfig({
-      accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || "",
-    });
-
-    const preference = new Preference(client);
+    const backendUrl = obtenerVariableRequerida("BACKEND_URL");
+    const preference = new Preference(crearClienteMercadoPago());
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
-    const ngrokOrTunnelUrl = "https://odd-feet-open.loca.lt";
 
     const response = await preference.create({
       body: {
@@ -65,7 +95,8 @@ export class PaymentService {
           pending: `${frontendUrl}/mis-reservas`,
         },
         // Se omite auto_return para evitar el error 400 en localhost
-        notification_url: `${ngrokOrTunnelUrl}/api/v1/payments/webhook`,
+        // source_news=webhooks evita las notificaciones IPN, que no llevan firma
+        notification_url: `${backendUrl}/api/v1/payments/webhook?source_news=webhooks`,
         external_reference: booking.id,
       },
     });
@@ -77,39 +108,113 @@ export class PaymentService {
     };
   }
 
-  async processWebhook(paymentId: string) {
-    const client = new MercadoPagoConfig({
-      accessToken: process.env.MERCADOPAGO_ACCESS_TOKEN || "",
-    });
+  async procesarNotificacion(notificacion: NotificacionWebhook) {
+    this.validarFirma(notificacion);
 
-    const payment = new Payment(client);
+    const { idPago, tipo } = notificacion;
+
+    if (idPago && tipo && EVENTOS_DE_PAGO.includes(tipo)) {
+      await this.processWebhook(idPago);
+    }
+  }
+
+  private validarFirma({ firma, idPedido, idPago }: NotificacionWebhook) {
+    const secreto = process.env.MERCADOPAGO_WEBHOOK_SECRET;
+
+    if (!secreto) {
+      console.error("MERCADOPAGO_WEBHOOK_SECRET no está definido.");
+      throw new UnauthorizedError("Firma de webhook inválida.");
+    }
+
+    try {
+      WebhookSignatureValidator.validate({
+        xSignature: firma,
+        xRequestId: idPedido,
+        dataId: idPago,
+        secret: secreto,
+      });
+    } catch (error) {
+      if (error instanceof InvalidWebhookSignatureError) {
+        throw new UnauthorizedError("Firma de webhook inválida.");
+      }
+
+      throw error;
+    }
+  }
+
+  private async processWebhook(paymentId: string) {
+    const payment = new Payment(crearClienteMercadoPago());
     const paymentData = await payment.get({ id: paymentId });
-    const bookingId = paymentData.external_reference;
+    const referencia = referenciaReservaSchema.safeParse(
+      paymentData.external_reference,
+    );
 
-    if (!bookingId) {
-      return { status: paymentData.status };
+    if (!referencia.success) {
+      return;
     }
 
     if (paymentData.status === "approved") {
-      await prisma.booking.update({
-        where: { id: bookingId },
-        data: {
-          status: "CONFIRMED",
-          paymentMethod: "TRANSFER",
-        },
-      });
+      await this.confirmarReservaPagada(
+        referencia.data,
+        paymentId,
+        paymentData.transaction_amount,
+      );
     } else if (
       paymentData.status === "rejected" ||
       paymentData.status === "cancelled"
     ) {
-      await prisma.booking.update({
-        where: { id: bookingId },
-        data: {
-          status: "CANCELLED",
-        },
+      await prisma.booking.updateMany({
+        where: { id: referencia.data, status: { in: ESTADOS_PAGABLES } },
+        data: { status: BookingStatus.CANCELLED },
       });
     }
+  }
 
-    return { status: paymentData.status };
+  private async confirmarReservaPagada(
+    idReserva: string,
+    idPago: string,
+    montoPagado: number | undefined,
+  ) {
+    const booking = await prisma.booking.findUnique({
+      where: { id: idReserva },
+    });
+
+    if (!booking || booking.status === BookingStatus.COMPLETED) {
+      return;
+    }
+
+    if (montoPagado !== Number(booking.totalPrice)) {
+      console.warn(
+        `[PAGO] El monto del pago ${idPago} no coincide con la reserva ${idReserva}.`,
+      );
+      return;
+    }
+
+    if (booking.status === BookingStatus.CANCELLED) {
+      const solapada = await prisma.booking.findFirst({
+        where: {
+          id: { not: idReserva },
+          courtId: booking.courtId,
+          status: { in: ESTADOS_PAGABLES },
+          startTime: { lt: booking.endTime },
+          endTime: { gt: booking.startTime },
+        },
+      });
+
+      if (solapada) {
+        console.warn(
+          `[PAGO] El pago ${idPago} requiere revisión manual: el turno de la reserva ${idReserva} ya está ocupado.`,
+        );
+        return;
+      }
+    }
+
+    await prisma.booking.updateMany({
+      where: { id: idReserva, status: booking.status },
+      data: {
+        status: BookingStatus.CONFIRMED,
+        paymentMethod: "TRANSFER",
+      },
+    });
   }
 }
