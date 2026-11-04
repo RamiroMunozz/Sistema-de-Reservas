@@ -1,6 +1,11 @@
 import { BookingStatus, PaymentMethod } from "@prisma/client";
 import { prisma } from "../../core/config/prisma.js";
-import { NotFoundError } from "../../core/errors/AppError.js";
+import {
+  AppError,
+  ConflictError,
+  ForbiddenError,
+  NotFoundError,
+} from "../../core/errors/AppError.js";
 import { conBloqueoDeCancha } from "./bloqueoCancha.js";
 
 export interface CreateBookingInput {
@@ -10,21 +15,33 @@ export interface CreateBookingInput {
   paymentMethod?: PaymentMethod;
 }
 
+const validarHorario = (inicio: Date, fin: Date) => {
+  if (inicio >= fin) {
+    throw new AppError("La hora de inicio debe ser anterior a la hora de fin.");
+  }
+};
+
 export class BookingService {
   async createBooking(data: CreateBookingInput, userId: string) {
     const start = new Date(data.startTime);
     const end = new Date(data.endTime);
 
-    if (start >= end) {
-      throw new Error("La hora de inicio debe ser anterior a la hora de fin.");
-    }
+    validarHorario(start, end);
 
     const court = await prisma.court.findUnique({
       where: { id: data.courtId },
     });
 
     if (!court) {
-      throw new Error("La cancha no existe.");
+      throw new AppError("La cancha no existe.");
+    }
+
+    if (!court.isActive) {
+      throw new AppError("La cancha no está disponible.");
+    }
+
+    if (start <= new Date()) {
+      throw new AppError("No se puede reservar un turno pasado.");
     }
 
     return conBloqueoDeCancha(data.courtId, (transaccion) =>
@@ -63,18 +80,21 @@ export class BookingService {
     });
 
     if (!booking) {
-      throw new Error("Reserva no encontrada.");
+      throw new NotFoundError("Reserva no encontrada.");
     }
 
     if (booking.userId !== userId) {
-      console.warn(
-        `[AUTH MISMATCH] Reserva userId: ${booking.userId} vs Token userId: ${userId}`,
+      throw new ForbiddenError(
+        "No tienes autorización para cancelar esta reserva.",
       );
-      throw new Error("No tienes autorización para cancelar esta reserva.");
     }
 
     if (booking.status === BookingStatus.CANCELLED) {
-      throw new Error("La reserva ya se encuentra cancelada.");
+      throw new ConflictError("La reserva ya se encuentra cancelada.");
+    }
+
+    if (booking.status === BookingStatus.COMPLETED) {
+      throw new ConflictError("No se puede cancelar una reserva completada.");
     }
 
     return prisma.booking.update({
@@ -92,7 +112,7 @@ export class BookingService {
     const bookings = await prisma.booking.findMany({
       where: {
         courtId,
-        status: BookingStatus.CONFIRMED,
+        status: { not: BookingStatus.CANCELLED },
         startTime: {
           gte: startOfDay,
           lte: endOfDay,
@@ -157,16 +177,16 @@ export class BookingService {
         where: { id: bookingId },
         data: { status },
         include: {
-            court: true,
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
+          court: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
             },
           },
+        },
       }),
     );
   }
@@ -183,11 +203,13 @@ export class BookingService {
     const start = new Date(data.startTime);
     const end = new Date(data.endTime);
 
+    validarHorario(start, end);
+
     const court = await prisma.court.findUnique({
       where: { id: data.courtId },
     });
 
-    if (!court) throw new Error("Cancha no encontrada.");
+    if (!court) throw new AppError("Cancha no encontrada.");
 
     return conBloqueoDeCancha(data.courtId, (transaccion) =>
       transaccion.booking.create({
@@ -201,16 +223,16 @@ export class BookingService {
           paymentMethod: data.paymentMethod,
         },
         include: {
-            court: true,
-            user: {
-              select: {
-                id: true,
-                firstName: true,
-                lastName: true,
-                email: true,
-              },
+          court: true,
+          user: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
             },
           },
+        },
       }),
     );
   }

@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../core/config/prisma.js";
 import {
   NotFoundError,
@@ -7,7 +8,7 @@ import { GetCourtsQueryDTO } from "./court.dto.js";
 
 export class CourtService {
   async getAllCourts(filters: GetCourtsQueryDTO) {
-    const whereClause: any = {
+    const whereClause: Prisma.CourtWhereInput = {
       isActive: true,
     };
 
@@ -91,7 +92,7 @@ export class CourtService {
     const existingBookings = await prisma.booking.findMany({
       where: {
         courtId,
-        status: "CONFIRMED",
+        status: { not: "CANCELLED" },
         startTime: { gte: startOfDay, lte: endOfDay },
       },
       select: {

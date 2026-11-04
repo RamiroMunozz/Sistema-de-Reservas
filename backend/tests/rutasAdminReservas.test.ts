@@ -113,7 +113,7 @@ describe("Rutas admin de reservas", () => {
         });
 
       expect(respuesta.status).toBe(400);
-      expect(respuesta.body.message).toBe("Cancha no encontrada.");
+      expect(respuesta.body.detail).toBe("Cancha no encontrada.");
     });
 
     it("un usuario consulta sus propias reservas en GET /my-bookings", async () => {
@@ -136,7 +136,7 @@ describe("Rutas admin de reservas", () => {
         });
 
       expect(respuesta.status).toBe(400);
-      expect(respuesta.body.message).toBe("La cancha no existe.");
+      expect(respuesta.body.detail).toBe("La cancha no existe.");
     });
   });
 });
