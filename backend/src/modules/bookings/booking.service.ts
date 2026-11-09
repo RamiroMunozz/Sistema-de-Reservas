@@ -1,6 +1,31 @@
-import { PrismaClient, BookingStatus, PaymentMethod } from "@prisma/client";
+import { Prisma, BookingStatus, PaymentMethod } from "@prisma/client";
+import { prisma } from "../../core/config/prisma.js";
+import {
+  AppError,
+  ConflictError,
+  NotFoundError,
+} from "../../core/errors/AppError.js";
 
-const prisma = new PrismaClient();
+const SLOT_TAKEN_MESSAGE = "El horario seleccionado ya fue reservado.";
+const OVERLAP_CONSTRAINT = "bookings_no_overlap";
+const EXCLUSION_VIOLATION_SQLSTATE = "23P01";
+
+// Prisma 5 expone la violación de exclusión como PrismaClientUnknownRequestError
+// sin `code`; el SQLSTATE y el nombre de la restricción viajan en el mensaje.
+function isOverlapViolation(error: unknown): boolean {
+  if (
+    !(error instanceof Prisma.PrismaClientUnknownRequestError) &&
+    !(error instanceof Prisma.PrismaClientKnownRequestError)
+  ) {
+    return false;
+  }
+  const meta = JSON.stringify((error as { meta?: unknown }).meta ?? "");
+  const text = `${error.message} ${meta}`;
+  return (
+    text.includes(EXCLUSION_VIOLATION_SQLSTATE) ||
+    text.includes(OVERLAP_CONSTRAINT)
+  );
+}
 
 export interface CreateBookingInput {
   courtId: string;
@@ -15,7 +40,10 @@ export class BookingService {
     const end = new Date(data.endTime);
 
     if (start >= end) {
-      throw new Error("La hora de inicio debe ser anterior a la hora de fin.");
+      throw new AppError(
+        "La hora de inicio debe ser anterior a la hora de fin.",
+        400,
+      );
     }
 
     const court = await prisma.court.findUnique({
@@ -23,33 +51,12 @@ export class BookingService {
     });
 
     if (!court) {
-      throw new Error("La cancha no existe.");
+      throw new NotFoundError("La cancha no existe.");
     }
 
-    // Verificar si ya existe una reserva activa para ese turno
-    const overlappingBooking = await prisma.booking.findFirst({
-      where: {
-        courtId: data.courtId,
-        status: BookingStatus.CONFIRMED,
-        OR: [
-          {
-            startTime: { gte: start, lt: end },
-          },
-          {
-            endTime: { gt: start, lte: end },
-          },
-          {
-            AND: [{ startTime: { lte: start } }, { endTime: { gte: end } }],
-          },
-        ],
-      },
-    });
+    await this.assertSlotFree(data.courtId, start, end);
 
-    if (overlappingBooking) {
-      throw new Error("El horario seleccionado ya no está disponible.");
-    }
-
-    return prisma.booking.create({
+    return this.insertBooking({
       data: {
         courtId: data.courtId,
         userId: userId,
@@ -63,6 +70,34 @@ export class BookingService {
         court: true,
       },
     });
+  }
+
+  // Pre-chequeo rápido; la garantía real es la restricción de exclusión en la base.
+  private async assertSlotFree(courtId: string, start: Date, end: Date) {
+    const existing = await prisma.booking.findFirst({
+      where: {
+        courtId,
+        status: { not: BookingStatus.CANCELLED },
+        startTime: { lt: end },
+        endTime: { gt: start },
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      throw new ConflictError(SLOT_TAKEN_MESSAGE);
+    }
+  }
+
+  private async insertBooking<T extends Prisma.BookingCreateArgs>(args: T) {
+    try {
+      return await prisma.booking.create(args);
+    } catch (error) {
+      if (isOverlapViolation(error)) {
+        throw new ConflictError(SLOT_TAKEN_MESSAGE);
+      }
+      throw error;
+    }
   }
 
   async getUserBookings(userId: string) {
@@ -192,25 +227,22 @@ export class BookingService {
     const start = new Date(data.startTime);
     const end = new Date(data.endTime);
 
-    const existing = await prisma.booking.findFirst({
-      where: {
-        courtId: data.courtId,
-        status: BookingStatus.CONFIRMED,
-        AND: [{ startTime: { lt: end } }, { endTime: { gt: start } }],
-      },
-    });
-
-    if (existing) {
-      throw new Error("El horario seleccionado ya no está disponible.");
+    if (start >= end) {
+      throw new AppError(
+        "La hora de inicio debe ser anterior a la hora de fin.",
+        400,
+      );
     }
 
     const court = await prisma.court.findUnique({
       where: { id: data.courtId },
     });
 
-    if (!court) throw new Error("Cancha no encontrada.");
+    if (!court) throw new NotFoundError("La cancha no existe.");
 
-    return prisma.booking.create({
+    await this.assertSlotFree(data.courtId, start, end);
+
+    return this.insertBooking({
       data: {
         courtId: data.courtId,
         userId: adminUserId,

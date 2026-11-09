@@ -17,11 +17,8 @@ export class BookingController {
       );
 
       return res.status(201).json(booking);
-    } catch (error: any) {
-      // Retorna 400 Bad Request con el mensaje específico de validación
-      return res
-        .status(400)
-        .json({ message: error.message || "Error al crear la reserva" });
+    } catch (error) {
+      next(error);
     }
   };
 
@@ -137,10 +134,8 @@ export class BookingController {
       );
 
       return res.status(201).json(booking);
-    } catch (error: any) {
-      return res.status(400).json({
-        message: error.message || "Error al crear la reserva manual.",
-      });
+    } catch (error) {
+      next(error);
     }
   };
 }

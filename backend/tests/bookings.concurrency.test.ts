@@ -6,11 +6,14 @@ import { prisma } from "../src/core/config/prisma.js";
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 // Fechas lejanas para no chocar con datos reales ni con otras suites.
+// Rango 2040-2140, disjunto del de integration.test.ts (2200+), para que la
+// limpieza de una suite no borre reservas de la otra al correr en paralelo.
 const TEST_EPOCH = Date.UTC(2040, 0, 1);
+const TEST_RANGE_END = Date.UTC(2140, 0, 1);
 
 // Genera un turno de una hora único por ejecución para que la suite sea re-ejecutable.
 function uniqueSlot(durationHours = 1) {
-  const dayOffset = Math.floor(Math.random() * 100_000);
+  const dayOffset = Math.floor(Math.random() * 36_000);
   const start = new Date(TEST_EPOCH + dayOffset * DAY_MS + 10 * HOUR_MS);
   const end = new Date(start.getTime() + durationHours * HOUR_MS);
   return { start, end };
@@ -51,7 +54,10 @@ describe("Reservas - concurrencia y superposición", () => {
 
   afterAll(async () => {
     await prisma.booking.deleteMany({
-      where: { courtId, startTime: { gte: new Date(TEST_EPOCH) } },
+      where: {
+        courtId,
+        startTime: { gte: new Date(TEST_EPOCH), lt: new Date(TEST_RANGE_END) },
+      },
     });
     await prisma.$disconnect();
   });
