@@ -68,10 +68,22 @@ describe("Suite de Integración - API de Reservas", () => {
   });
 
   describe("Lógica de Reservas y Concurrencia Transaccional", () => {
+    // Turno único por ejecución para que la suite sea re-ejecutable.
+    const slotStart = new Date(
+      Date.UTC(2045, 0, 1) +
+        Math.floor(Math.random() * 100_000) * 24 * 60 * 60 * 1000 +
+        19 * 60 * 60 * 1000,
+    );
     const testSlot = {
-      startTime: "2026-11-20T19:00:00.000Z",
-      endTime: "2026-11-20T20:00:00.000Z",
+      startTime: slotStart.toISOString(),
+      endTime: new Date(slotStart.getTime() + 60 * 60 * 1000).toISOString(),
     };
+
+    afterAll(async () => {
+      await prisma.booking.deleteMany({
+        where: { startTime: { gte: new Date(Date.UTC(2045, 0, 1)) } },
+      });
+    });
 
     it("debe crear una reserva confirmada con status 201", async () => {
       const res = await request(app)
