@@ -262,9 +262,10 @@ export const AdminDashboard: React.FC = () => {
       setLoadingDaily(true);
       setRefreshGridKey((prev) => prev + 1);
     } catch (err: unknown) {
-      if (isAxiosError<{ message?: string }>(err)) {
+      if (isAxiosError<{ detail?: string; message?: string }>(err)) {
         setManualError(
-          err.response?.data?.message ||
+          err.response?.data?.detail ||
+            err.response?.data?.message ||
             "Error al registrar la reserva manual.",
         );
       } else {
