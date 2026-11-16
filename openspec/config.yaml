@@ -1,0 +1,60 @@
+schema: spec-driven
+
+context: |
+  Proyecto: sistema-de-reservas (monorepo). Reservas de canchas deportivas multi-negocio.
+  Backend: backend/ (Node, Express 5, TypeScript ESM, Prisma 5, PostgreSQL, Zod, Mercado Pago SDK).
+  Frontend: frontend/ (React 19, Vite, TypeScript, Tailwind 4, React Router 7).
+  Producto: multi-tenant (cada negocio aislado, con su propio Mercado Pago), enlace publico por slug,
+  roles SUPER_ADMIN/DUEÑO/JUGADOR, politica de pago por negocio.
+  Reglas inmutables (AGENTS.md): UTC estricto, cero any, controladores delgados y logica en servicios,
+  usuarios con firstName/lastName, sin setState sincrono en useEffect.
+  Idioma: todos los artefactos nuevos en espanol (neutral/profesional); se conservan los identificadores existentes.
+
+strict_tdd: false
+# Razon: no existe un comando de pruebas a nivel de workspace (no hay package.json en la raiz) que cubra
+# backend y frontend, y el frontend no tiene pruebas. El TDD estricto se aplica por proyecto: backend.
+tdd_scope:
+  requested_by_user: true
+  applies_to: backend
+  command: "cd backend && npm test"
+
+projects:
+  - path: backend
+    stack: "Node, Express 5, TypeScript ESM, Prisma 5, PostgreSQL, Zod"
+    test_command: "npm test"   # vitest run
+    framework: vitest
+    layers: { unit: true, integration: true, e2e: false }   # integracion con supertest
+    coverage: null
+    linter: null
+    type_checker: "npx tsc --noEmit"
+    formatter: null
+    notes: "Las pruebas de concurrencia requieren una base de datos descartable; se omiten si no existe."
+  - path: frontend
+    stack: "React 19, Vite, TypeScript, Tailwind 4"
+    test_command: null
+    framework: null
+    layers: { unit: false, integration: false, e2e: false }
+    coverage: null
+    linter: "npm run lint"   # eslint
+    type_checker: "npm run build"   # tsc -b && vite build
+    formatter: null
+
+testing:
+  workspace_command: null
+  strict_tdd: false
+
+rules:
+  proposal:
+    - Redactar en espanol; incluir plan de reversa y alcance explicito.
+  specs:
+    - Escenarios Dado/Cuando/Entonces; specs en openspec/specs/<dominio>/spec.md.
+  design:
+    - Respetar separacion controladores/servicios y las reglas inmutables de AGENTS.md.
+  tasks:
+    - Pronosticar presupuesto de revision de 400 lineas; tareas como unidades de trabajo con sus pruebas.
+  apply:
+    - Backend con pruebas primero cuando sea posible (vitest); sin any; UTC estricto.
+  verify:
+    - Ejecutar cd backend && npm test, npx tsc --noEmit (backend) y npm run lint + npm run build (frontend).
+  archive:
+    - Fusionar delta specs en openspec/specs antes de archivar.
