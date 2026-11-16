@@ -4,6 +4,7 @@ description: Retoma el contexto del proyecto (memoria, estado SDD, git y hoja de
 
 Retoma el contexto del proyecto `sistema-de-reservas`. Hacé lo siguiente, sin modificar archivos:
 
+0. Bitácora: leé `docs/bitacora.md` (estado actual, próximo paso y últimas sesiones). Es la fuente principal.
 1. Memoria: ejecutá `mem_context` y `mem_search` con el proyecto `sistema-de-reservas` para las consultas `sdd-init`, `producto/decisiones` y `sdd/*`.
 2. Estado SDD: ejecutá `gentle-ai sdd-status --cwd . --json`.
 3. Git: ejecutá `git status` y `git log --oneline -15`.

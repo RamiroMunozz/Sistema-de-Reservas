@@ -4,6 +4,7 @@ description: Cierra la sesión de trabajo, actualiza la hoja de ruta, guarda el 
 
 Cerrá la sesión de trabajo del proyecto `sistema-de-reservas`:
 
+0. Actualizá `docs/bitacora.md`: reescribí "Estado actual" y "Próximo paso", y agregá al principio de "Registro de sesiones" una entrada con fecha, objetivo, hecho, decisiones, hallazgos y commits. Si hay más de 10 entradas, resumí las más antiguas en una línea.
 1. Si corresponde, actualizá el estado del cambio en `docs/producto/hoja-de-ruta.md` (pendiente, en curso o hecho).
 2. Guardá el resumen de la sesión con `mem_session_summary` para el proyecto `sistema-de-reservas`.
 3. Listá los cambios sin confirmar con `git status --short`.
