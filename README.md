@@ -92,6 +92,12 @@ sistema-de-reservas/
     └── tailwind.config.js
 ```
 
+## Documentación
+
+- [Índice de la documentación](docs/README.md)
+- [Especificaciones y cambios SDD](openspec/)
+- [Mapa para trabajar con agentes](CLAUDE.md)
+
 ## CLONAR REPOSITORIO
 
 git clone [https://github.com/tu-usuario/sistema-de-reservas.git](https://github.com/tu-usuario/sistema-de-reservas.git)
