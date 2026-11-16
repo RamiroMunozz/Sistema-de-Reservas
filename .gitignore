@@ -5,7 +5,10 @@ dist/
 
 # Archivos locales generados por Gentle AI y CodeGraph
 /.atl/
-/.claude/
+/.claude/*
+!/.claude/skills/
+!/.claude/commands/
+!/.claude/agents/
 /.codegraph/
 /.mcp.json
 /.pi/
