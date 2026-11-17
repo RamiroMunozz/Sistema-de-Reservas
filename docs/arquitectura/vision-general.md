@@ -47,7 +47,7 @@ Cada módulo sigue la separación `routes` → `controller` → `service`, más 
 3. Si elige Mercado Pago, solicita la preferencia (`POST /api/v1/payments/create-preference`) y se lo redirige al checkout.
 4. Mercado Pago notifica el resultado a `POST /api/v1/payments/webhook`. El servicio valida la firma, el monto y confirma o cancela la reserva (`backend/src/modules/payments/payment.service.ts`).
 
-Observación: la reserva se crea `CONFIRMED` antes del pago (punto A3 de `auditoria.md`); está planificado resolverlo en el cambio `deuda-auditoria`.
+Observación: la reserva se crea `CONFIRMED` antes del pago (punto A3 de `docs/historial/auditoria-seguridad.md`); está planificado resolverlo en el cambio `deuda-auditoria`.
 
 ## Prevención de solapamientos
 

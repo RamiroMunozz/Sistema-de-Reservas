@@ -5,13 +5,9 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Estado actual
 
-- **Rama activa:** `chore/estructura-sdd` (sin push). Base: `main` en `4355bf7`.
-- **Commits de la rama:**
-  - `4050ead` chore(sdd): inicializar openspec en modo híbrido
-  - `4acb8e2` docs: agregar documentación de producto, arquitectura, operación y tesis
-  - `7f28287` chore(claude): versionar skills, comandos y agentes del proyecto
-  - `bb1a116` docs: adaptar AGENTS.md y README a SDD y agregar CLAUDE.md
-- **Revisión (Gentle AI, lente de confiabilidad):** aprobada y cerrada sobre esos 4 commits.
+- **Rama activa:** `chore/limpieza-odd` (sin push). Base: `main` en `a9d0583`.
+- **Fundación SDD:** `chore/estructura-sdd` ya está integrada en `main` y publicada.
+- **Flujo de trabajo:** solo SDD. Se eliminó ODD (`odd/`) y la auditoría pasó a `docs/historial/auditoria-seguridad.md`.
 - **Hoja de ruta:** fase 0 (fundación SDD) completa; ningún cambio SDD iniciado todavía.
 - **Código:** sigue siendo single-tenant; multi-tenant es objetivo (ADR 0002).
 
@@ -22,7 +18,7 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
    - `.claude/commands/spec-base.md`: abortar si el argumento no es uno de los dominios permitidos (autenticacion, reservas, canchas, pagos, administracion).
    - `openspec/config.yaml`: marcar el contexto multi-tenant y los roles como **objetivo**, no como estado actual.
 2. Ejecutar `npm install` en `backend/` (falta `node_modules`; `npm test` falla con "vitest no se reconoce") y confirmar que los tests pasan.
-3. Decidir push y PR de `chore/estructura-sdd`: unas 900 líneas, mayormente documentación. Supera el presupuesto de 400 líneas, así que hay que partirlo o aprobar la excepción.
+3. Decidir push y PR de `chore/limpieza-odd`.
 4. Iniciar el primer cambio SDD: `specs-base`, con `/spec-base <dominio>` por cada dominio.
 
 ## Configuración vigente

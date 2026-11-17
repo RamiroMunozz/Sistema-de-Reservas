@@ -174,7 +174,7 @@ Ninguno se corrigió porque cambian la lógica central y requieren confirmación
 | Componente | Estado |
 |---|---|
 | Gentle AI 4.3.1 | Activo. `gentle-ai doctor`: 10 correctos, 0 fallidos, 2 advertencias |
-| ODD | Activo. Seguimiento en `odd/tasks/security-audit.md` |
+| ODD | Reemplazado por SDD (ADR 0001) |
 | Claude Code | Activo y configurado en este repositorio |
 | GGA | Activo como hook de pre-commit, con `AGENTS.md` como reglas |
 | Revisión nativa | Activa. Con archivos sin trackear hay que usar `--untracked-scope exclude` |

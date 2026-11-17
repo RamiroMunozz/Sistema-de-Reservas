@@ -34,7 +34,7 @@ Estado actual: el código es single-tenant. Las siguientes reglas son el objetiv
 - **Efectos Secundarios:** Prohibido usar `setState` de manera síncrona directamente en el cuerpo de un `useEffect` para evitar renders infinitos o fugas de memoria.
 
 ## 4. Flujo de Trabajo SDD
-- Los cambios se desarrollan con SDD en `openspec/changes/<cambio>`; ODD queda solo para trabajo chico.
+- Todos los cambios se desarrollan con SDD en `openspec/changes/<cambio>`.
 - No escribas código especulativo ni agregues funcionalidades extra. Basate exclusivamente en los Criterios de Aceptación detallados en `openspec/specs` y en las delta specs del cambio en curso.
 - Mantén los PRs y los commits granulares ("small work small"); presupuesto de revisión de aproximadamente 400 líneas por PR.
 - Hoja de ruta: `docs/producto/hoja-de-ruta.md`. Documentación: `docs/`.

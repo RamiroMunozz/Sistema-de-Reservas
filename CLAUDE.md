@@ -17,7 +17,7 @@ Ejecutá `/ponerse-al-dia` al empezar una sesión: lee memoria, estado SDD, git 
 | Comandos del proyecto | `.claude/commands/` |
 | Agentes del proyecto | `.claude/agents/` |
 | Bitácora de sesiones (estado y próximo paso) | `docs/bitacora.md` |
-| Auditoría previa | `auditoria.md`, `odd/tasks/security-audit.md` |
+| Auditoría previa | `docs/historial/auditoria-seguridad.md` |
 
 Memoria (Engram): proyecto `sistema-de-reservas`.
 

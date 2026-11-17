@@ -12,7 +12,7 @@ Esqueleto de capítulos y artefactos del repositorio que los alimentan. Los tít
 | 6. Análisis | Requisitos y escenarios por dominio. | `openspec/specs/`, `docs/producto/glosario.md` |
 | 7. Diseño | Arquitectura, modelo de datos y decisiones. | `docs/arquitectura/vision-general.md`, `docs/arquitectura/adr/`, `backend/prisma/schema.prisma` |
 | 8. Implementación | Backend, frontend, integración con Mercado Pago, aislamiento por negocio. | `backend/src`, `frontend/src`, `openspec/changes/` |
-| 9. Pruebas | Estrategia, concurrencia, seguridad e integración continua. | `backend/tests`, `auditoria.md`, `odd/tasks/security-audit.md` |
+| 9. Pruebas | Estrategia, concurrencia, seguridad e integración continua. | `backend/tests`, `docs/historial/auditoria-seguridad.md` |
 | 10. Conclusiones | Resultados, limitaciones y trabajo futuro. | `docs/producto/hoja-de-ruta.md` |
 
 Cada cambio archivado en `openspec/changes/archive/` documenta una decisión con su motivo y verificación; es la principal evidencia del proceso.

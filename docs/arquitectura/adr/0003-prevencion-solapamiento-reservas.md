@@ -19,7 +19,7 @@ La violación de la restricción se convierte en un `ConflictError` (HTTP 409, "
 ## Consecuencias
 
 - La restricción es la garantía final y no puede expirar, a diferencia de un bloqueo en Redis.
-- Según la bitácora de `odd/tasks/security-audit.md` (L11), solo con `EXCLUDE` hubo 324 deadlocks en 2700 pedidos y esperas de hasta 9 s, sin duplicados; el bloqueo asesor serializa por cancha y lo evita.
+- Según la medición de la corrección T6 de la auditoría (noviembre de 2026), solo con `EXCLUDE` hubo 324 deadlocks en 2700 pedidos y esperas de hasta 9 s, sin duplicados; el bloqueo asesor serializa por cancha y lo evita.
 - Requiere la extensión `btree_gist`: el usuario de la base necesita permiso para crearla.
 - Prisma no ve la restricción: no debe eliminarse al regenerar migraciones (ver skill `prisma-migraciones`).
 - Con multi-tenant, el bloqueo por cancha sigue siendo válido porque la cancha pertenece a un solo negocio.
