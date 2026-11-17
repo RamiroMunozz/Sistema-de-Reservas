@@ -33,6 +33,8 @@ Registro de las tareas y decisiones tomadas al corregir los hallazgos de `audito
 - La restricción bloquea toda reserva distinta de `CANCELLED`.
 - Medición: solo con `EXCLUDE` hubo 324 deadlocks en 2700 pedidos y esperas de hasta 9 s, sin duplicados. Por eso se agregó `pg_advisory_xact_lock` por cancha (ver ADR 0003).
 - Se versiona la migración `20261031231330_nueva_migracion`, porque sin ella una base nueva no coincide con `schema.prisma`.
+- La migración se aplicó a la base de desarrollo, que no tenía solapamientos.
+- `npm test` borró una reserva residual (2026-11-20) al limpiar su turno: las pruebas que usan la base deben correr contra una base descartable.
 
 ### Validación y errores (T9)
 

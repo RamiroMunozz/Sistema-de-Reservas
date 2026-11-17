@@ -17,7 +17,7 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 1. Abrir e integrar el PR de `chore/limpieza-odd` en `main`, y volver a `main`.
 2. Iniciar el primer cambio SDD, `specs-base`: correr `/spec-base <dominio>` para cada dominio (autenticacion, reservas, canchas, pagos, administracion).
-3. Opcional: levantar Docker Desktop y la base (`docker compose up -d`) para confirmar los 5 tests que dependen de PostgreSQL.
+3. Opcional: confirmar los 5 tests que dependen de PostgreSQL contra una base **descartable**, nunca la de desarrollo con datos: `npm test` borra reservas al limpiar sus turnos.
 
 ## Configuración vigente
 
