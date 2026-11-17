@@ -5,8 +5,8 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Estado actual
 
-- **Rama activa:** `chore/limpieza-odd`, publicada; falta abrir el PR hacia `main`. Base: `main` en `a9d0583`.
-- **Fundación SDD:** `chore/estructura-sdd` ya está integrada en `main` y publicada.
+- **Rama activa:** `desarrollo`, al día con `main` (`32106bd`). Solo existen `main` y `desarrollo`.
+- **Fundación SDD y limpieza de ODD:** integradas en `main` y publicadas.
 - **Observaciones de la revisión de la fundación:** aplicadas (agente `revisor-multitenant` de solo lectura, validación de dominio en `/spec-base`, multi-tenant marcado como objetivo en `openspec/config.yaml`).
 - **Tests del backend:** `npm test` da 73 pasan, 18 omitidos y 5 fallan; los 5 necesitan PostgreSQL (Docker Desktop apagado). `npx tsc --noEmit` sin errores. Tras `npm install` hay que correr `npx prisma generate`, porque npm bloquea los scripts de instalación.
 - **Flujo de trabajo:** solo SDD. Se eliminó ODD (`odd/`) y la auditoría pasó a `docs/historial/auditoria-seguridad.md`. Las tareas y decisiones de su corrección quedaron en `docs/historial/decisiones-auditoria.md`.
@@ -15,13 +15,13 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Próximo paso
 
-1. Abrir e integrar el PR de `chore/limpieza-odd` en `main`, y volver a `main`.
-2. Iniciar el primer cambio SDD, `specs-base`: correr `/spec-base <dominio>` para cada dominio (autenticacion, reservas, canchas, pagos, administracion).
-3. Opcional: confirmar los 5 tests que dependen de PostgreSQL contra una base **descartable**, nunca la de desarrollo con datos: `npm test` borra reservas al limpiar sus turnos.
+1. Iniciar el primer cambio SDD, `specs-base`, en `desarrollo`: correr `/spec-base <dominio>` para cada dominio (autenticacion, reservas, canchas, pagos, administracion).
+2. Opcional: confirmar los 5 tests que dependen de PostgreSQL contra una base **descartable**, nunca la de desarrollo con datos: `npm test` borra reservas al limpiar sus turnos.
 
 ## Configuración vigente
 
-- **SDD:** pace `interactive`, artefactos `hybrid` (`openspec/` + Engram), PR `ask-on-risk`, presupuesto de 400 líneas por PR.
+- **Ramas:** `main` (estable) y `desarrollo` (trabajo diario). Se commitea en `desarrollo`; al cerrar el día, con todo verificado, se integra en `main` por fast-forward y se publica (`/cerrar-sesion`). Sin PR.
+- **SDD:** pace `interactive`, artefactos `hybrid` (`openspec/` + Engram), presupuesto de revisión de 400 líneas por cambio.
 - **TDD estricto:** solo backend (`cd backend && npm test`); el frontend no tiene tests hasta el cambio `calidad-ci`.
 - **Commits:** Conventional Commits en español, sin atribución a IA.
 

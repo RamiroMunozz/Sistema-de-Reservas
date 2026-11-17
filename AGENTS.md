@@ -36,7 +36,7 @@ Estado actual: el código es single-tenant. Las siguientes reglas son el objetiv
 ## 4. Flujo de Trabajo SDD
 - Todos los cambios se desarrollan con SDD en `openspec/changes/<cambio>`.
 - No escribas código especulativo ni agregues funcionalidades extra. Basate exclusivamente en los Criterios de Aceptación detallados en `openspec/specs` y en las delta specs del cambio en curso.
-- Mantén los PRs y los commits granulares ("small work small"); presupuesto de revisión de aproximadamente 400 líneas por PR.
+- Ramas: `main` (estable) y `desarrollo` (trabajo diario). Se commitea en `desarrollo` con commits granulares ("small work small"); al cerrar el día, con todo verificado (tests, `tsc` y revisión), se integra en `main` por fast-forward y se publica. No se usan otras ramas ni PR. Presupuesto de revisión de aproximadamente 400 líneas por cambio.
 - Hoja de ruta: `docs/producto/hoja-de-ruta.md`. Documentación: `docs/`.
 
 ### Recursos del proyecto
