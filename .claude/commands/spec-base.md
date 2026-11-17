@@ -3,6 +3,8 @@ description: Documenta el comportamiento actual de un dominio en openspec/specs/
 argument-hint: <dominio>
 ---
 
+Primero validá el argumento: si `$ARGUMENTS` no es exactamente uno de `autenticacion`, `reservas`, `canchas`, `pagos` o `administracion`, no delegues nada; respondé que el dominio no es válido, listá los valores permitidos y terminá.
+
 Delegá en el agente `documentador-specs` la escritura de `openspec/specs/$ARGUMENTS/spec.md`.
 
 Instrucciones para el agente:

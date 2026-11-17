@@ -4,8 +4,9 @@ context: |
   Proyecto: sistema-de-reservas (monorepo). Reservas de canchas deportivas multi-negocio.
   Backend: backend/ (Node, Express 5, TypeScript ESM, Prisma 5, PostgreSQL, Zod, Mercado Pago SDK).
   Frontend: frontend/ (React 19, Vite, TypeScript, Tailwind 4, React Router 7).
-  Producto: multi-tenant (cada negocio aislado, con su propio Mercado Pago), enlace publico por slug,
-  roles SUPER_ADMIN/DUEÑO/JUGADOR, politica de pago por negocio.
+  Estado actual: single-tenant.
+  Producto objetivo (ADR 0002, aun no implementado): multi-tenant (cada negocio aislado, con su propio
+  Mercado Pago), enlace publico por slug, roles SUPER_ADMIN/DUEÑO/JUGADOR, politica de pago por negocio.
   Reglas inmutables (AGENTS.md): UTC estricto, cero any, controladores delgados y logica en servicios,
   usuarios con firstName/lastName, sin setState sincrono en useEffect.
   Idioma: todos los artefactos nuevos en espanol (neutral/profesional); se conservan los identificadores existentes.

@@ -12,3 +12,6 @@ dist/
 /.codegraph/
 /.mcp.json
 /.pi/
+
+# npm crea este archivo vacío si se ejecuta en la raíz; no hay package.json en la raíz
+/package-lock.json

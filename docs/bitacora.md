@@ -5,21 +5,19 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Estado actual
 
-- **Rama activa:** `chore/limpieza-odd` (sin push). Base: `main` en `a9d0583`.
+- **Rama activa:** `chore/limpieza-odd`, publicada con PR abierto hacia `main`. Base: `main` en `a9d0583`.
 - **Fundación SDD:** `chore/estructura-sdd` ya está integrada en `main` y publicada.
+- **Observaciones de la revisión de la fundación:** aplicadas (agente `revisor-multitenant` de solo lectura, validación de dominio en `/spec-base`, multi-tenant marcado como objetivo en `openspec/config.yaml`).
+- **Tests del backend:** `npm test` da 73 pasan, 18 omitidos y 5 fallan; los 5 necesitan PostgreSQL (Docker Desktop apagado). `npx tsc --noEmit` sin errores. Tras `npm install` hay que correr `npx prisma generate`, porque npm bloquea los scripts de instalación.
 - **Flujo de trabajo:** solo SDD. Se eliminó ODD (`odd/`) y la auditoría pasó a `docs/historial/auditoria-seguridad.md`. Las tareas y decisiones de su corrección quedaron en `docs/historial/decisiones-auditoria.md`.
 - **Hoja de ruta:** fase 0 (fundación SDD) completa; ningún cambio SDD iniciado todavía.
 - **Código:** sigue siendo single-tenant; multi-tenant es objetivo (ADR 0002).
 
 ## Próximo paso
 
-1. Aplicar las 3 observaciones no bloqueantes de la revisión, en un commit chico:
-   - `.claude/agents/revisor-multitenant.md`: tiene `Bash` sin restricción; quitarlo o restringirlo, porque el agente debe ser de solo lectura.
-   - `.claude/commands/spec-base.md`: abortar si el argumento no es uno de los dominios permitidos (autenticacion, reservas, canchas, pagos, administracion).
-   - `openspec/config.yaml`: marcar el contexto multi-tenant y los roles como **objetivo**, no como estado actual.
-2. Ejecutar `npm install` en `backend/` (falta `node_modules`; `npm test` falla con "vitest no se reconoce") y confirmar que los tests pasan.
-3. Decidir push y PR de `chore/limpieza-odd`.
-4. Iniciar el primer cambio SDD: `specs-base`, con `/spec-base <dominio>` por cada dominio.
+1. Integrar el PR de `chore/limpieza-odd` en `main` y volver a `main`.
+2. Iniciar el primer cambio SDD, `specs-base`: correr `/spec-base <dominio>` para cada dominio (autenticacion, reservas, canchas, pagos, administracion).
+3. Opcional: levantar Docker Desktop y la base (`docker compose up -d`) para confirmar los 5 tests que dependen de PostgreSQL.
 
 ## Configuración vigente
 

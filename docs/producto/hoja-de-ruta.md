@@ -5,7 +5,7 @@ Cambios SDD en orden de ejecución. Cada uno se desarrolla en `openspec/changes/
 | N.º | Cambio | Estado | Objetivo |
 |---|---|---|---|
 | 1 | `specs-base` | pendiente | Documentar el comportamiento actual en `openspec/specs/` (autenticación, reservas, canchas, pagos, administración). |
-| 2 | `deuda-auditoria` | pendiente | Resolver la deuda de `docs/historial/auditoria-seguridad.md`: `any` en `admin.service.ts:15`, UTC en `AdminDashboard.tsx:815`, log de `userId` en `booking.service.ts`, `\|\| true` del Dockerfile del backend, rotar `JWT_SECRET` y punto A3 (rechazo de pago). |
+| 2 | `deuda-auditoria` | pendiente | Resolver la deuda de `docs/historial/auditoria-seguridad.md`: `any` en `admin.service.ts:15`, UTC en `AdminDashboard.tsx:815`, log de `userId` en `booking.service.ts`, `\|\| true` del Dockerfile del backend, rotar `JWT_SECRET`, 500 con UUID inexistente en `PATCH` admin y `cancel`, y punto A3 (rechazo de pago). |
 | 3 | `multi-tenant-negocios` | pendiente | Introducir el negocio como unidad de aislamiento y los roles `SUPER_ADMIN`, dueño y jugador. |
 | 4 | `mercadopago-por-negocio` | pendiente | Usar credenciales de Mercado Pago propias de cada negocio. |
 | 5 | `politica-cobro` | pendiente | Política de cobro por negocio: total online, seña o pago en el lugar. |
