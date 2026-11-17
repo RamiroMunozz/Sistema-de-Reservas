@@ -7,7 +7,7 @@ interface Booking {
   id: string;
   startTime: string;
   endTime: string;
-  status: "CONFIRMED" | "CANCELLED" | "PENDING";
+  status: "CONFIRMED" | "CANCELLED" | "PENDING" | "COMPLETED";
   totalPrice: string | number;
   paymentMethod: string;
   court: {
@@ -19,11 +19,27 @@ interface Booking {
   };
 }
 
+const ETIQUETAS_ESTADO: Record<Booking["status"], string> = {
+  PENDING: "Pendiente",
+  CONFIRMED: "Confirmada",
+  CANCELLED: "Cancelada",
+  COMPLETED: "Jugada",
+};
+
+const ESTILOS_ESTADO: Record<Booking["status"], string> = {
+  PENDING: "bg-amber-500/20 text-amber-400 border border-amber-500/30",
+  CONFIRMED: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
+  CANCELLED: "bg-red-500/20 text-red-400 border border-red-500/30",
+  COMPLETED: "bg-slate-500/20 text-slate-300 border border-slate-500/30",
+};
+
 export const MyBookingsPage: React.FC = () => {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Instante de referencia; se renueva al cargar las reservas.
+  const [ahora, setAhora] = useState<number>(() => Date.now());
 
   useEffect(() => {
     let isMounted = true;
@@ -33,6 +49,7 @@ export const MyBookingsPage: React.FC = () => {
         const res = await api.get<Booking[]>("/bookings/my-bookings");
         if (isMounted) {
           setBookings(res.data);
+          setAhora(Date.now());
         }
       } catch (err) {
         console.error("Error al cargar reservas:", err);
@@ -120,11 +137,19 @@ export const MyBookingsPage: React.FC = () => {
               day: "2-digit",
               month: "2-digit",
               year: "numeric",
+              timeZone: "UTC",
             });
             const hours = startDate.getUTCHours().toString().padStart(2, "0");
-            const timeStr = `${hours}:00 hs`;
+            const minutes = startDate
+              .getUTCMinutes()
+              .toString()
+              .padStart(2, "0");
+            const timeStr = `${hours}:${minutes} hs`;
 
-            const isCancelled = booking.status === "CANCELLED";
+            const puedeCancelar =
+              (booking.status === "PENDING" ||
+                booking.status === "CONFIRMED") &&
+              startDate.getTime() > ahora;
 
             return (
               <div
@@ -137,13 +162,9 @@ export const MyBookingsPage: React.FC = () => {
                       {booking.court.name}
                     </h3>
                     <span
-                      className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${
-                        isCancelled
-                          ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                          : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                      }`}
+                      className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${ESTILOS_ESTADO[booking.status]}`}
                     >
-                      {isCancelled ? "Cancelada" : "Confirmada"}
+                      {ETIQUETAS_ESTADO[booking.status]}
                     </span>
                   </div>
 
@@ -171,7 +192,7 @@ export const MyBookingsPage: React.FC = () => {
                     </span>
                   </div>
 
-                  {!isCancelled && (
+                  {puedeCancelar && (
                     <button
                       onClick={() => handleCancel(booking.id)}
                       disabled={actionLoading === booking.id}

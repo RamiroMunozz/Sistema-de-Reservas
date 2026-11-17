@@ -26,6 +26,8 @@ export const BookingsPage: React.FC = () => {
     new Date().toISOString().split("T")[0],
   );
   const [loading, setLoading] = useState(true);
+  // Instante de referencia; se renueva al cargar la disponibilidad.
+  const [ahora, setAhora] = useState<number>(() => Date.now());
 
   // Mapa de horarios ocupados por ID de cancha: { [courtId: string]: string[] }
   const [occupiedSlotsByCourt, setOccupiedSlotsByCourt] = useState<
@@ -74,6 +76,7 @@ export const BookingsPage: React.FC = () => {
 
           if (isMounted) {
             setOccupiedSlotsByCourt(availabilityMap);
+            setAhora(Date.now());
           }
         }
       } catch (err) {
@@ -120,8 +123,12 @@ export const BookingsPage: React.FC = () => {
     return Array.isArray(occupiedList) && occupiedList.includes(time);
   };
 
+  // El turno se arma en UTC (`${fecha}T${hora}:00.000Z`), igual que startTime.
+  const isSlotPast = (time: string): boolean =>
+    new Date(`${selectedDate}T${time}:00.000Z`).getTime() <= ahora;
+
   const handleOpenBookingModal = (court: Court, time: string) => {
-    if (isSlotOccupied(court.id, time)) return;
+    if (isSlotOccupied(court.id, time) || isSlotPast(time)) return;
 
     setSelectedSlot({
       courtId: court.id,
@@ -306,14 +313,15 @@ export const BookingsPage: React.FC = () => {
                 <div className="grid grid-cols-3 gap-2">
                   {timeSlots.map((time) => {
                     const occupied = isSlotOccupied(court.id, time);
+                    const past = isSlotPast(time);
 
                     return (
                       <button
                         key={time}
-                        disabled={occupied}
+                        disabled={occupied || past}
                         onClick={() => handleOpenBookingModal(court, time)}
                         className={`py-2 rounded-lg text-xs font-bold transition flex flex-col items-center justify-center gap-0.5 border ${
-                          occupied
+                          occupied || past
                             ? "bg-slate-950/60 border-slate-800 text-slate-600 cursor-not-allowed opacity-50 line-through"
                             : "bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 border-emerald-500/30"
                         }`}
@@ -325,6 +333,11 @@ export const BookingsPage: React.FC = () => {
                         {occupied && (
                           <span className="text-[9px] text-rose-500 font-semibold no-underline">
                             Ocupado
+                          </span>
+                        )}
+                        {!occupied && past && (
+                          <span className="text-[9px] text-slate-500 font-semibold no-underline">
+                            Pasado
                           </span>
                         )}
                       </button>

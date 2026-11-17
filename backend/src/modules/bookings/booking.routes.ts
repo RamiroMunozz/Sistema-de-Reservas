@@ -12,6 +12,7 @@ router.get("/availability", bookingController.getAvailability);
 
 // 2. Rutas de administración (van antes de cualquier /:id)
 router.get("/admin/daily", soloAdmin, bookingController.getDailyAdmin);
+router.get("/admin/all", soloAdmin, bookingController.getAllAdmin);
 router.patch("/admin/:id/status", soloAdmin, bookingController.updateStatus);
 router.post("/admin/create", soloAdmin, bookingController.createAdmin);
 

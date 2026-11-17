@@ -201,7 +201,7 @@ export const AdminDashboard: React.FC = () => {
 
     if (activeTab === "bookings") {
       api
-        .get<AdminBooking[]>("/bookings")
+        .get<AdminBooking[]>("/bookings/admin/all")
         .then((res) => {
           if (isMounted) {
             setAllBookings(res.data);
@@ -610,7 +610,7 @@ export const AdminDashboard: React.FC = () => {
                                     }`}
                                   >
                                     {booking.paymentMethod === "TRANSFER"
-                                      ? "MP"
+                                      ? "Transferencia"
                                       : "Efectivo"}
                                   </span>
                                 </div>
@@ -624,7 +624,7 @@ export const AdminDashboard: React.FC = () => {
                                   </span>
 
                                   <div className="flex items-center gap-1">
-                                    {booking.status !== "COMPLETED" && (
+                                    {booking.status === "CONFIRMED" && (
                                       <button
                                         onClick={() =>
                                           handleDailyStatusChange(

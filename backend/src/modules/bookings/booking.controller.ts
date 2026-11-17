@@ -86,6 +86,16 @@ export class BookingController {
     }
   };
 
+  getAllAdmin = async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const bookings = await bookingService.getAllBookingsForAdmin();
+
+      return res.status(200).json(bookings);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   updateStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { id } = idReservaSchema.parse(req.params);

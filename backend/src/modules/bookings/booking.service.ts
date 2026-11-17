@@ -156,6 +156,25 @@ export class BookingService {
     });
   }
 
+  async getAllBookingsForAdmin() {
+    return prisma.booking.findMany({
+      include: {
+        court: true,
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        startTime: "desc",
+      },
+    });
+  }
+
   async getDailyBookingsForAdmin(dateStr: string) {
     const startOfDay = new Date(`${dateStr}T00:00:00.000Z`);
     const endOfDay = new Date(`${dateStr}T23:59:59.999Z`);

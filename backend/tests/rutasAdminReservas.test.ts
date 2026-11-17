@@ -46,6 +46,15 @@ describe("Rutas admin de reservas", () => {
       expect(respuesta.body.detail).toBe(mensajeProhibido);
     });
 
+    it("recibe 403 en GET /admin/all", async () => {
+      const respuesta = await request(app)
+        .get("/api/v1/bookings/admin/all")
+        .set(conToken("USER"));
+
+      expect(respuesta.status).toBe(403);
+      expect(respuesta.body.detail).toBe(mensajeProhibido);
+    });
+
     it("recibe 403 en POST /admin/create", async () => {
       const respuesta = await request(app)
         .post("/api/v1/bookings/admin/create")
@@ -69,6 +78,37 @@ describe("Rutas admin de reservas", () => {
       );
 
       expect(respuesta.status).toBe(401);
+    });
+
+    it("un pedido sin token recibe 401 en GET /admin/all", async () => {
+      const respuesta = await request(app).get("/api/v1/bookings/admin/all");
+
+      expect(respuesta.status).toBe(401);
+    });
+
+    it("un ADMIN lista todas las reservas en GET /admin/all, de la más reciente a la más antigua", async () => {
+      const respuesta = await request(app)
+        .get("/api/v1/bookings/admin/all")
+        .set(conToken("ADMIN"));
+
+      expect(respuesta.status).toBe(200);
+      expect(Array.isArray(respuesta.body)).toBe(true);
+
+      const reservas = respuesta.body as Array<{
+        startTime: string;
+        court: { name: string; sport: string };
+        user: { email: string; password?: string };
+      }>;
+
+      for (const reserva of reservas) {
+        expect(reserva.court.name).toEqual(expect.any(String));
+        expect(reserva.user.email).toEqual(expect.any(String));
+        expect(reserva.user).not.toHaveProperty("password");
+      }
+
+      const inicios = reservas.map((r) => new Date(r.startTime).getTime());
+      const ordenados = [...inicios].sort((a, b) => b - a);
+      expect(inicios).toEqual(ordenados);
     });
 
     it("un pedido sin token recibe 401 en PATCH /admin/:id/status", async () => {
