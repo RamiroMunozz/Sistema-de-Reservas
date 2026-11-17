@@ -6,6 +6,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { BookingsPage } from "./pages/BookingsPage";
 import { MyBookingsPage } from "./pages/MyBookingsPage";
 import { AdminDashboard } from "./pages/AdminDashboard";
+import { ProtectedRoute } from "./components/ProtectedRoute";
 
 export const App: React.FC = () => {
   return (
@@ -17,8 +18,22 @@ export const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<BookingsPage />} />
               <Route path="/login" element={<LoginPage />} />
-              <Route path="/mis-reservas" element={<MyBookingsPage />} />
-              <Route path="/admin" element={<AdminDashboard />} />
+              <Route
+                path="/mis-reservas"
+                element={
+                  <ProtectedRoute>
+                    <MyBookingsPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <ProtectedRoute requiredRole="ADMIN">
+                    <AdminDashboard />
+                  </ProtectedRoute>
+                }
+              />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

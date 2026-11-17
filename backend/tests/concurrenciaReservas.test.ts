@@ -176,7 +176,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Concurrencia de reservas", () => {
     expect(respuesta.status).toBe(201);
   });
 
-  it("no deja reconfirmar una reserva cancelada si el turno ya es de otra", async () => {
+  it("no deja reconfirmar una reserva cancelada aunque el turno ya sea de otra", async () => {
     const cancelada = await reservar(horario(10, 11));
     await request(app)
       .patch(`/api/v1/bookings/${cancelada.body.id}/cancel`)
@@ -189,7 +189,9 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Concurrencia de reservas", () => {
       .send({ status: "CONFIRMED" });
 
     expect(respuesta.status).toBe(409);
-    expect(respuesta.body.detail).toBe(MENSAJE_OCUPADO);
+    expect(respuesta.body.detail).toBe(
+      "No se puede cambiar una reserva de CANCELLED a CONFIRMED.",
+    );
     const original = await prisma.booking.findUnique({
       where: { id: cancelada.body.id },
     });

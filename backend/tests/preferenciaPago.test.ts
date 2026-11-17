@@ -194,7 +194,10 @@ describe("POST /payments/create-preference", () => {
       .send({ bookingId: ID_RESERVA });
 
     vi.stubEnv("MERCADOPAGO_WEBHOOK_SECRET", "secreto_webhook_de_prueba");
-    expect(respuesta.status).toBe(500);
+    expect(respuesta.status).toBe(503);
+    expect(respuesta.body.detail).toBe(
+      "Los pagos con Mercado Pago no están configurados.",
+    );
     expect(crearPreferencia).not.toHaveBeenCalled();
   });
 
@@ -209,7 +212,10 @@ describe("POST /payments/create-preference", () => {
       .send({ bookingId: ID_RESERVA });
 
     vi.stubEnv("MERCADOPAGO_ACCESS_TOKEN", "token_de_prueba");
-    expect(respuesta.status).toBe(500);
+    expect(respuesta.status).toBe(503);
+    expect(respuesta.body.detail).toBe(
+      "Los pagos con Mercado Pago no están configurados.",
+    );
     expect(crearPreferencia).not.toHaveBeenCalled();
   });
 });

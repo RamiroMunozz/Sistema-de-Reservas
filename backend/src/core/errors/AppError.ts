@@ -41,3 +41,9 @@ export class UnprocessableEntityError extends AppError {
     super(message, 422);
   }
 }
+
+export class ServiceUnavailableError extends AppError {
+  constructor(message = "El servicio no está disponible") {
+    super(message, 503);
+  }
+}

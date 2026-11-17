@@ -337,7 +337,9 @@ export const AdminDashboard: React.FC = () => {
     if (!confirmCancel) return;
 
     try {
-      await api.patch(`/bookings/${bookingId}/cancel`);
+      await api.patch(`/bookings/admin/${bookingId}/status`, {
+        status: "CANCELLED",
+      });
       setAllBookings((prev) =>
         prev.map((b) =>
           b.id === bookingId ? { ...b, status: "CANCELLED" } : b,

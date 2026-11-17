@@ -214,7 +214,7 @@ describe("Validación de reservas", () => {
       expect(crearReserva).not.toHaveBeenCalled();
     });
 
-    it("permite registrar un turno pasado", async () => {
+    it("responde 400 si el turno ya pasó", async () => {
       const respuesta = await request(app)
         .post(`${RUTA_RESERVAS}/admin/create`)
         .set(conToken("ADMIN"))
@@ -224,7 +224,45 @@ describe("Validación de reservas", () => {
           endTime: enDias(-1, 11),
         });
 
+      expect(respuesta.status).toBe(400);
+      expect(respuesta.body.detail).toBe("No se puede reservar un turno pasado.");
+      expect(crearReserva).not.toHaveBeenCalled();
+    });
+
+    it("responde 400 si la cancha está inactiva", async () => {
+      buscarCancha.mockResolvedValue({ ...canchaActiva, isActive: false });
+
+      const respuesta = await request(app)
+        .post(`${RUTA_RESERVAS}/admin/create`)
+        .set(conToken("ADMIN"))
+        .send(reservaValida());
+
+      expect(respuesta.status).toBe(400);
+      expect(respuesta.body.detail).toBe("La cancha no está disponible.");
+      expect(crearReserva).not.toHaveBeenCalled();
+    });
+
+    it("responde 400 si la cancha no existe", async () => {
+      buscarCancha.mockResolvedValue(null);
+
+      const respuesta = await request(app)
+        .post(`${RUTA_RESERVAS}/admin/create`)
+        .set(conToken("ADMIN"))
+        .send(reservaValida());
+
+      expect(respuesta.status).toBe(400);
+      expect(respuesta.body.detail).toBe("La cancha no existe.");
+      expect(crearReserva).not.toHaveBeenCalled();
+    });
+
+    it("crea la reserva con datos válidos", async () => {
+      const respuesta = await request(app)
+        .post(`${RUTA_RESERVAS}/admin/create`)
+        .set(conToken("ADMIN"))
+        .send(reservaValida());
+
       expect(respuesta.status).toBe(201);
+      expect(crearReserva).toHaveBeenCalledOnce();
     });
   });
 
@@ -247,6 +285,57 @@ describe("Validación de reservas", () => {
 
       expect(respuesta.status).toBe(400);
       expect(buscarReserva).not.toHaveBeenCalled();
+    });
+
+    it("responde 404 si la reserva no existe", async () => {
+      buscarReserva.mockResolvedValue(null);
+
+      const respuesta = await request(app)
+        .patch(`${RUTA_RESERVAS}/admin/${ID_RESERVA}/status`)
+        .set(conToken("ADMIN"))
+        .send({ status: "CANCELLED" });
+
+      expect(respuesta.status).toBe(404);
+      expect(actualizarReserva).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ["PENDING", "CONFIRMED"],
+      ["PENDING", "CANCELLED"],
+      ["CONFIRMED", "COMPLETED"],
+      ["CONFIRMED", "CANCELLED"],
+    ])("permite la transición %s a %s", async (actual, nuevo) => {
+      buscarReserva.mockResolvedValue({ courtId: ID_CANCHA, status: actual });
+      actualizarReserva.mockResolvedValue({ id: ID_RESERVA, status: nuevo });
+
+      const respuesta = await request(app)
+        .patch(`${RUTA_RESERVAS}/admin/${ID_RESERVA}/status`)
+        .set(conToken("ADMIN"))
+        .send({ status: nuevo });
+
+      expect(respuesta.status).toBe(200);
+      expect(actualizarReserva).toHaveBeenCalledOnce();
+    });
+
+    it.each([
+      ["CANCELLED", "COMPLETED"],
+      ["CANCELLED", "CONFIRMED"],
+      ["COMPLETED", "CANCELLED"],
+      ["COMPLETED", "CONFIRMED"],
+      ["CONFIRMED", "PENDING"],
+      ["CONFIRMED", "CONFIRMED"],
+      ["PENDING", "COMPLETED"],
+    ])("responde 409 en la transición %s a %s", async (actual, nuevo) => {
+      buscarReserva.mockResolvedValue({ courtId: ID_CANCHA, status: actual });
+
+      const respuesta = await request(app)
+        .patch(`${RUTA_RESERVAS}/admin/${ID_RESERVA}/status`)
+        .set(conToken("ADMIN"))
+        .send({ status: nuevo });
+
+      expect(respuesta.status).toBe(409);
+      expect(respuesta.body.detail).toContain("No se puede cambiar");
+      expect(actualizarReserva).not.toHaveBeenCalled();
     });
   });
 

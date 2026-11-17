@@ -12,6 +12,7 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
+  ServiceUnavailableError,
   UnauthorizedError,
 } from "../../core/errors/AppError.js";
 import { conBloqueoDeCancha } from "../bookings/bloqueoCancha.js";
@@ -44,9 +45,21 @@ const obtenerVariableRequerida = (nombre: string): string => {
   return valor;
 };
 
+const obtenerVariableMercadoPago = (nombre: string): string => {
+  const valor = process.env[nombre];
+
+  if (!valor) {
+    throw new ServiceUnavailableError(
+      "Los pagos con Mercado Pago no están configurados.",
+    );
+  }
+
+  return valor;
+};
+
 const crearClienteMercadoPago = () =>
   new MercadoPagoConfig({
-    accessToken: obtenerVariableRequerida("MERCADOPAGO_ACCESS_TOKEN"),
+    accessToken: obtenerVariableMercadoPago("MERCADOPAGO_ACCESS_TOKEN"),
   });
 
 export class PaymentService {
@@ -74,7 +87,7 @@ export class PaymentService {
     }
 
     // Sin el secreto el webhook rechazaría la notificación de un pago ya cobrado
-    obtenerVariableRequerida("MERCADOPAGO_WEBHOOK_SECRET");
+    obtenerVariableMercadoPago("MERCADOPAGO_WEBHOOK_SECRET");
     const backendUrl = obtenerVariableRequerida("BACKEND_URL");
     const preference = new Preference(crearClienteMercadoPago());
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";

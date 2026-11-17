@@ -21,28 +21,53 @@ const validarHorario = (inicio: Date, fin: Date) => {
   }
 };
 
+const TRANSICIONES_PERMITIDAS: Record<BookingStatus, BookingStatus[]> = {
+  [BookingStatus.PENDING]: [BookingStatus.CONFIRMED, BookingStatus.CANCELLED],
+  [BookingStatus.CONFIRMED]: [BookingStatus.COMPLETED, BookingStatus.CANCELLED],
+  [BookingStatus.CANCELLED]: [],
+  [BookingStatus.COMPLETED]: [],
+};
+
+/**
+ * Valida horario, existencia y disponibilidad de la cancha y que el turno
+ * no haya pasado. Devuelve la cancha y las fechas ya convertidas.
+ */
+const validarTurnoReservable = async (
+  courtId: string,
+  startTime: string | Date,
+  endTime: string | Date,
+) => {
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+
+  validarHorario(start, end);
+
+  const court = await prisma.court.findUnique({
+    where: { id: courtId },
+  });
+
+  if (!court) {
+    throw new AppError("La cancha no existe.");
+  }
+
+  if (!court.isActive) {
+    throw new AppError("La cancha no está disponible.");
+  }
+
+  if (start <= new Date()) {
+    throw new AppError("No se puede reservar un turno pasado.");
+  }
+
+  return { court, start, end };
+};
+
 export class BookingService {
   async createBooking(data: CreateBookingInput, userId: string) {
-    const start = new Date(data.startTime);
-    const end = new Date(data.endTime);
-
-    validarHorario(start, end);
-
-    const court = await prisma.court.findUnique({
-      where: { id: data.courtId },
-    });
-
-    if (!court) {
-      throw new AppError("La cancha no existe.");
-    }
-
-    if (!court.isActive) {
-      throw new AppError("La cancha no está disponible.");
-    }
-
-    if (start <= new Date()) {
-      throw new AppError("No se puede reservar un turno pasado.");
-    }
+    const { court, start, end } = await validarTurnoReservable(
+      data.courtId,
+      data.startTime,
+      data.endTime,
+    );
 
     return conBloqueoDeCancha(data.courtId, (transaccion) =>
       transaccion.booking.create({
@@ -165,11 +190,17 @@ export class BookingService {
   async updateBookingStatus(bookingId: string, status: BookingStatus) {
     const reserva = await prisma.booking.findUnique({
       where: { id: bookingId },
-      select: { courtId: true },
+      select: { courtId: true, status: true },
     });
 
     if (!reserva) {
       throw new NotFoundError("Reserva no encontrada.");
+    }
+
+    if (!TRANSICIONES_PERMITIDAS[reserva.status].includes(status)) {
+      throw new ConflictError(
+        `No se puede cambiar una reserva de ${reserva.status} a ${status}.`,
+      );
     }
 
     return conBloqueoDeCancha(reserva.courtId, (transaccion) =>
@@ -200,16 +231,11 @@ export class BookingService {
     },
     adminUserId: string,
   ) {
-    const start = new Date(data.startTime);
-    const end = new Date(data.endTime);
-
-    validarHorario(start, end);
-
-    const court = await prisma.court.findUnique({
-      where: { id: data.courtId },
-    });
-
-    if (!court) throw new AppError("Cancha no encontrada.");
+    const { court, start, end } = await validarTurnoReservable(
+      data.courtId,
+      data.startTime,
+      data.endTime,
+    );
 
     return conBloqueoDeCancha(data.courtId, (transaccion) =>
       transaccion.booking.create({
