@@ -14,7 +14,7 @@ Cerrá la sesión de trabajo del proyecto `sistema-de-reservas`:
    - `npm test`. Las pruebas que usan la base borran reservas: corrélas solo si `DATABASE_URL` apunta a una base descartable. Si no hay base descartable, aceptá como única falla conocida la de esas pruebas por falta de PostgreSQL, e informalo.
 
    Si se cumplen, proponé la integración. Con confirmación del usuario, ejecutá cada paso por separado y verificá su resultado antes del siguiente:
-   1. `git fetch origin`; si `main` local no coincide con `origin/main`, detenete y reportá.
+   1. `git fetch origin`. Si `main` local está adelantado respecto de `origin/main` (quedó de un push fallido en una sesión anterior) y `origin/main` es ancestro de `main`, reintentá `git push origin main` antes de seguir. Si diverge, detenete y reportá.
    2. `git switch main`.
    3. `git merge --ff-only desarrollo`.
    4. `git push origin main`.

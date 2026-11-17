@@ -11,7 +11,7 @@ Cambios SDD en orden de ejecución. Cada uno se desarrolla en `openspec/changes/
 | 5 | `politica-cobro` | pendiente | Política de cobro por negocio: total online, seña o pago en el lugar. |
 | 6 | `pagina-publica-negocio` | pendiente | Página pública por slug con la marca del negocio. |
 | 7 | `panel-super-admin` | pendiente | Panel de la plataforma para gestionar negocios. |
-| 8 | `calidad-ci` | pendiente | Pruebas del frontend y flujo de integración continua con GitHub Actions. |
+| 8 | `calidad-ci` | pendiente | Pruebas del frontend y flujo de integración continua con GitHub Actions. Separar las pruebas del backend que usan la base (script `test:unit` sin base y otro con base descartable) para que la integración diaria tenga un control determinista. |
 | 9 | `despliegue` | pendiente | Definir y documentar el despliegue en producción. |
 | 10 | `documentacion-tesis` | pendiente | Consolidar la documentación como material de la tesis. |
 

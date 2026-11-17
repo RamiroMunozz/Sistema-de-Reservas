@@ -16,7 +16,8 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 ## Próximo paso
 
 1. Iniciar el primer cambio SDD, `specs-base`, en `desarrollo`: correr `/spec-base <dominio>` para cada dominio (autenticacion, reservas, canchas, pagos, administracion).
-2. Opcional: confirmar los 5 tests que dependen de PostgreSQL contra una base **descartable**, nunca la de desarrollo con datos: `npm test` borra reservas al limpiar sus turnos.
+2. Pendiente en `calidad-ci`: separar las pruebas que usan la base; hasta entonces, la integración diaria acepta solo las fallas de esas pruebas por falta de PostgreSQL.
+3. Opcional: confirmar los 5 tests que dependen de PostgreSQL contra una base **descartable**, nunca la de desarrollo con datos: `npm test` borra reservas al limpiar sus turnos.
 
 ## Configuración vigente
 
