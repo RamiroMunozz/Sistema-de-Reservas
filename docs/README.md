@@ -31,4 +31,5 @@
 - `openspec/specs/`: especificaciones vigentes por dominio.
 - `openspec/changes/`: cambios SDD en curso y archivados.
 - `AGENTS.md` y `CLAUDE.md`: reglas y mapa para trabajar con agentes.
-- `historial/auditoria-seguridad.md`: informe de la auditoría de seguridad y arquitectura.
+- `docs/historial/auditoria-seguridad.md`: informe de la auditoría de seguridad y arquitectura.
+- `docs/historial/decisiones-auditoria.md`: tareas y decisiones de la corrección de la auditoría.

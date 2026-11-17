@@ -15,7 +15,7 @@ Adoptar SDD (Spec-Driven Development):
 - Cada cambio se desarrolla en `openspec/changes/<cambio>/` (propuesta, delta specs, diseño, tareas) y se archiva al cerrarse.
 - Los artefactos se guardan en modo híbrido: archivos en `openspec/` y memoria en Engram.
 - Ritmo interactivo, estrategia de PR `ask-on-risk` y presupuesto de revisión de aproximadamente 400 líneas por PR.
-- Todo cambio usa SDD; ODD se abandona.
+- ODD se reserva para trabajo chico.
 - Se evoluciona el código actual; no se reescribe.
 
 ## Consecuencias
@@ -28,3 +28,7 @@ Adoptar SDD (Spec-Driven Development):
 
 - Continuar solo con ODD: sin contratos duraderos, difícil de sostener con varios cambios estructurales.
 - Reescribir desde cero: descartada por costo y porque el código actual tiene garantías ya verificadas (seguridad, concurrencia).
+
+## Enmiendas
+
+- 2026-11-16: se abandona ODD y todo cambio usa SDD. Reemplaza el punto "ODD se reserva para trabajo chico".

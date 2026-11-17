@@ -174,10 +174,12 @@ Ninguno se corrigió porque cambian la lógica central y requieren confirmación
 | Componente | Estado |
 |---|---|
 | Gentle AI 4.3.1 | Activo. `gentle-ai doctor`: 10 correctos, 0 fallidos, 2 advertencias |
-| ODD | Reemplazado por SDD (ADR 0001) |
+| ODD | Activo. Seguimiento en `odd/tasks/security-audit.md` |
 | Claude Code | Activo y configurado en este repositorio |
 | GGA | Activo como hook de pre-commit, con `AGENTS.md` como reglas |
 | Revisión nativa | Activa. Con archivos sin trackear hay que usar `--untracked-scope exclude` |
 | Pi | **Instalado, pero no funciona:** `pi -p` responde 401, "API key not valid" |
 
 Las dos advertencias de `doctor` son binarios duplicados de `claude` y `gemini` en el `PATH`, uno de Linux y otro de Windows.
+
+> Nota (2026-11-16): este informe refleja el estado al momento de la auditoría. ODD se reemplazó por SDD (ADR 0001); el seguimiento de tareas y decisiones está en `decisiones-auditoria.md`.

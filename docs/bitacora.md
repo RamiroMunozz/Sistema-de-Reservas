@@ -7,7 +7,7 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 - **Rama activa:** `chore/limpieza-odd` (sin push). Base: `main` en `a9d0583`.
 - **Fundación SDD:** `chore/estructura-sdd` ya está integrada en `main` y publicada.
-- **Flujo de trabajo:** solo SDD. Se eliminó ODD (`odd/`) y la auditoría pasó a `docs/historial/auditoria-seguridad.md`.
+- **Flujo de trabajo:** solo SDD. Se eliminó ODD (`odd/`) y la auditoría pasó a `docs/historial/auditoria-seguridad.md`. Las tareas y decisiones de su corrección quedaron en `docs/historial/decisiones-auditoria.md`.
 - **Hoja de ruta:** fase 0 (fundación SDD) completa; ningún cambio SDD iniciado todavía.
 - **Código:** sigue siendo single-tenant; multi-tenant es objetivo (ADR 0002).
 
