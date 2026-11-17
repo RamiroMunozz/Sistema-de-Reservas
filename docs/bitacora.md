@@ -5,7 +5,7 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Estado actual
 
-- **Rama activa:** `chore/limpieza-odd`, publicada con PR abierto hacia `main`. Base: `main` en `a9d0583`.
+- **Rama activa:** `chore/limpieza-odd`, publicada; falta abrir el PR hacia `main`. Base: `main` en `a9d0583`.
 - **Fundación SDD:** `chore/estructura-sdd` ya está integrada en `main` y publicada.
 - **Observaciones de la revisión de la fundación:** aplicadas (agente `revisor-multitenant` de solo lectura, validación de dominio en `/spec-base`, multi-tenant marcado como objetivo en `openspec/config.yaml`).
 - **Tests del backend:** `npm test` da 73 pasan, 18 omitidos y 5 fallan; los 5 necesitan PostgreSQL (Docker Desktop apagado). `npx tsc --noEmit` sin errores. Tras `npm install` hay que correr `npx prisma generate`, porque npm bloquea los scripts de instalación.
@@ -15,7 +15,7 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Próximo paso
 
-1. Integrar el PR de `chore/limpieza-odd` en `main` y volver a `main`.
+1. Abrir e integrar el PR de `chore/limpieza-odd` en `main`, y volver a `main`.
 2. Iniciar el primer cambio SDD, `specs-base`: correr `/spec-base <dominio>` para cada dominio (autenticacion, reservas, canchas, pagos, administracion).
 3. Opcional: levantar Docker Desktop y la base (`docker compose up -d`) para confirmar los 5 tests que dependen de PostgreSQL.
 
