@@ -7,7 +7,10 @@ import {
   NotFoundError,
 } from "../../core/errors/AppError.js";
 import { conBloqueoDeCancha } from "./bloqueoCancha.js";
+import { cancelarEnTransaccion } from "./cancelacionReserva.js";
 import { filtroOcupaTurno } from "./filtrosReserva.js";
+import { invalidarLinkDePago } from "./linkDePago.js";
+import { liberarReservasVencidas } from "./vencimiento.js";
 
 export interface CreateBookingInput {
   courtId: string;
@@ -108,34 +111,67 @@ export class BookingService {
   }
 
   async cancelBooking(bookingId: string, userId: string) {
-    const booking = await prisma.booking.findUnique({
+    const existente = await prisma.booking.findUnique({
       where: { id: bookingId },
+      select: { courtId: true },
     });
 
-    if (!booking) {
+    if (!existente) {
       throw new NotFoundError("Reserva no encontrada.");
     }
 
-    if (booking.userId !== userId) {
-      throw new ForbiddenError(
-        "No tienes autorización para cancelar esta reserva.",
-      );
-    }
+    const { courtId } = existente;
 
-    if (booking.status === BookingStatus.CANCELLED) {
-      throw new ConflictError("La reserva ya se encuentra cancelada.");
-    }
+    const { cancelada, idPreferencia } = await conBloqueoDeCancha(
+      courtId,
+      async (transaccion) => {
+        // Una PENDING vencida pasa a EXPIRED antes de validar la transición (RES-011).
+        await liberarReservasVencidas(transaccion, courtId);
 
-    if (booking.status === BookingStatus.COMPLETED) {
-      throw new ConflictError("No se puede cancelar una reserva completada.");
-    }
+        const booking = await transaccion.booking.findUnique({
+          where: { id: bookingId },
+        });
 
-    return prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        status: BookingStatus.CANCELLED,
+        if (!booking) {
+          throw new NotFoundError("Reserva no encontrada.");
+        }
+
+        // Una reserva de invitado no tiene userId y no pertenece a ninguna cuenta.
+        if (booking.userId !== userId) {
+          throw new ForbiddenError(
+            "No tienes autorización para cancelar esta reserva.",
+          );
+        }
+
+        if (booking.status === BookingStatus.CANCELLED) {
+          throw new ConflictError("La reserva ya se encuentra cancelada.");
+        }
+
+        if (booking.status === BookingStatus.COMPLETED) {
+          throw new ConflictError(
+            "No se puede cancelar una reserva completada.",
+          );
+        }
+
+        if (booking.status === BookingStatus.EXPIRED) {
+          throw new ConflictError("La reserva venció y no se puede cancelar.");
+        }
+
+        await cancelarEnTransaccion(transaccion, bookingId);
+
+        return {
+          cancelada: await transaccion.booking.findUniqueOrThrow({
+            where: { id: bookingId },
+          }),
+          idPreferencia: booking.mpPreferenceId,
+        };
       },
-    });
+    );
+
+    // Después del commit: un fallo de Mercado Pago no revierte la cancelación (PAG-025).
+    await invalidarLinkDePago(idPreferencia);
+
+    return cancelada;
   }
 
   async getOccupiedSlots(courtId: string, dateStr: string) {
@@ -213,38 +249,72 @@ export class BookingService {
   }
 
   async updateBookingStatus(bookingId: string, status: BookingStatus) {
-    const reserva = await prisma.booking.findUnique({
+    const existente = await prisma.booking.findUnique({
       where: { id: bookingId },
-      select: { courtId: true, status: true },
+      select: { courtId: true },
     });
 
-    if (!reserva) {
+    if (!existente) {
       throw new NotFoundError("Reserva no encontrada.");
     }
 
-    if (!puedeTransicionar(reserva.status, status)) {
-      throw new ConflictError(
-        `No se puede cambiar una reserva de ${reserva.status} a ${status}.`,
-      );
-    }
+    const { courtId } = existente;
 
-    return conBloqueoDeCancha(reserva.courtId, (transaccion) =>
-      transaccion.booking.update({
-        where: { id: bookingId },
-        data: { status },
-        include: {
-          court: true,
-          user: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true,
-              email: true,
+    const { actualizada, idPreferencia } = await conBloqueoDeCancha(
+      courtId,
+      async (transaccion) => {
+        // Una PENDING vencida pasa a EXPIRED antes de validar la transición (RES-015).
+        await liberarReservasVencidas(transaccion, courtId);
+
+        const reserva = await transaccion.booking.findUnique({
+          where: { id: bookingId },
+          select: { status: true, mpPreferenceId: true },
+        });
+
+        if (!reserva) {
+          throw new NotFoundError("Reserva no encontrada.");
+        }
+
+        if (!puedeTransicionar(reserva.status, status)) {
+          throw new ConflictError(
+            `No se puede cambiar una reserva de ${reserva.status} a ${status}.`,
+          );
+        }
+
+        if (status === BookingStatus.CANCELLED) {
+          await cancelarEnTransaccion(transaccion, bookingId);
+        } else {
+          await transaccion.booking.update({
+            where: { id: bookingId },
+            data: { status },
+          });
+        }
+
+        return {
+          actualizada: await transaccion.booking.findUniqueOrThrow({
+            where: { id: bookingId },
+            include: {
+              court: true,
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
             },
-          },
-        },
-      }),
+          }),
+          idPreferencia:
+            status === BookingStatus.CANCELLED ? reserva.mpPreferenceId : null,
+        };
+      },
     );
+
+    // Después del commit: un fallo de Mercado Pago no revierte la cancelación (PAG-025).
+    await invalidarLinkDePago(idPreferencia);
+
+    return actualizada;
   }
 
   async createAdminBooking(

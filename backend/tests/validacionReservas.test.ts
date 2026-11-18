@@ -18,6 +18,8 @@ vi.mock("../src/core/config/prisma.js", () => {
     findMany: vi.fn().mockResolvedValue([]),
     create: crearReserva,
     update: actualizarReserva,
+    updateMany: async () => ({ count: 0 }),
+    findUniqueOrThrow: async () => ({ id: "reserva", status: "CANCELLED" }),
   };
 
   return {
@@ -26,7 +28,11 @@ vi.mock("../src/core/config/prisma.js", () => {
       court: { findUnique: buscarCancha },
       user: { findUnique: buscarUsuario },
       $transaction: (operacion: (transaccion: unknown) => Promise<unknown>) =>
-        operacion({ $executeRaw: async () => 0, booking }),
+        operacion({
+          $executeRaw: async () => 0,
+          booking,
+          bookingPayment: { updateMany: async () => ({ count: 0 }) },
+        }),
     },
   };
 });
