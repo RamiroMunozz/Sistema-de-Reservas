@@ -1,6 +1,20 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "../src/core/config/prisma.js";
+import { ReservaInvitadoService } from "../src/modules/public/reservaInvitado.service.js";
+
+// La creación de invitado se prueba contra la base real; Mercado Pago, simulado.
+vi.mock("../src/core/integraciones/mercadoPago.js", () => ({
+  obtenerVariableMercadoPago: vi.fn(),
+  crearPreferencia: vi.fn(async () => ({
+    id: "preferencia-de-prueba",
+    initPoint: "https://mp.ejemplo.test/checkout",
+    sandboxInitPoint: undefined,
+  })),
+  expirarPreferencia: vi.fn(),
+  obtenerPago: vi.fn(),
+  reembolsarPago: vi.fn(),
+}));
 
 // Solo corre contra una base descartable con las migraciones aplicadas:
 // escribe y borra filas. Usa SQL directo para no depender de los tipos del cliente.
@@ -232,6 +246,88 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Migraciones de reserva-invitado (base desc
       await expect(
         prisma.$executeRaw`UPDATE "complexes" SET "deposit_percent" = ${porcentaje} WHERE "id" = ${idComplejo}::uuid`,
       ).resolves.toBe(1);
+    });
+  });
+
+  describe("creación concurrente de reservas de invitado (RES-007, RES-031)", () => {
+    const servicio = new ReservaInvitadoService();
+    const idsCanchas: string[] = [];
+
+    const crearCancha = async (nombre: string): Promise<string> => {
+      const id = randomUUID();
+      idsCanchas.push(id);
+      await prisma.$executeRaw`
+        INSERT INTO "courts" ("id", "complex_id", "name", "sport", "surface", "price_per_slot")
+        VALUES (${id}::uuid, ${idComplejo}::uuid, ${nombre}, 'PADEL', 'CEMENTO', 1000)`;
+      return id;
+    };
+
+    const telefonoNuevo = (): string =>
+      `549${Math.floor(Math.random() * 1e9).toString().padStart(9, "0")}`;
+
+    const pedido = (idCancha: string, hora: number, telefono: string) => {
+      const { inicio, fin } = horario(hora);
+      // Otro día que las demás pruebas de esta base.
+      const dia = (fecha: Date) => new Date(fecha.getTime() + 35 * 24 * 60 * 60 * 1000);
+      return servicio.crear({
+        courtId: idCancha,
+        startTime: dia(inicio).toISOString(),
+        endTime: dia(fin).toISOString(),
+        guestFirstName: "Ana",
+        guestLastName: "Concurrente",
+        guestPhone: telefono,
+      });
+    };
+
+    afterAll(async () => {
+      for (const id of idsCanchas) {
+        await prisma.$executeRaw`DELETE FROM "bookings" WHERE "court_id" = ${id}::uuid`;
+        await prisma.$executeRaw`DELETE FROM "courts" WHERE "id" = ${id}::uuid`;
+      }
+    });
+
+    it("dos solicitudes simultáneas por el mismo turno dejan una sola reserva activa", async () => {
+      const idCanchaUnica = await crearCancha("Cancha concurrente 1");
+
+      const resultados = await Promise.allSettled([
+        pedido(idCanchaUnica, 14, telefonoNuevo()),
+        pedido(idCanchaUnica, 14, telefonoNuevo()),
+      ]);
+
+      const rechazadas = resultados.filter((r) => r.status === "rejected");
+      const activas = await prisma.$queryRaw<{ total: bigint }[]>`
+        SELECT count(*) AS total FROM "bookings"
+        WHERE "court_id" = ${idCanchaUnica}::uuid AND "status" NOT IN ('CANCELLED', 'EXPIRED')`;
+
+      expect(resultados.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      expect(rechazadas).toHaveLength(1);
+      expect((rechazadas[0] as PromiseRejectedResult).reason).toMatchObject({ statusCode: 409 });
+      expect(Number(activas[0]?.total)).toBe(1);
+    });
+
+    it("cuatro solicitudes simultáneas del mismo teléfono no superan el tope de 2", async () => {
+      const canchaA = await crearCancha("Cancha concurrente 2");
+      const canchaB = await crearCancha("Cancha concurrente 3");
+      const telefono = telefonoNuevo();
+
+      const resultados = await Promise.allSettled([
+        pedido(canchaA, 9, telefono),
+        pedido(canchaA, 11, telefono),
+        pedido(canchaB, 9, telefono),
+        pedido(canchaB, 11, telefono),
+      ]);
+
+      const rechazadas = resultados.filter((r) => r.status === "rejected");
+      const pendientes = await prisma.$queryRaw<{ total: bigint }[]>`
+        SELECT count(*) AS total FROM "bookings"
+        WHERE "guest_phone" = ${telefono} AND "status" = 'PENDING'`;
+
+      expect(resultados.filter((r) => r.status === "fulfilled")).toHaveLength(2);
+      expect(rechazadas).toHaveLength(2);
+      for (const rechazada of rechazadas) {
+        expect((rechazada as PromiseRejectedResult).reason).toMatchObject({ statusCode: 429 });
+      }
+      expect(Number(pendientes[0]?.total)).toBe(2);
     });
   });
 });

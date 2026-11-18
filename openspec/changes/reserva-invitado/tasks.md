@@ -255,7 +255,7 @@ Requisitos: RES-006, RES-023 a RES-025, RES-030 a RES-032, PAG-020, PAG-022. Com
   - Archivos: `backend/src/modules/public/reservaInvitado.service.ts`, `public.controller.ts`, `public.routes.ts` (crear).
   - Criterios (decisiones 8 y 9, flujo de creación): controlador solo HTTP y Zod; servicio con Prisma y reglas.
   - Checks: `npm test` (sin fallas nuevas), `npx tsc --noEmit`, `npm run build`.
-- [ ] **T-4.7 Verificación en base descartable de la concurrencia de RES-007 y RES-031.**
+- [x] **T-4.7 Verificación en base descartable de la concurrencia de RES-007 y RES-031.**
   - Archivos: `backend/tests/migracionReservaInvitado.test.ts` (modificar, con `skipIf`).
   - Pruebas: dos solicitudes simultáneas por el mismo turno dejan una sola reserva activa; dos solicitudes simultáneas del mismo teléfono no superan el tope.
   - Checks: `npm test -- migracionReservaInvitado` con `DATABASE_URL_PRUEBA`.

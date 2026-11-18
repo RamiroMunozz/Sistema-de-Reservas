@@ -8,7 +8,8 @@ Modo: TDD estricto (Vitest, `cd backend && npm test`). Base de pruebas: `reserva
 - UT-1: T-1.1 a T-1.8 hechas y commiteadas en dos cortes (el cambio real era de 813 líneas): UT-1a `8202f04` y UT-1b `7621aad`.
 - UT-2: T-2.1 a T-2.4 hechas y commiteadas: `8995431`.
 - UT-3: T-3.1 a T-3.6 hechas y commiteadas en 5 cortes (ver abajo). Se implementó sin esperar T-0.3 (comprobaciones 4 y 5), por decisión del usuario.
-- UT-4 en adelante: pendientes.
+- UT-4: T-4.1 a T-4.7 hechas y commiteadas en 4 cortes (ver abajo).
+- UT-5a en adelante: pendientes.
 - Regla vigente (decisión del usuario): si una unidad pasa ~400 líneas, partirla en commits coherentes de ~400 o menos, sin consultar; frenar solo si no hay corte limpio.
 
 ## Evidencia del ciclo TDD
@@ -24,6 +25,10 @@ Modo: TDD estricto (Vitest, `cd backend && npm test`). Base de pruebas: `reserva
 | T-3.1 y T-3.2 | `tests/adaptadorMercadoPago.test.ts` | Suite sin cargar: `Cannot find module '/src/core/integraciones/mercadoPago.js'` | 1.ª corrida: 2 fallan (`obtenerPago` y `reembolsarPago` lanzaban de forma síncrona sin credenciales); tras volverlas `async`: 3 archivos (`adaptadorMercadoPago`, `webhookPago`, `preferenciaPago`) 45 de 45 pasan | `payment.service.ts` deja de usar el SDK: lo hace el adaptador |
 | T-3.3 y T-3.4 | `tests/cancelacionReserva.test.ts`, `tests/linkDePago.test.ts` | 2 suites sin cargar: `Cannot find module .../cancelacionReserva.js` y `.../linkDePago.js` | 18 de 18 pasan | Tipado de la condición en la prueba (`Prisma.BookingWhereInput`); `invalidarLinkDePago` usa `!idPreferencia` |
 | T-3.5 y T-3.6 | `tests/cancelacionBajoBloqueo.test.ts` (nueva), `tests/preferenciaPago.test.ts` (modificada) | 14 fallan: 403/500 porque cancelar y cambiar estado no usaban el bloqueo ni `cancelarEnTransaccion`, el 409 de `CANCELLED` traía el mensaje general, y no se guardaba ni vencía la preferencia | 101 de 101 pasan en los 4 archivos afectados (`cancelacionBajoBloqueo`, `preferenciaPago`, `validacionReservas`, `linkDePago`), tras extender la transacción simulada de `validacionReservas.test.ts` | Sin cambios |
+| T-4.1 y T-4.2 | `tests/tokenAcceso.test.ts`, `sena.test.ts`, `trustProxy.test.ts`, `datosInvitado.test.ts` | 4 suites sin cargar: `Cannot find module .../tokenAcceso.js` (y `trustProxy.js`, `sena.js`, `public.dto.js`) | 4 archivos más `validacionReservas` (por el `fechaHoraSchema` movido): 88 de 88 pasan | Sin cambios |
+| T-4.3 y T-4.4 | `tests/limitadorPublico.test.ts` | 16 de 16 fallan: `Cannot find module /src/core/middlewares/limitadorPublico.js` | 1.ª corrida: 9 fallan con 500 (la prueba mezclaba dos registros de módulos tras `vi.resetModules`, y `AppError` no coincidía); tras importar también `errorHandler` dentro del mismo registro: 16 de 16 pasan | Sin cambios |
+| T-4.5 y T-4.6 | `tests/reservaInvitadoCrear.test.ts`, `tests/limitadorCreacionRuta.test.ts` | 28 de 29 fallan: 404 en `POST /api/v1/public/bookings` (una pasa por la aserción de que no escribe) | 1.ª corrida: 17 fallan con 429 (la propia app compartida agotaba el límite de 10); tras subir `LIMITE_CREACION_PUBLICA_MAXIMO` antes de importar la app, 1 fallaba (`monto` NaN: el servicio leía `depositAmount` de la fila devuelta, que el simulado no trae); tras usar la seña calculada: 29 de 29 pasan | Sin cambios |
+| T-4.7 | `tests/migracionReservaInvitado.test.ts` (modificada, base descartable) | Verificación de una implementación ya existente, sin RED por módulo faltante. Sensibilidad comprobada: con `TOPE_PENDIENTES_POR_TELEFONO=100` la prueba del teléfono falla (4 reservas en lugar de 2) | 20 de 20 pasan | Sin cambios |
 
 Triangulación: el barrido y el vencimiento tienen casos con dos canchas, error de una cancha, pasada superpuesta y error de pasada; las restricciones tienen casos válidos e inválidos de cada una.
 
@@ -35,6 +40,7 @@ Triangulación: el barrido y el vencimiento tienen casos con dos canchas, error 
 | UT-1b `7621aad` | sin errores | 175 pasan, 4 fallan (solo `integration.test.ts`) | sin errores |
 | UT-2 `8995431` | sin errores | 192 pasan, 4 fallan (solo `integration.test.ts`) | sin errores |
 | UT-3 (5 commits, estado final) | sin errores | 18 archivos, 246 pasan, 0 fallan (la base descartable ya tiene semilla) | sin errores |
+| UT-4 (4 commits, estado final) | sin errores | 25 archivos, 325 pasan, 0 fallan | sin errores |
 
 `npx prisma migrate status`: `localhost:5434`, "Database schema is up to date!" (5 migraciones).
 
@@ -50,6 +56,13 @@ Triangulación: el barrido y el vencimiento tienen casos con dos canchas, error 
 - UT-3: `reemplazarPreferenciaVigente` devuelve `Promise<void>` (lanza el 409 con 0 filas); el diseño decía `Promise<boolean>`.
 - UT-3: la cancelación del jugador y el cambio de estado del administrador leen `courtId` fuera del bloqueo y, dentro, `liberarReservasVencidas` y la relectura; `cancelBooking` agrega el 409 "La reserva venció y no se puede cancelar." para `EXPIRED`. Ambas devuelven la reserva releída después de cancelar (`findUniqueOrThrow`).
 - UT-3: el 409 de PAG-004 vive en `mensajeReservaNoPagable` (`linkDePago.ts`), compartido con el 409 de `reemplazarPreferenciaVigente`.
+- UT-4: `leerTrustProxy` vive en `src/core/config/trustProxy.ts`, `calcularSena` en `src/modules/public/sena.ts` y `leerEnteroPositivo` en `src/core/config/entorno.ts` (el diseño y tasks.md no fijaban ubicación). Un `TRUST_PROXY` inválido (por ejemplo `true`, `abc` o `-1`) vale `false`.
+- UT-4: `bloquearTelefono` toma el bloqueo y además cuenta las PENDING vigentes y responde 429 (el diseño las describía como pasos seguidos dentro del mismo bloqueo). El tope se lee de `TOPE_PENDIENTES_POR_TELEFONO` en cada llamada; los límites de IP se leen al cargar el módulo.
+- UT-4: pruebas extra no listadas: `datosInvitado.test.ts` (DTO y teléfono) y `limitadorCreacionRuta.test.ts` (límite por IP sobre la ruta real; separado de `limitadorPublico.test.ts` para poder commitear los limitadores antes de que exista la ruta).
+- UT-4: el servicio verifica `MERCADOPAGO_ACCESS_TOKEN` y `MERCADOPAGO_WEBHOOK_SECRET` con `obtenerVariableMercadoPago` antes de escribir (503, PAG-007). `BACKEND_URL` ausente lanza un `Error` común en `crearPreferencia`: se compensa y responde 502 (RES-032 lo cubre como "falla de configuración").
+- UT-4: la falla de `crearPreferencia` (o de guardar `mpPreferenceId`) responde 502 "No se pudo generar el link de pago. Intenta de nuevo." salvo un `AppError` (por ejemplo 503), que se propaga. La compensación pasa la reserva a `CANCELLED` con `depositPaidAtCancel: false` (PAG-023) solo si sigue `PENDING`. Si la preferencia se creó pero no se pudo guardar, se invalida (mejor esfuerzo); el diseño no lo preveía.
+- UT-4: el porcentaje de seña se lee con `prisma.complex.findUniqueOrThrow` tras validar el turno (no se amplió `validarTurnoReservable`).
+- UT-4: el 201 devuelve `initPoint` (no `sandboxInitPoint`).
 - Las líneas de UT-1 superan el presupuesto: pruebas 525 líneas, migraciones 98, resto ~190.
 
 ## Commits (sin Co-Authored-By, sin push)
@@ -69,6 +82,15 @@ UT-3 (todo con TDD estricto, sin Co-Authored-By, sin push; el cambio real super�
 | UT-3c | `567f390` | `cancelacionReserva.ts`, `linkDePago.ts` y sus pruebas |
 | UT-3d | `4299868` | `booking.service.ts` bajo el bloqueo, `cancelacionBajoBloqueo.test.ts`, `validacionReservas.test.ts` |
 | UT-3e | ver `git log` | PAG-004 y PAG-025 en `payment.service.ts`, `preferenciaPago.test.ts`, `tasks.md` y esta bitácora |
+
+UT-4 (TDD estricto, sin Co-Authored-By, sin push; `seed.ts` sin tocar). Estimado ~400, real ~1.510 líneas (pruebas ~1.150): partido en 4 cortes limpios.
+
+| Corte | Hash | Contenido |
+|---|---|---|
+| UT-4a | `8acf846` | `tokenAcceso`, `sena`, `trustProxy`, DTO de invitado, `fechaHoraSchema` movido a `esquemas.ts` y sus pruebas |
+| UT-4b | `3978af1` | `limitadorPublico`, `bloquearTelefono`, `entorno.ts`, `trust proxy` en `app.ts` y `limitadorPublico.test.ts` |
+| UT-4c | `013384e` | servicio, controlador y rutas de `POST /public/bookings`, montaje en `app.ts`, `reservaInvitadoCrear.test.ts` y `limitadorCreacionRuta.test.ts` (748 líneas: la unidad servicio + pruebas no tiene corte limpio) |
+| UT-4d | ver `git log` | T-4.7 (concurrencia en base descartable), `tasks.md` y esta bitácora |
 
 Para que UT-1a compilara se incluyó en él solo la línea `[BookingStatus.EXPIRED]: []` de `booking.service.ts` y el ajuste de tipo de `payment.service.ts`; el resto de `booking.service.ts` va en UT-1b.
 
