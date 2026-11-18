@@ -16,7 +16,7 @@ Este cambio permite reservar sin cuenta, con nombre, apellido y teléfono de Wha
 |---|---|---|
 | D1 | **Pago rechazado:** se ignora en todas las reservas, de invitado o con cuenta. Un rechazo nunca cancela una reserva, porque el usuario puede reintentar con otra tarjeta. La reserva de invitado sigue `PENDING` hasta que vence, a los 15 minutos. | Usuario (Q4 y confirmación del 2026-11-17) |
 | D2 | **Seña:** porcentaje del precio del turno, configurable por el canchero en `Complex.depositPercent`. Valor por defecto 30; rango válido de 1 a 100. Con 100 se cobra online el precio completo. | Usuario (Q1) |
-| D3 | **Vencimiento:** no se agrega un estado `EXPIRED`. Vencer es un UPDATE físico a `CANCELLED`. Un pago aprobado tardío reactiva la reserva si el turno sigue libre; si el turno está ocupado, se guarda el id del pago y la reserva queda marcada para reembolso manual en el panel. | Exploración (Q2) |
+| D3 | **Vencimiento (reemplazada por el diseño: el vencimiento produce el estado `EXPIRED` y una reserva `CANCELLED` nunca se reactiva; ver `design.md`):** no se agrega un estado `EXPIRED`. Vencer es un UPDATE físico a `CANCELLED`. Un pago aprobado tardío reactiva la reserva si el turno sigue libre; si el turno está ocupado, se guarda el id del pago y la reserva queda marcada para reembolso manual en el panel. | Exploración (Q2) |
 | D4 | **Estado del reembolso:** alcanza con `refundedAt`. El estado de la seña (pendiente, pagada, reembolsada) se deriva de los campos de la reserva. | Exploración (Q3) |
 | D5 | **Medio de pago:** los pagos confirmados por Mercado Pago guardan `paymentMethod = MERCADOPAGO` en lugar de `TRANSFER`. | Exploración (Q5) |
 | D6 | **SDK de Mercado Pago:** verificar `expires`, `expiration_date_to` y `PaymentRefund` es una tarea de la fase de diseño, con la documentación actual del SDK (context7). | Exploración (Q6) |
@@ -66,16 +66,17 @@ Consecuencia de D1: un pago `rejected` o `cancelled` deja de cancelar reservas `
 
 ### Capacidades nuevas
 
-- `administracion`: no existe spec base todavía (la genera `specs-base`). La delta de este cambio solo contiene `## AGREGADO` con prefijo `ADM`:
-  - configuración de `depositPercent` por el canchero, con validación de 1 a 100;
-  - vista de reservas de invitado en el panel (titular invitado, teléfono, estado de la seña, enlace `wa.me`);
-  - reembolso manual de la seña y marca de reembolso pendiente por pago tardío sin turno.
+Ninguna: las cuatro capacidades ya tienen spec base en `openspec/specs/`.
 
 ### Capacidades modificadas
 
 - `reservas`:
   - AGREGADO: reserva de invitado por la API pública, vencimiento a los 15 minutos, consulta y cancelación por token, límites de abuso, página `/reserva/:codigo` y formulario de invitado.
   - MODIFICADO: RES-006 (estado inicial: `PENDING` para invitado), RES-007, RES-012 y RES-013 (ocupación y agenda excluyen `PENDING` vencidas; la agenda admite titular invitado), RES-011 (cancelación de cuenta bajo el bloqueo de cancha), RES-020 (formulario de invitado sin sesión), RES-022 (el panel muestra invitados).
+- `administracion`: la spec base ya existe. La delta usa `## AGREGADO` y `## MODIFICADO` con prefijo `ADM`:
+  - AGREGADO: configuración de `depositPercent` por el canchero (1 a 100), vista de reservas de invitado en el panel (titular invitado, teléfono, estado de la seña, enlace `wa.me`), y reembolso manual por pago con su motivo;
+  - MODIFICADO: métricas, recaudación y listado (ADM-004, ADM-005, ADM-006 y ADM-008), que excluyen las vencidas y suman el pago válido.
+- `canchas`: MODIFICADO CAN-006 (la disponibilidad excluye las `PENDING` vencidas y las `EXPIRED`).
 - `pagos`:
   - AGREGADO: preferencia de seña del invitado, reembolso de la seña y registro de `mpPaymentId`.
   - MODIFICADO: PAG-005 y PAG-006 (monto y URLs de retorno de la seña), PAG-012 (validación de transición bajo el bloqueo y `MERCADOPAGO`), PAG-013 (idempotencia por `mpPaymentId`), PAG-014 (monto contra `depositAmount`), PAG-015 (pago tardío con turno ocupado queda marcado para reembolso), PAG-016 (un rechazo no cancela ninguna reserva).
@@ -161,7 +162,7 @@ Total estimado: ~2.080 líneas.
 
 ## Dependencias
 
-- Specs base de `reservas` y `pagos` (`openspec/specs/`, generadas por `specs-base`, aún sin commitear). La spec base de `administracion` no existe todavía.
+- Specs base de `reservas` y `pagos` (`openspec/specs/`, generadas por `specs-base`, aún sin commitear). La spec base de `administracion` también existe.
 - Mercado Pago configurado (`MERCADOPAGO_ACCESS_TOKEN`, `MERCADOPAGO_WEBHOOK_SECRET`, `BACKEND_URL`, `FRONTEND_URL`) y credenciales de prueba para el sandbox.
 - PostgreSQL descartable para las pruebas de concurrencia e integración.
 - Documentación vigente del SDK `mercadopago` (context7) para la fase de diseño.
