@@ -13,6 +13,10 @@ import {
 } from "../../core/errors/AppError.js";
 import { crearPreferencia, obtenerPago } from "../../core/integraciones/mercadoPago.js";
 import { conBloqueoDeCancha } from "../bookings/bloqueoCancha.js";
+import {
+  mensajeReservaNoPagable,
+  reemplazarPreferenciaVigente,
+} from "../bookings/linkDePago.js";
 
 const ESTADOS_PAGABLES: BookingStatus[] = [
   BookingStatus.PENDING,
@@ -53,7 +57,7 @@ export class PaymentService {
     }
 
     if (!ESTADOS_PAGABLES.includes(booking.status)) {
-      throw new ConflictError("Esta reserva no se puede pagar.");
+      throw new ConflictError(mensajeReservaNoPagable(booking.status));
     }
 
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -66,6 +70,18 @@ export class PaymentService {
       // userId coincide con idUsuario (validado arriba), así que la cuenta existe
       emailPagador: booking.user?.email,
       urlRetorno: `${frontendUrl}/mis-reservas`,
+    });
+
+    if (!preferencia.id) {
+      throw new Error("Mercado Pago no devolvió el id de la preferencia.");
+    }
+
+    // La preferencia nueva pasa a ser la vigente y la anterior se vence (PAG-025).
+    await reemplazarPreferenciaVigente({
+      idReserva: booking.id,
+      idAnterior: booking.mpPreferenceId,
+      idNueva: preferencia.id,
+      condicion: { status: { in: ESTADOS_PAGABLES } },
     });
 
     return {

@@ -3,19 +3,32 @@ import jwt from "jsonwebtoken";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { buscarReserva, crearPreferencia } = vi.hoisted(() => ({
+const {
+  buscarReserva,
+  actualizarReservas,
+  crearPreferencia,
+  obtenerPreferencia,
+  actualizarPreferencia,
+} = vi.hoisted(() => ({
   buscarReserva: vi.fn(),
+  actualizarReservas: vi.fn(),
   crearPreferencia: vi.fn(),
+  obtenerPreferencia: vi.fn(),
+  actualizarPreferencia: vi.fn(),
 }));
 
 vi.mock("../src/core/config/prisma.js", () => ({
-  prisma: { booking: { findUnique: buscarReserva } },
+  prisma: {
+    booking: { findUnique: buscarReserva, updateMany: actualizarReservas },
+  },
 }));
 
 vi.mock("mercadopago", () => ({
   MercadoPagoConfig: class {},
   Preference: class {
     create = crearPreferencia;
+    get = obtenerPreferencia;
+    update = actualizarPreferencia;
   },
   Payment: class {},
 }));
@@ -31,10 +44,11 @@ const conToken = (userId: string) => ({
   Authorization: `Bearer ${jwt.sign({ userId, role: "USER" }, SECRETO_DE_PRUEBA)}`,
 });
 
-const reserva = (status: string) => ({
+const reserva = (status: string, mpPreferenceId: string | null = null) => ({
   id: ID_RESERVA,
   userId: ID_DUENO,
   status,
+  mpPreferenceId,
   totalPrice: 1000,
   court: { name: "Cancha 1", sport: "PADEL" },
   user: { email: "dueno@example.com" },
@@ -54,7 +68,13 @@ describe("POST /payments/create-preference", () => {
 
   beforeEach(() => {
     buscarReserva.mockReset();
+    actualizarReservas.mockReset();
     crearPreferencia.mockReset();
+    obtenerPreferencia.mockReset();
+    actualizarPreferencia.mockReset();
+    actualizarReservas.mockResolvedValue({ count: 1 });
+    obtenerPreferencia.mockResolvedValue({ id: "vieja", items: [] });
+    actualizarPreferencia.mockResolvedValue({});
     crearPreferencia.mockResolvedValue({
       id: "preferencia-1",
       init_point: "https://mp.test/pago",
@@ -88,8 +108,24 @@ describe("POST /payments/create-preference", () => {
     expect(crearPreferencia).not.toHaveBeenCalled();
   });
 
-  it.each(["CANCELLED", "COMPLETED"])(
-    "rechaza con 409 una reserva en estado %s y no genera el cobro",
+  it("rechaza con 409 una reserva CANCELLED, indica reservar de nuevo y no genera el cobro (PAG-004)", async () => {
+    buscarReserva.mockResolvedValue(reserva("CANCELLED"));
+
+    const respuesta = await request(app)
+      .post(RUTA)
+      .set(conToken(ID_DUENO))
+      .send({ bookingId: ID_RESERVA });
+
+    expect(respuesta.status).toBe(409);
+    expect(respuesta.body.detail).toBe(
+      "Esta reserva fue cancelada y no se puede pagar. Realiza una reserva nueva.",
+    );
+    expect(crearPreferencia).not.toHaveBeenCalled();
+    expect(actualizarReservas).not.toHaveBeenCalled();
+  });
+
+  it.each(["COMPLETED", "EXPIRED"])(
+    "rechaza con 409 una reserva en estado %s y no genera el cobro (PAG-004)",
     async (estado) => {
       buscarReserva.mockResolvedValue(reserva(estado));
 
@@ -101,6 +137,7 @@ describe("POST /payments/create-preference", () => {
       expect(respuesta.status).toBe(409);
       expect(respuesta.body.detail).toBe("Esta reserva no se puede pagar.");
       expect(crearPreferencia).not.toHaveBeenCalled();
+      expect(actualizarReservas).not.toHaveBeenCalled();
     },
   );
 
@@ -217,5 +254,93 @@ describe("POST /payments/create-preference", () => {
       "Los pagos con Mercado Pago no están configurados.",
     );
     expect(crearPreferencia).not.toHaveBeenCalled();
+  });
+
+  describe("preferencia vigente de la reserva (PAG-025)", () => {
+    it("guarda el id de la preferencia en una reserva sin preferencia previa", async () => {
+      buscarReserva.mockResolvedValue(reserva("PENDING"));
+
+      const respuesta = await request(app)
+        .post(RUTA)
+        .set(conToken(ID_DUENO))
+        .send({ bookingId: ID_RESERVA });
+
+      expect(respuesta.status).toBe(200);
+      expect(actualizarReservas).toHaveBeenCalledWith({
+        where: {
+          id: ID_RESERVA,
+          mpPreferenceId: null,
+          status: { in: ["PENDING", "CONFIRMED"] },
+        },
+        data: { mpPreferenceId: "preferencia-1" },
+      });
+      expect(actualizarPreferencia).not.toHaveBeenCalled();
+    });
+
+    it("guarda la preferencia nueva y vence la anterior", async () => {
+      buscarReserva.mockResolvedValue(reserva("CONFIRMED", "vieja"));
+
+      const respuesta = await request(app)
+        .post(RUTA)
+        .set(conToken(ID_DUENO))
+        .send({ bookingId: ID_RESERVA });
+
+      expect(respuesta.status).toBe(200);
+      expect(respuesta.body.preferenceId).toBe("preferencia-1");
+      expect(actualizarReservas.mock.calls[0][0].where.mpPreferenceId).toBe(
+        "vieja",
+      );
+      expect(actualizarPreferencia.mock.calls[0][0].id).toBe("vieja");
+    });
+
+    it("entrega la preferencia nueva aunque falle al vencer la anterior", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => undefined);
+      buscarReserva.mockResolvedValue(reserva("CONFIRMED", "vieja"));
+      actualizarPreferencia.mockRejectedValue(new Error("Mercado Pago caído"));
+
+      const respuesta = await request(app)
+        .post(RUTA)
+        .set(conToken(ID_DUENO))
+        .send({ bookingId: ID_RESERVA });
+
+      expect(respuesta.status).toBe(200);
+      expect(respuesta.body.preferenceId).toBe("preferencia-1");
+      expect(console.error).toHaveBeenCalled();
+    });
+
+    it("si la reserva cambió mientras se generaba el pago, invalida la nueva y responde 409", async () => {
+      buscarReserva
+        .mockResolvedValueOnce(reserva("PENDING", "vieja"))
+        .mockResolvedValueOnce({ status: "PENDING" });
+      actualizarReservas.mockResolvedValue({ count: 0 });
+
+      const respuesta = await request(app)
+        .post(RUTA)
+        .set(conToken(ID_DUENO))
+        .send({ bookingId: ID_RESERVA });
+
+      expect(respuesta.status).toBe(409);
+      expect(respuesta.body.detail).toBe(
+        "La reserva cambió mientras se generaba el pago. Intenta de nuevo.",
+      );
+      expect(actualizarPreferencia.mock.calls[0][0].id).toBe("preferencia-1");
+    });
+
+    it("si la reserva se canceló mientras se generaba el pago, responde 409 con el mensaje de cancelada", async () => {
+      buscarReserva
+        .mockResolvedValueOnce(reserva("CONFIRMED"))
+        .mockResolvedValueOnce({ status: "CANCELLED" });
+      actualizarReservas.mockResolvedValue({ count: 0 });
+
+      const respuesta = await request(app)
+        .post(RUTA)
+        .set(conToken(ID_DUENO))
+        .send({ bookingId: ID_RESERVA });
+
+      expect(respuesta.status).toBe(409);
+      expect(respuesta.body.detail).toBe(
+        "Esta reserva fue cancelada y no se puede pagar. Realiza una reserva nueva.",
+      );
+    });
   });
 });

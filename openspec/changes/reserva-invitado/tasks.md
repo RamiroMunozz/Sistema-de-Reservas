@@ -187,32 +187,41 @@ Requisitos: RES-007 (lectura), RES-012, RES-013 (filtro), CAN-006, ADM-004, ADM-
 
 Requisitos: PAG-004, PAG-005, PAG-006, PAG-025, RES-011, RES-015. Commit sugerido: `feat(pagos): adaptador de Mercado Pago, cancelación bajo bloqueo y preferencia vigente`
 
-Depende de T-0.3 (sandbox).
+Depende de T-0.3 (sandbox). **Decisión del usuario:** se implementó sin esperar las comprobaciones 4 y 5 de T-0.3. `reembolsarPago` usa `PaymentRefund.create` sin `body.amount` y con una `idempotencyKey` simple (`reembolso-<id>`, decisión 5); queda condicionado a la comprobación 5 y se ajusta en UT-7 si el sandbox muestra otra cosa.
 
-- [ ] **T-3.1 RED: pruebas del adaptador.**
+Hecho en 5 commits (el cambio real superó las 400 líneas, con cortes limpios): `9d7acdf` (adaptador), `db39e18` (servicio de pagos usa el adaptador), `567f390` (cancelación compartida y link de pago), `4299868` (cancelación y cambio de estado bajo el bloqueo) y el de PAG-004 y preferencia vigente.
+
+Desviaciones:
+
+- **`expiration_date_from` no se envía** (decisión del usuario): el reloj de la PC está adelantado respecto de Mercado Pago y la preferencia quedaría "disponible desde" el futuro. `crearPreferencia` envía solo `expires` y `expiration_date_to`, y solo con `venceEn`. Esto reemplaza el texto de T-3.1 y de la decisión 5.
+- Las pruebas de RES-011 y RES-015 bajo el bloqueo están en `backend/tests/cancelacionBajoBloqueo.test.ts` (base simulada), y no en `rutasAdminReservas.test.ts`, que corre contra la base real y está guardado en una codificación que no es UTF-8.
+- `reemplazarPreferenciaVigente` devuelve `Promise<void>` y lanza el 409 con 0 filas (el diseño decía `Promise<boolean>`, pero con 0 filas siempre lanza).
+- `validacionReservas.test.ts` extendió su transacción simulada (`updateMany`, `findUniqueOrThrow`, `bookingPayment`) porque cancelar y cambiar estado ahora corren bajo el bloqueo.
+
+- [x] **T-3.1 RED: pruebas del adaptador.**
   - Archivos: `backend/tests/adaptadorMercadoPago.test.ts` (crear).
   - Pruebas: `crearPreferencia` envía `expires`, `expiration_date_from` y `expiration_date_to` solo con `venceEn`; `expirarPreferencia` hace `Preference.get` y `Preference.update` reenviando los `items`; `obtenerPago` usa `Payment.get`; `reembolsarPago` llama `PaymentRefund.create` sin `body.amount` y con `requestOptions.idempotencyKey`; sin credenciales responde 503 (PAG-007).
   - RED esperado: el módulo no existe.
   - Checks: `npm test -- adaptadorMercadoPago`.
-- [ ] **T-3.2 GREEN: adaptador.**
+- [x] **T-3.2 GREEN: adaptador.**
   - Archivos: `backend/src/core/integraciones/mercadoPago.ts` (crear), `backend/src/modules/payments/payment.service.ts` (modificar para usar el adaptador).
   - Criterios (decisión 5). Si T-0.3 mostró que la clave de idempotencia necesita un componente por intento, se refleja aquí.
   - Checks: pruebas de T-3.1 en verde, `npx tsc --noEmit`, `webhookPago` y `preferenciaPago` siguen pasando.
-- [ ] **T-3.3 RED: cancelación compartida y `linkDePago`.**
+- [x] **T-3.3 RED: cancelación compartida y `linkDePago`.**
   - Archivos: `backend/tests/cancelacionReserva.test.ts` y `backend/tests/linkDePago.test.ts` (crear).
   - Pruebas: `cancelarEnTransaccion` marca `OWNER_DISCRETION` en los pagos válidos sin reembolso, guarda `depositPaidAtCancel` verdadero solo si había alguno y pone `CANCELLED`; `invalidarLinkDePago(null)` no hace nada y un error del adaptador se registra sin propagarse; `reemplazarPreferenciaVigente` con 1 fila invalida la preferencia anterior y con 0 filas invalida la nueva y responde 409, con el mensaje "La reserva cambió mientras se generaba el pago. Intenta de nuevo." si la reserva sigue pagable (PAG-025).
   - RED esperado: módulos inexistentes.
   - Checks: `npm test -- cancelacionReserva linkDePago`.
-- [ ] **T-3.4 GREEN: cancelación y link de pago.**
+- [x] **T-3.4 GREEN: cancelación y link de pago.**
   - Archivos: `backend/src/modules/bookings/cancelacionReserva.ts` (crear), `backend/src/modules/bookings/linkDePago.ts` (crear).
   - Criterios (decisión 6).
   - Checks: pruebas de T-3.3 en verde.
-- [ ] **T-3.5 RED: RES-011 y RES-015 bajo el bloqueo, PAG-004.**
+- [x] **T-3.5 RED: RES-011 y RES-015 bajo el bloqueo, PAG-004.**
   - Archivos: `backend/tests/rutasAdminReservas.test.ts` (modificar), `backend/tests/preferenciaPago.test.ts` (modificar).
   - Pruebas: la cancelación de una reserva `PENDING` vencida responde 409 (ya es `EXPIRED` al validar); `cancelBooking` y `updateBookingStatus` con `CANCELLED` ejecutan `liberarReservasVencidas` como primera operación del bloqueo y llaman `invalidarLinkDePago` **después** del commit; una cancelación no se revierte si falla Mercado Pago; PAG-004: crear la preferencia de una reserva `CANCELLED` responde 409 "Esta reserva fue cancelada y no se puede pagar. Realiza una reserva nueva.", y otros estados no pagables, "Esta reserva no se puede pagar."; las reservas con cuenta guardan `mpPreferenceId` con `reemplazarPreferenciaVigente` (PAG-025).
   - RED esperado: las rutas actuales no usan el bloqueo ni la preferencia vigente.
   - Checks: `npm test -- rutasAdminReservas preferenciaPago`.
-- [ ] **T-3.6 GREEN y REFACTOR.**
+- [x] **T-3.6 GREEN y REFACTOR.**
   - Archivos: `backend/src/modules/bookings/booking.service.ts`, `backend/src/modules/payments/payment.service.ts` (modificar).
   - Criterios: cancelación y cambio de estado bajo `conBloqueoDeCancha`; PAG-004 y PAG-025 en `payment.service.ts`.
   - Checks: `npm test` (sin fallas nuevas respecto de T-0.1), `npx tsc --noEmit`.
