@@ -133,7 +133,7 @@ La migración `reservas_sin_solapamiento` instala la extensión `btree_gist`, po
 
 npm test
 
-Los tests de concurrencia solo corren si definís `DATABASE_URL_PRUEBA` con el mismo valor que `DATABASE_URL`, apuntando a una base descartable con las migraciones aplicadas. Escriben y borran datos: nunca los ejecutes contra una base con datos reales.
+`npm test` escribe y borra datos: nunca lo ejecutes contra la base de desarrollo ni contra una base con datos reales. Corré la suite con `DATABASE_URL` y `DATABASE_URL_PRUEBA` definidas en la misma línea del comando, las dos apuntando a una base descartable con las migraciones aplicadas, para que no se use el valor de `.env`. Los tests de concurrencia solo corren si `DATABASE_URL_PRUEBA` está definida. Ver `docs/operacion/variables-entorno.md` (sección "Base descartable para pruebas").
 
 ## CONFIGURAR Y LEVANTAR EL FRONTEND:
 

@@ -9,10 +9,28 @@ description: Glosario, reglas inmutables y mapa de módulos del sistema de reser
 
 - **Negocio** (objetivo): unidad de aislamiento; aún no existe en el esquema.
 - **Complejo** (`Complex`) agrupa **canchas** (`Court`); cada cancha tiene **horarios** (`CourtSchedule`) por día de la semana.
-- **Reserva** (`Booking`): ocupa una cancha entre `startTime` y `endTime`; estados `PENDING`, `CONFIRMED`, `CANCELLED`, `COMPLETED`. Toda reserva distinta de `CANCELLED` bloquea el turno.
+- **Reserva** (`Booking`): ocupa una cancha entre `startTime` y `endTime`; estados `PENDING`, `CONFIRMED`, `CANCELLED`, `COMPLETED` y `EXPIRED`. Toda reserva distinta de `CANCELLED` y `EXPIRED` bloquea el turno.
+- **Pago de reserva** (`BookingPayment`): una fila por cada pago aprobado de Mercado Pago (`mpPaymentId` único, `amount`, `isValid`, `refundReason`, `refundedAt`). Se clasifica al recibir el webhook, bajo el bloqueo de cancha. A lo sumo un pago válido sin reembolsar por reserva.
+- **Motivos de reembolso** (`RefundReason`): `AMOUNT_MISMATCH`, `SLOT_TAKEN`, `PAID_AFTER_CANCEL`, `DUPLICATE_PAYMENT` (obligatorios) y `OWNER_DISCRETION` (pago válido de una reserva cancelada, a criterio del canchero). Se guardan, no se derivan.
 - **Usuario** (`User`): `firstName`, `lastName`, rol `USER` o `ADMIN` hoy; objetivo `SUPER_ADMIN`, dueño y jugador.
 
 Glosario completo: `docs/producto/glosario.md`.
+
+## Estados de reserva y pagos
+
+Estado en `desarrollo` (cambio `reserva-invitado`, entregas 1 y 2 ya hechas; el resto de los pagos está pendiente).
+
+| Estado | Ocupa el turno | Notas |
+|---|---|---|
+| `PENDING` | Sí, mientras no venza | La de invitado nace así con `expiresAt` a 15 minutos. |
+| `CONFIRMED` | Sí | Pago aprobado o confirmación manual. |
+| `COMPLETED` | Sí | Terminal. |
+| `CANCELLED` | No | Terminal. Nunca se reactiva, ni siquiera con un pago aprobado posterior. |
+| `EXPIRED` | No | Terminal. Solo lo produce el vencimiento de una `PENDING` impaga (barrido o `liberarReservasVencidas` bajo el bloqueo). No se puede fijar a mano (la API responde 400) y no es una cancelación. |
+
+- Las lecturas usan los filtros compartidos `filtroOcupaTurno` y `filtroNoVencida`, que ignoran también la `PENDING` vencida que el barrido aún no pasó a `EXPIRED`.
+- Un pago aprobado nunca cambia una reserva `CANCELLED`: queda como `BookingPayment` con `PAID_AFTER_CANCEL`. Si la reserva está `EXPIRED` y el turno sigue libre, se confirma; si no, queda con `SLOT_TAKEN`.
+- Un pago rechazado nunca cancela una reserva.
 
 ## Estado actual y objetivo
 
