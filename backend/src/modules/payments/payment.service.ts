@@ -1,8 +1,5 @@
 import {
   InvalidWebhookSignatureError,
-  MercadoPagoConfig,
-  Payment,
-  Preference,
   WebhookSignatureValidator,
 } from "mercadopago";
 import { BookingStatus } from "@prisma/client";
@@ -12,9 +9,9 @@ import {
   ConflictError,
   ForbiddenError,
   NotFoundError,
-  ServiceUnavailableError,
   UnauthorizedError,
 } from "../../core/errors/AppError.js";
+import { crearPreferencia, obtenerPago } from "../../core/integraciones/mercadoPago.js";
 import { conBloqueoDeCancha } from "../bookings/bloqueoCancha.js";
 
 const ESTADOS_PAGABLES: BookingStatus[] = [
@@ -34,33 +31,6 @@ export interface NotificacionWebhook {
   idPago: string | undefined;
   tipo: string | undefined;
 }
-
-const obtenerVariableRequerida = (nombre: string): string => {
-  const valor = process.env[nombre];
-
-  if (!valor) {
-    throw new Error(`${nombre} no está definido.`);
-  }
-
-  return valor;
-};
-
-const obtenerVariableMercadoPago = (nombre: string): string => {
-  const valor = process.env[nombre];
-
-  if (!valor) {
-    throw new ServiceUnavailableError(
-      "Los pagos con Mercado Pago no están configurados.",
-    );
-  }
-
-  return valor;
-};
-
-const crearClienteMercadoPago = () =>
-  new MercadoPagoConfig({
-    accessToken: obtenerVariableMercadoPago("MERCADOPAGO_ACCESS_TOKEN"),
-  });
 
 export class PaymentService {
   async createPaymentPreference(bookingId: string, idUsuario: string) {
@@ -86,42 +56,22 @@ export class PaymentService {
       throw new ConflictError("Esta reserva no se puede pagar.");
     }
 
-    // Sin el secreto el webhook rechazaría la notificación de un pago ya cobrado
-    obtenerVariableMercadoPago("MERCADOPAGO_WEBHOOK_SECRET");
-    const backendUrl = obtenerVariableRequerida("BACKEND_URL");
-    const preference = new Preference(crearClienteMercadoPago());
     const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
 
-    const response = await preference.create({
-      body: {
-        items: [
-          {
-            id: booking.id,
-            title: `Reserva - ${booking.court.name}`,
-            description: `Turno para deporte: ${booking.court.sport}`,
-            quantity: 1,
-            unit_price: Number(booking.totalPrice),
-            currency_id: "ARS",
-          },
-        ],
-        // userId coincide con idUsuario (validado arriba), así que la cuenta existe
-        payer: booking.user ? { email: booking.user.email } : undefined,
-        back_urls: {
-          success: `${frontendUrl}/mis-reservas`,
-          failure: `${frontendUrl}/mis-reservas`,
-          pending: `${frontendUrl}/mis-reservas`,
-        },
-        // Se omite auto_return para evitar el error 400 en localhost
-        // source_news=webhooks evita las notificaciones IPN, que no llevan firma
-        notification_url: `${backendUrl}/api/v1/payments/webhook?source_news=webhooks`,
-        external_reference: booking.id,
-      },
+    const preferencia = await crearPreferencia({
+      idReserva: booking.id,
+      titulo: `Reserva - ${booking.court.name}`,
+      descripcion: `Turno para deporte: ${booking.court.sport}`,
+      monto: Number(booking.totalPrice),
+      // userId coincide con idUsuario (validado arriba), así que la cuenta existe
+      emailPagador: booking.user?.email,
+      urlRetorno: `${frontendUrl}/mis-reservas`,
     });
 
     return {
-      initPoint: response.init_point,
-      sandboxInitPoint: response.sandbox_init_point,
-      preferenceId: response.id,
+      initPoint: preferencia.initPoint,
+      sandboxInitPoint: preferencia.sandboxInitPoint,
+      preferenceId: preferencia.id,
     };
   }
 
@@ -165,8 +115,7 @@ export class PaymentService {
   }
 
   private async processWebhook(paymentId: string) {
-    const payment = new Payment(crearClienteMercadoPago());
-    const paymentData = await payment.get({ id: paymentId });
+    const paymentData = await obtenerPago(paymentId);
     const referencia = referenciaReservaSchema.safeParse(
       paymentData.external_reference,
     );
