@@ -8,6 +8,7 @@ import { adminRoutes } from "./modules/admin/admin.routes.js";
 import { leerTrustProxy } from "./core/config/trustProxy.js";
 import { errorHandler } from "./core/middlewares/errorHandler.js";
 import { paymentRoutes } from "./modules/payments/payments.routes.js";
+import { publicRoutes } from "./modules/public/public.routes.js";
 
 const app = express();
 
@@ -36,6 +37,7 @@ app.use("/api/v1/courts", courtRoutes);
 app.use("/api/v1/bookings", bookingRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/payments", paymentRoutes);
+app.use("/api/v1/public", publicRoutes);
 
 // Manejador global de errores
 app.use(errorHandler);

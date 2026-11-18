@@ -246,12 +246,12 @@ Requisitos: RES-006, RES-023 a RES-025, RES-030 a RES-032, PAG-020, PAG-022. Com
   - Archivos: `backend/src/core/middlewares/limitadorPublico.ts` (crear), `backend/src/modules/bookings/bloqueoCancha.ts` (modificar: `bloquearTelefono`), `backend/src/app.ts` (modificar: `trust proxy` y montaje de `/api/v1/public`).
   - Criterios (decisión 9): variables `LIMITE_CREACION_PUBLICA_MAXIMO`, `LIMITE_CREACION_PUBLICA_VENTANA_MS`, `LIMITE_CONSULTA_PUBLICA_MAXIMO`, `TOPE_PENDIENTES_POR_TELEFONO`, con valores por defecto.
   - Checks: pruebas de T-4.3 en verde.
-- [ ] **T-4.5 RED: creación de la reserva de invitado.**
+- [x] **T-4.5 RED: creación de la reserva de invitado.**
   - Archivos: `backend/tests/reservaInvitadoCrear.test.ts` (crear).
   - Pruebas: 201 con `{ token, initPoint }` y reserva `PENDING` con `expiresAt`, `depositAmount` y `accessTokenHash` (el token en claro no se persiste); 400 ante datos inválidos (RES-023, RES-024); 409 ante solapamiento (RES-025/RES-007); 400 si el turno no es reservable; 503 sin credenciales de Mercado Pago **antes** de escribir (PAG-007); si `crearPreferencia` falla, la reserva pasa a `CANCELLED` bajo el bloqueo y se responde 5xx sin token (PAG-020); `venceEn` es `expiresAt`; `back_urls` apuntan a `/reserva/<token>`; la primera operación del bloqueo es `liberarReservasVencidas` (RES-026); RES-032 y RES-006 según la delta spec.
   - RED esperado: ruta inexistente (404).
   - Checks: `npm test -- reservaInvitadoCrear`.
-- [ ] **T-4.6 GREEN y REFACTOR.**
+- [x] **T-4.6 GREEN y REFACTOR.**
   - Archivos: `backend/src/modules/public/reservaInvitado.service.ts`, `public.controller.ts`, `public.routes.ts` (crear).
   - Criterios (decisiones 8 y 9, flujo de creación): controlador solo HTTP y Zod; servicio con Prisma y reglas.
   - Checks: `npm test` (sin fallas nuevas), `npx tsc --noEmit`, `npm run build`.
