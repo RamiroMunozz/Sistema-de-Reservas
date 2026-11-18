@@ -5,22 +5,25 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Estado actual
 
-- **Rama activa:** `desarrollo`, con el trabajo del 2026-11-18 sin commitear (el usuario commitea a mano). `main` está en `46ec70d`.
+- **Rama activa:** `desarrollo`, 3 commits por delante de `main` (`8202f04`, `7621aad`, `8995431`). `main` y `origin/main` están en `a764975`. Sin commitear: documentación (`glosario.md`, `SKILL.md` de `dominio-reservas`, `variables-entorno.md`, `README.md`, esta bitácora) y todo `openspec/changes/reserva-invitado/` (el usuario commitea a mano).
 - **Specs vigentes:** los 5 dominios en `openspec/specs/` (autenticacion, canchas, administracion, pagos y reservas).
 - **Cambios SDD:**
   - `specs-base` y `deuda-auditoria` están hechos; el segundo está archivado en `openspec/changes/archive/2026-11-18-deuda-auditoria/`.
-  - `reserva-invitado` tiene la propuesta aprobada y le faltan specs, diseño y tareas.
-- **Tests del backend:** `npm test` da 112 pasan, 18 omitidos y **6** fallan. Las 6 necesitan PostgreSQL (Docker Desktop apagado): 5 de `rutasAdminReservas.test.ts` y 1 de `secretosJwt.test.ts`, además de la suite `integration.test.ts`. Responden 500 por `PrismaClientInitializationError`. `npx tsc --noEmit` y `npm run build` sin errores. Tras `npm install` hay que correr `npx prisma generate`, porque npm bloquea los scripts de instalación.
+  - `reserva-invitado` (N.º 3) está en apply: specs (47 requisitos), diseño y tareas cerrados; hechas UT-0 (salvo T-0.3), UT-1, UT-2 y la documentación T-10.1 a T-10.4. Sigue UT-3.
+- **Bases de datos:** desarrollo en el contenedor `sports_booking_postgres` (puerto 5433), ya con las migraciones `20261119120000_reserva_invitado` y `20261119120100_sin_solapamiento_excluye_vencidas`. Base descartable para pruebas en el contenedor `reservas_prueba` (puerto 5434); ver `docs/operacion/variables-entorno.md`.
+- **Tests del backend:** contra la base descartable, `npm test` da 192 pasan y 4 fallan, todas de `integration.test.ts` porque la base descartable no tiene semilla. Con la base disponible ya no fallan `rutasAdminReservas` ni `secretosJwt`. `npx tsc --noEmit` y `npm run build` sin errores.
+- **Mercado Pago:** credenciales de prueba y webhook (evento "Pagos (legacy)") cargados en `backend/.env`; `BACKEND_URL` apunta a un túnel rápido de cloudflared, cuya URL cambia en cada arranque.
 - **Flujo de trabajo:** solo SDD, con los comandos globales `/gentle-sdd-*` y sus agentes. No se crean comandos ni agentes SDD propios del proyecto.
 - **Código:** sigue siendo single-tenant; multi-tenant es objetivo (ADR 0002).
 
 ## Próximo paso
 
-1. Commitear en `desarrollo` el trabajo de `deuda-auditoria` y de las specs base, con los mensajes sugeridos en la sesión del 2026-11-18.
-2. Actualizar la regla de la integración diaria (`/cerrar-sesion`), que espera exactamente **5** fallas: hoy son 6, y la sexta es `secretosJwt` "acepta un token emitido por la aplicación", que también necesita la base.
-3. Continuar con `reserva-invitado` (N.º 3): `/gentle-sdd-continue reserva-invitado` para las specs y el diseño.
-4. Rotar a mano el valor de `JWT_SECRET` en `backend/.env` siguiendo `docs/operacion/variables-entorno.md`. Invalida las sesiones activas.
-5. Pendiente en `calidad-ci`: separar las pruebas que usan la base. Mientras tanto, confirmar esas pruebas solo contra una base **descartable**, porque `npm test` borra reservas.
+1. Commitear a mano la documentación y los artefactos de `reserva-invitado` con los mensajes sugeridos en la sesión del 2026-11-18, y hacer la integración diaria en `main`.
+2. Corregir el reloj de Windows (hora y zona horaria automáticas): la PC está 3 horas corrida respecto de Mercado Pago.
+3. Terminar T-0.3: un pago aprobado de prueba (usuario comprador de prueba) para comprobar el reembolso sin monto y la clave de idempotencia ante un fallo.
+4. Seguir con UT-3 de `reserva-invitado` con `/gentle-sdd-apply reserva-invitado`. El adaptador de Mercado Pago no debe enviar `expiration_date_from`.
+5. Actualizar la regla de la integración diaria en `/cerrar-sesion`: con base descartable ya no aplica "exactamente 5 fallas por conexión"; las 4 de `integration.test.ts` son por falta de semilla.
+6. Rotar a mano `JWT_SECRET` (`docs/operacion/variables-entorno.md`). Pendiente en `calidad-ci`: separar las pruebas que usan la base.
 
 ## Configuración vigente
 
@@ -32,6 +35,33 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 ## Registro de sesiones
 
 La más reciente primero. Se mantienen unas 10 entradas; las más antiguas se resumen en una línea al final.
+
+### 2026-11-18 (tarde): `reserva-invitado`, de specs a las primeras entregas
+
+- **Objetivo:** cerrar specs, diseño y tareas de `reserva-invitado` y empezar la implementación.
+- **Hecho:**
+  - Delta specs en 7 revisiones (47 requisitos en `reservas`, `pagos`, `administracion` y `canchas`), diseño y `tasks.md` con 12 unidades de trabajo.
+  - UT-0: línea base y verificación de las dos migraciones en una base descartable; T-0.3 parcial en el sandbox de Mercado Pago (comprobaciones 1 a 3).
+  - UT-1 (partida en 1a y 1b) y UT-2 implementadas con TDD estricto y commiteadas.
+  - Documentación: glosario, skill `dominio-reservas`, `variables-entorno.md`, `README.md` y corrección de `proposal.md`.
+  - Base descartable `reservas_prueba` (puerto 5434), migraciones aplicadas a la base de desarrollo (con respaldo previo), sistema levantado y probado de punta a punta por la API y el navegador.
+  - Webhook de Mercado Pago configurado en modo prueba con un túnel de cloudflared.
+- **Decisiones:**
+  - Estado nuevo `EXPIRED`, solo para `PENDING` vencidas: no ocupa turno ni cuenta como cancelación.
+  - Una `CANCELLED` nunca se reactiva (cuenta e invitado). Cancelada sin pago no se puede pagar: 409 y reserva nueva. Al cancelar por cualquier vía se vence el link de Mercado Pago (mejor esfuerzo).
+  - Cancelar una `CONFIRMED` con seña pagada: sin límite de tiempo, con advertencia de que la devolución queda a criterio del canchero.
+  - Tabla `BookingPayment`: una fila por pago aprobado, con los motivos `AMOUNT_MISMATCH`, `SLOT_TAKEN`, `PAID_AFTER_CANCEL`, `DUPLICATE_PAYMENT` y `OWNER_DISCRETION`; reembolso por pago.
+  - Recaudación de invitados: solo el pago válido no reembolsado.
+  - Entregas: la 5 y la 9 se parten, la 8 sigue con excepción de tamaño; si una unidad pasa 400 líneas, se parte en commits sin consultar salvo que no haya un corte limpio.
+  - Usar los MCP conectados en paralelo cuando aporten.
+- **Hallazgos:**
+  - PostgreSQL no deja usar un valor de enum agregado con `ADD VALUE` en la misma transacción: hacen falta dos migraciones.
+  - Prisma 5 borra los índices que no modela: la unicidad parcial va como restricción `EXCLUDE`.
+  - El reloj de la PC está 3 horas adelantado respecto de Mercado Pago; con `expiration_date_from` local la preferencia queda "disponible desde" el futuro.
+  - `Preference.update` exige reenviar `items`.
+  - `prisma migrate dev --create-only` no corre en una terminal no interactiva; se usó `prisma migrate diff`.
+  - El clasificador de permisos bloquea que un agente ejecute scripts que leen `.env`; los corre el usuario con `!`.
+- **Commits:** `8202f04`, `7621aad` y `8995431` en `desarrollo`. La documentación y los artefactos SDD quedan sin commitear.
 
 ### 2026-11-17 y 2026-11-18: Specs base y cambio `deuda-auditoria`
 
