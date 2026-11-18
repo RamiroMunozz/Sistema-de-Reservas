@@ -36,12 +36,21 @@ enum BookingStatus {
   CONFIRMED
   CANCELLED
   COMPLETED
+  EXPIRED
 }
 
 enum PaymentMethod {
   CASH
   TRANSFER
   MERCADOPAGO
+}
+
+enum RefundReason {
+  AMOUNT_MISMATCH
+  SLOT_TAKEN
+  PAID_AFTER_CANCEL
+  DUPLICATE_PAYMENT
+  OWNER_DISCRETION
 }
 
 // ------------------------------------
@@ -64,14 +73,17 @@ model User {
   @@map("users")
 }
 
+// La migración 20261119120000_reserva_invitado agrega una restricción que Prisma no
+// representa: complexes_porcentaje_sena_valido (deposit_percent entre 1 y 100).
 model Complex {
-  id        String   @id @default(uuid()) @db.Uuid
-  name      String   @db.VarChar(150)
-  address   String   @db.VarChar(255)
-  phone     String?  @db.VarChar(30)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(150)
+  address        String   @db.VarChar(255)
+  phone          String?  @db.VarChar(30)
+  depositPercent Int      @default(30) @map("deposit_percent")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  courts    Court[]
+  courts Court[]
 
   @@map("complexes")
 }
@@ -109,24 +121,58 @@ model CourtSchedule {
   @@map("court_schedules")
 }
 
-// La migración 20261104120000_reservas_sin_solapamiento agrega restricciones que
-// Prisma no representa: bookings_horario_valido y bookings_sin_solapamiento.
+// Restricciones que Prisma no representa:
+// - 20261104120000_reservas_sin_solapamiento: bookings_horario_valido.
+// - 20261119120000_reserva_invitado: bookings_titular_valido (o hay cuenta o hay
+//   teléfono de invitado, nunca ambos ni ninguno).
+// - 20261119120100_sin_solapamiento_excluye_vencidas: bookings_sin_solapamiento
+//   (EXCLUDE gist que ignora CANCELLED y EXPIRED).
 model Booking {
-  id            String        @id @default(uuid()) @db.Uuid
-  userId        String        @map("user_id") @db.Uuid
-  courtId       String        @map("court_id") @db.Uuid
-  startTime     DateTime      @map("start_time") @db.Timestamptz()
-  endTime       DateTime      @map("end_time") @db.Timestamptz()
-  totalPrice    Decimal       @map("total_price") @db.Decimal(10, 2)
-  status        BookingStatus @default(CONFIRMED)
-  paymentMethod PaymentMethod @default(CASH) @map("payment_method")
-  createdAt     DateTime      @default(now()) @map("created_at") @db.Timestamptz()
-  updatedAt     DateTime      @updatedAt @map("updated_at") @db.Timestamptz()
+  id                  String        @id @default(uuid()) @db.Uuid
+  userId              String?       @map("user_id") @db.Uuid
+  courtId             String        @map("court_id") @db.Uuid
+  startTime           DateTime      @map("start_time") @db.Timestamptz()
+  endTime             DateTime      @map("end_time") @db.Timestamptz()
+  totalPrice          Decimal       @map("total_price") @db.Decimal(10, 2)
+  status              BookingStatus @default(CONFIRMED)
+  paymentMethod       PaymentMethod @default(CASH) @map("payment_method")
+  guestFirstName      String?       @map("guest_first_name") @db.VarChar(100)
+  guestLastName       String?       @map("guest_last_name") @db.VarChar(100)
+  guestPhone          String?       @map("guest_phone") @db.VarChar(15)
+  guestEmail          String?       @map("guest_email") @db.VarChar(255)
+  expiresAt           DateTime?     @map("expires_at") @db.Timestamptz()
+  depositAmount       Decimal?      @map("deposit_amount") @db.Decimal(10, 2)
+  accessTokenHash     String?       @unique @map("access_token_hash") @db.Char(64)
+  mpPreferenceId      String?       @map("mp_preference_id") @db.VarChar(100)
+  depositPaidAtCancel Boolean?      @map("deposit_paid_at_cancel")
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt           DateTime      @updatedAt @map("updated_at") @db.Timestamptz()
 
-  user          User          @relation(fields: [userId], references: [id], onDelete: Restrict)
-  court         Court         @relation(fields: [courtId], references: [id], onDelete: Restrict)
+  user     User?            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  court    Court            @relation(fields: [courtId], references: [id], onDelete: Restrict)
+  payments BookingPayment[]
 
   @@index([courtId, startTime, endTime])
   @@index([userId, startTime])
+  @@index([status, expiresAt])
+  @@index([guestPhone, status])
   @@map("bookings")
+}
+
+// La migración 20261119120000_reserva_invitado agrega restricciones que Prisma no
+// representa: booking_payments_motivo_coherente y booking_payments_un_pago_valido.
+model BookingPayment {
+  id           String        @id @default(uuid()) @db.Uuid
+  bookingId    String        @map("booking_id") @db.Uuid
+  mpPaymentId  String        @unique @map("mp_payment_id") @db.VarChar(30)
+  amount       Decimal       @db.Decimal(10, 2)
+  isValid      Boolean       @map("is_valid")
+  refundReason RefundReason? @map("refund_reason")
+  refundedAt   DateTime?     @map("refunded_at") @db.Timestamptz()
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz()
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+
+  @@index([bookingId])
+  @@map("booking_payments")
 }

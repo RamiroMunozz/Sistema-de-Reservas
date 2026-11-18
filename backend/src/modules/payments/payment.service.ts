@@ -104,9 +104,8 @@ export class PaymentService {
             currency_id: "ARS",
           },
         ],
-        payer: {
-          email: booking.user.email,
-        },
+        // userId coincide con idUsuario (validado arriba), así que la cuenta existe
+        payer: booking.user ? { email: booking.user.email } : undefined,
         back_urls: {
           success: `${frontendUrl}/mis-reservas`,
           failure: `${frontendUrl}/mis-reservas`,

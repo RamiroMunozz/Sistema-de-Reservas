@@ -26,6 +26,7 @@ const TRANSICIONES_PERMITIDAS: Record<BookingStatus, BookingStatus[]> = {
   [BookingStatus.CONFIRMED]: [BookingStatus.COMPLETED, BookingStatus.CANCELLED],
   [BookingStatus.CANCELLED]: [],
   [BookingStatus.COMPLETED]: [],
+  [BookingStatus.EXPIRED]: [],
 };
 
 /**
