@@ -26,14 +26,20 @@ const TRANSICIONES_PERMITIDAS: Record<BookingStatus, BookingStatus[]> = {
   [BookingStatus.CONFIRMED]: [BookingStatus.COMPLETED, BookingStatus.CANCELLED],
   [BookingStatus.CANCELLED]: [],
   [BookingStatus.COMPLETED]: [],
+  // Solo la produce el vencimiento (RES-035); no se entra ni se sale por la API.
   [BookingStatus.EXPIRED]: [],
 };
+
+export const puedeTransicionar = (
+  actual: BookingStatus,
+  nuevo: BookingStatus,
+): boolean => TRANSICIONES_PERMITIDAS[actual].includes(nuevo);
 
 /**
  * Valida horario, existencia y disponibilidad de la cancha y que el turno
  * no haya pasado. Devuelve la cancha y las fechas ya convertidas.
  */
-const validarTurnoReservable = async (
+export const validarTurnoReservable = async (
   courtId: string,
   startTime: string | Date,
   endTime: string | Date,
@@ -217,7 +223,7 @@ export class BookingService {
       throw new NotFoundError("Reserva no encontrada.");
     }
 
-    if (!TRANSICIONES_PERMITIDAS[reserva.status].includes(status)) {
+    if (!puedeTransicionar(reserva.status, status)) {
       throw new ConflictError(
         `No se puede cambiar una reserva de ${reserva.status} a ${status}.`,
       );

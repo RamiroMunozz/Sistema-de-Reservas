@@ -2,6 +2,7 @@ import "dotenv/config";
 import app from "./app.js";
 import { prisma } from "./core/config/prisma.js";
 import { validarConfiguracionDeSeguridad } from "./core/config/security.js";
+import { iniciarBarridoDeVencidas } from "./modules/bookings/barridoVencidas.js";
 
 const PORT = Number(process.env.PORT) || 3000;
 
@@ -34,6 +35,7 @@ async function bootstrap() {
     app.listen(PORT, () => {
       console.log(`Servidor corriendo en: http://localhost:${PORT}`);
       console.log(`Health check: http://localhost:${PORT}/health`);
+      iniciarBarridoDeVencidas();
     });
   } catch (error) {
     console.error("Error fatal al iniciar la aplicación:", error);

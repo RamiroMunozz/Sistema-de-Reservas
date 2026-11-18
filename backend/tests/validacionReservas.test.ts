@@ -32,6 +32,9 @@ vi.mock("../src/core/config/prisma.js", () => {
 });
 
 const { default: app } = await import("../src/app.js");
+const { puedeTransicionar, validarTurnoReservable } = await import(
+  "../src/modules/bookings/booking.service.js"
+);
 
 const SECRETO_DE_PRUEBA = "secreto_de_prueba";
 const RUTA_RESERVAS = "/api/v1/bookings";
@@ -267,6 +270,33 @@ describe("Validación de reservas", () => {
   });
 
   describe("PATCH /bookings/admin/:id/status", () => {
+    it("responde 400 si se pide el estado EXPIRED: solo lo produce el vencimiento (RES-035)", async () => {
+      const respuesta = await request(app)
+        .patch(`${RUTA_RESERVAS}/admin/${ID_RESERVA}/status`)
+        .set(conToken("ADMIN"))
+        .send({ status: "EXPIRED" });
+
+      expect(respuesta.status).toBe(400);
+      expect(buscarReserva).not.toHaveBeenCalled();
+      expect(actualizarReserva).not.toHaveBeenCalled();
+    });
+
+    it.each(["CONFIRMED", "CANCELLED", "COMPLETED"])(
+      "responde 409 al cambiar una reserva EXPIRED a %s",
+      async (nuevo) => {
+        buscarReserva.mockResolvedValue({ courtId: ID_CANCHA, status: "EXPIRED" });
+
+        const respuesta = await request(app)
+          .patch(`${RUTA_RESERVAS}/admin/${ID_RESERVA}/status`)
+          .set(conToken("ADMIN"))
+          .send({ status: nuevo });
+
+        expect(respuesta.status).toBe(409);
+        expect(respuesta.body.detail).toContain("No se puede cambiar");
+        expect(actualizarReserva).not.toHaveBeenCalled();
+      },
+    );
+
     it("responde 400 con un estado desconocido", async () => {
       const respuesta = await request(app)
         .patch(`${RUTA_RESERVAS}/admin/${ID_RESERVA}/status`)
@@ -484,5 +514,43 @@ describe("Validación de reservas", () => {
         "Demasiados intentos. Probá de nuevo más tarde.",
       );
     });
+  });
+});
+
+describe("Transiciones de estado de una reserva (RES-014, RES-035)", () => {
+  const ESTADOS = ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED", "EXPIRED"] as const;
+
+  it.each([
+    ["PENDING", "CONFIRMED"],
+    ["PENDING", "CANCELLED"],
+    ["CONFIRMED", "COMPLETED"],
+    ["CONFIRMED", "CANCELLED"],
+  ] as const)("permite pasar de %s a %s", (actual, nuevo) => {
+    expect(puedeTransicionar(actual, nuevo)).toBe(true);
+  });
+
+  it.each(["CANCELLED", "EXPIRED"] as const)(
+    "%s es terminal: no se sale de ese estado",
+    (terminal) => {
+      for (const destino of ESTADOS) {
+        expect(puedeTransicionar(terminal, destino)).toBe(false);
+      }
+    },
+  );
+
+  it("no se puede entrar a EXPIRED por la API desde ningún estado", () => {
+    for (const origen of ESTADOS) {
+      expect(puedeTransicionar(origen, "EXPIRED")).toBe(false);
+    }
+  });
+
+  it("COMPLETED sigue siendo terminal", () => {
+    for (const destino of ESTADOS) {
+      expect(puedeTransicionar("COMPLETED", destino)).toBe(false);
+    }
+  });
+
+  it("validarTurnoReservable está exportada", () => {
+    expect(typeof validarTurnoReservable).toBe("function");
   });
 });
