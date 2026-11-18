@@ -238,11 +238,11 @@ Requisitos: RES-006, RES-023 a RES-025, RES-030 a RES-032, PAG-020, PAG-022. Com
   - Archivos: `backend/src/modules/public/tokenAcceso.ts` (crear), `backend/src/modules/public/public.dto.ts` (crear), `backend/src/core/validacion/esquemas.ts` (modificar: recibir `fechaHoraSchema` movido desde `booking.dto.ts`), `backend/src/modules/bookings/booking.dto.ts` (modificar: importar `fechaHoraSchema`).
   - Criterios (decisión 10 y contratos): `guestFirstName`/`guestLastName` con `trim` de 1 a 100; `guestEmail` opcional; cálculo de seña con `Prisma.Decimal`.
   - Checks: pruebas de T-4.1 en verde.
-- [ ] **T-4.3 RED: limitadores y tope por teléfono (RES-030, RES-031).**
+- [x] **T-4.3 RED: limitadores y tope por teléfono (RES-030, RES-031).**
   - Archivos: `backend/tests/limitadorPublico.test.ts` (crear).
   - Pruebas: con `vi.stubEnv` antes de `await import("../src/app.js")`, la solicitud número 11 a `POST /public/bookings` responde 429 (cuenta todas las solicitudes, no solo las exitosas); `limitadorConsultaPublica` aplica su propio máximo; `bloquearTelefono` toma `pg_advisory_xact_lock(2, hashtext(telefono))` después del bloqueo de cancha; con 2 `PENDING` vigentes del teléfono responde 429 con el mensaje del diseño (una vencida no cuenta).
   - Checks: `npm test -- limitadorPublico`.
-- [ ] **T-4.4 GREEN: limitadores y `trust proxy`.**
+- [x] **T-4.4 GREEN: limitadores y `trust proxy`.**
   - Archivos: `backend/src/core/middlewares/limitadorPublico.ts` (crear), `backend/src/modules/bookings/bloqueoCancha.ts` (modificar: `bloquearTelefono`), `backend/src/app.ts` (modificar: `trust proxy` y montaje de `/api/v1/public`).
   - Criterios (decisión 9): variables `LIMITE_CREACION_PUBLICA_MAXIMO`, `LIMITE_CREACION_PUBLICA_VENTANA_MS`, `LIMITE_CONSULTA_PUBLICA_MAXIMO`, `TOPE_PENDIENTES_POR_TELEFONO`, con valores por defecto.
   - Checks: pruebas de T-4.3 en verde.

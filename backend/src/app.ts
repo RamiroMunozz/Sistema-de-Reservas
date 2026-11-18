@@ -5,10 +5,14 @@ import { authRoutes } from "./modules/auth/auth.routes.js";
 import { courtRoutes } from "./modules/courts/court.routes.js";
 import bookingRoutes from "./modules/bookings/booking.routes.js";
 import { adminRoutes } from "./modules/admin/admin.routes.js";
+import { leerTrustProxy } from "./core/config/trustProxy.js";
 import { errorHandler } from "./core/middlewares/errorHandler.js";
 import { paymentRoutes } from "./modules/payments/payments.routes.js";
 
 const app = express();
+
+// Explícito para que el límite por IP no se eluda con X-Forwarded-For (RES-030).
+app.set("trust proxy", leerTrustProxy(process.env.TRUST_PROXY));
 
 app.use(helmet());
 app.use(
