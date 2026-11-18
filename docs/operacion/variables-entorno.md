@@ -27,3 +27,11 @@ Nota: `.env.example` no pudo leerse al redactar este documento; compare esta lis
 ## Docker Compose (`.env` en la raíz)
 
 `docker-compose.yml` toma `JWT_SECRET` (obligatoria), `BACKEND_URL`, `FRONTEND_URL`, `MERCADOPAGO_ACCESS_TOKEN` y `MERCADOPAGO_WEBHOOK_SECRET` del entorno. La conexión a la base y `VITE_API_URL` están fijadas en el propio archivo.
+
+## Rotación de `JWT_SECRET`
+
+1. Generar un secreto largo y aleatorio, por ejemplo con `node -e "console.log(require('node:crypto').randomBytes(64).toString('hex'))"`.
+2. Reemplazar el valor a mano en `backend/.env` (ejecución local) y en el `.env` de la raíz (Docker Compose).
+3. Reiniciar el backend o el contenedor.
+4. Impacto: todos los tokens emitidos se invalidan y las sesiones activas deben volver a iniciar sesión (los tokens duran 15 minutos y no se renuevan). Conviene hacerlo en un horario de baja actividad.
+5. El valor anterior sigue en el historial de git: rotar lo vuelve inútil, pero no lo borra. No se vuelve nunca a un secreto anterior; ante un problema se genera otro nuevo.

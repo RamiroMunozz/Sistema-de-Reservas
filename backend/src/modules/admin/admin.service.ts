@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../core/config/prisma.js";
 import { NotFoundError } from "../../core/errors/AppError.js";
 import {
@@ -5,23 +6,6 @@ import {
   UpdateCourtDTO,
   MetricsQueryDTO,
 } from "./admin.dto.js";
-
-interface BookingMetricItem {
-  id: string;
-  courtId: string;
-  userId: string;
-  startTime: Date;
-  endTime: Date;
-  totalPrice: any;
-  status: string;
-  paymentMethod: string;
-  createdAt: Date;
-  updatedAt: Date;
-  court: {
-    name: string;
-    sport: string;
-  };
-}
 
 export class AdminService {
   async createCourt(dto: CreateCourtDTO) {
@@ -76,20 +60,17 @@ export class AdminService {
       },
     });
 
-    const typedBookings = bookings as unknown as BookingMetricItem[];
-
-    const totalBookings = typedBookings.length;
-    const confirmedBookings = typedBookings.filter(
+    const totalBookings = bookings.length;
+    const confirmedBookings = bookings.filter(
       (b) => b.status === "CONFIRMED",
     );
-    const cancelledBookings = typedBookings.filter(
+    const cancelledBookings = bookings.filter(
       (b) => b.status === "CANCELLED",
     );
 
-    const totalRevenue = confirmedBookings.reduce(
-      (acc, b) => acc + Number(b.totalPrice),
-      0,
-    );
+    const totalRevenue = confirmedBookings
+      .reduce((acc, b) => acc.plus(b.totalPrice), new Prisma.Decimal(0))
+      .toNumber();
 
     return {
       period: {
@@ -102,12 +83,12 @@ export class AdminService {
         cancelledCount: cancelledBookings.length,
         totalRevenueARS: totalRevenue,
       },
-      details: typedBookings.map((b) => ({
+      details: bookings.map((b) => ({
         id: b.id,
         court: b.court.name,
         sport: b.court.sport,
         status: b.status,
-        price: Number(b.totalPrice),
+        price: b.totalPrice.toNumber(),
         startTime: b.startTime,
       })),
     };

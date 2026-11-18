@@ -3,6 +3,7 @@ import { CourtService } from "./court.service.js";
 import {
   getCourtsQuerySchema,
   getCourtAvailabilityQuerySchema,
+  idCanchaSchema,
 } from "./court.dto.js";
 
 export class CourtController {
@@ -28,7 +29,7 @@ export class CourtController {
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const id = String(req.params.id);
+      const { id } = idCanchaSchema.parse(req.params);
       const court = await this.courtService.getCourtById(id);
       res.status(200).json(court);
     } catch (error) {
@@ -42,7 +43,7 @@ export class CourtController {
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const id = String(req.params.id);
+      const { id } = idCanchaSchema.parse(req.params);
       const { date } = getCourtAvailabilityQuerySchema.parse(req.query);
       const availability = await this.courtService.getCourtAvailability(
         id,

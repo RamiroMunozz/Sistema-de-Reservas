@@ -5,6 +5,7 @@ import {
   updateCourtSchema,
   metricsQuerySchema,
 } from "./admin.dto.js";
+import { idCanchaSchema } from "../courts/court.dto.js";
 
 export class AdminController {
   constructor(private readonly adminService = new AdminService()) {}
@@ -29,7 +30,7 @@ export class AdminController {
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const id = String(req.params.id);
+      const { id } = idCanchaSchema.parse(req.params);
       const validatedData = updateCourtSchema.parse(req.body);
       const court = await this.adminService.updateCourt(id, validatedData);
       res.status(200).json(court);

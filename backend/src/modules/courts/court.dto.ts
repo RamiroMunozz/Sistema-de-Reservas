@@ -1,4 +1,9 @@
 import { z } from "zod";
+import { uuidSchema } from "../../core/validacion/esquemas.js";
+
+export const idCanchaSchema = z.object({
+  id: uuidSchema("El ID de la cancha"),
+});
 
 export const getCourtsQuerySchema = z.object({
   sport: z.enum(["FUTBOL_5", "FUTBOL_7", "PADEL", "TENIS"]).optional(),
