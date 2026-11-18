@@ -4,6 +4,7 @@ import {
   NotFoundError,
   UnprocessableEntityError,
 } from "../../core/errors/AppError.js";
+import { filtroOcupaTurno } from "../bookings/filtrosReserva.js";
 import { GetCourtsQueryDTO } from "./court.dto.js";
 
 export class CourtService {
@@ -92,7 +93,7 @@ export class CourtService {
     const existingBookings = await prisma.booking.findMany({
       where: {
         courtId,
-        status: { not: "CANCELLED" },
+        ...filtroOcupaTurno(new Date()),
         startTime: { gte: startOfDay, lte: endOfDay },
       },
       select: {

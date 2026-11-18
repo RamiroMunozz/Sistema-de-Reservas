@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../core/config/prisma.js";
 import { NotFoundError } from "../../core/errors/AppError.js";
+import { filtroNoVencida } from "../bookings/filtrosReserva.js";
 import {
   CreateCourtDTO,
   UpdateCourtDTO,
@@ -52,10 +53,16 @@ export class AdminService {
     const bookings = await prisma.booking.findMany({
       where: {
         createdAt: { gte: start, lte: end },
+        ...filtroNoVencida(new Date()),
       },
       include: {
         court: {
           select: { name: true, sport: true },
+        },
+        // Pagos que efectivamente cuentan: válidos y sin reembolso
+        payments: {
+          where: { isValid: true, refundedAt: null },
+          select: { amount: true },
         },
       },
     });
@@ -68,8 +75,16 @@ export class AdminService {
       (b) => b.status === "CANCELLED",
     );
 
+    // Un invitado (con seña) aporta lo cobrado online; una reserva con cuenta, su
+    // precio total hasta que exista la política de cobro.
     const totalRevenue = confirmedBookings
-      .reduce((acc, b) => acc.plus(b.totalPrice), new Prisma.Decimal(0))
+      .reduce(
+        (acc, b) =>
+          b.depositAmount === null
+            ? acc.plus(b.totalPrice)
+            : b.payments.reduce((suma, pago) => suma.plus(pago.amount), acc),
+        new Prisma.Decimal(0),
+      )
       .toNumber();
 
     return {

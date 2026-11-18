@@ -3,6 +3,7 @@ import jwt from "jsonwebtoken";
 import { Prisma } from "@prisma/client";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { filtroNoVencida } from "../src/modules/bookings/filtrosReserva.js";
 
 const { buscarReservas } = vi.hoisted(() => ({
   buscarReservas: vi.fn(),
@@ -128,6 +129,8 @@ describe("Métricas de administración", () => {
         id: randomUUID(),
         status: estado,
         totalPrice: new Prisma.Decimal(precio),
+        depositAmount: null,
+        payments: [],
         startTime: inicio,
         court: { name: "Cancha 1", sport: "PADEL" },
       });
@@ -158,6 +161,111 @@ describe("Métricas de administración", () => {
         status: "CONFIRMED",
         price: 0.1,
       });
+    });
+  });
+
+  describe("ADM-004, ADM-005 y decisión 12: recaudación con pagos", () => {
+    const INICIO = new Date("2031-08-10T12:00:00.000Z");
+    const consultar = () =>
+      request(app)
+        .get(RUTA_METRICAS)
+        .query({ startDate: "2031-08-01", endDate: "2031-08-31" })
+        .set(tokenAdmin);
+
+    const reserva = (datos: {
+      estado: "CONFIRMED" | "PENDING" | "CANCELLED" | "EXPIRED";
+      precio: string;
+      seña: string | null;
+      pagos: string[];
+    }) => ({
+      id: randomUUID(),
+      status: datos.estado,
+      totalPrice: new Prisma.Decimal(datos.precio),
+      depositAmount: datos.seña === null ? null : new Prisma.Decimal(datos.seña),
+      payments: datos.pagos.map((monto) => ({ amount: new Prisma.Decimal(monto) })),
+      startTime: INICIO,
+      court: { name: "Cancha 1", sport: "PADEL" },
+    });
+
+    it("consulta con filtroNoVencida y trae solo los pagos válidos sin reembolso", async () => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date("2031-08-15T00:00:00.000Z"));
+      try {
+        await consultar();
+      } finally {
+        vi.useRealTimers();
+      }
+
+      const consulta = buscarReservas.mock.calls[0]?.[0];
+      expect(consulta.where).toMatchObject({
+        createdAt: expect.any(Object),
+        ...filtroNoVencida(new Date("2031-08-15T00:00:00.000Z")),
+      });
+      expect(consulta.include.payments).toEqual({
+        where: { isValid: true, refundedAt: null },
+        select: { amount: true },
+      });
+    });
+
+    it("una reserva de invitado confirmada aporta el monto de su pago válido, no el precio total", async () => {
+      buscarReservas.mockResolvedValue([
+        reserva({ estado: "CONFIRMED", precio: "300.00", seña: "90.00", pagos: ["90.00"] }),
+      ]);
+
+      const respuesta = await consultar();
+
+      expect(respuesta.body.summary.totalRevenueARS).toBe(90);
+    });
+
+    it("una reserva de invitado confirmada a mano, sin pago, aporta 0", async () => {
+      buscarReservas.mockResolvedValue([
+        reserva({ estado: "CONFIRMED", precio: "300.00", seña: "90.00", pagos: [] }),
+      ]);
+
+      const respuesta = await consultar();
+
+      expect(respuesta.body.summary).toMatchObject({ confirmedCount: 1, totalRevenueARS: 0 });
+    });
+
+    it("una reserva con cuenta aporta su precio total", async () => {
+      buscarReservas.mockResolvedValue([
+        reserva({ estado: "CONFIRMED", precio: "1200.50", seña: null, pagos: [] }),
+      ]);
+
+      const respuesta = await consultar();
+
+      expect(respuesta.body.summary.totalRevenueARS).toBe(1200.5);
+    });
+
+    it("suma con decimales exactos una mezcla de invitado y cuenta; PENDING y CANCELLED no aportan", async () => {
+      buscarReservas.mockResolvedValue([
+        reserva({ estado: "CONFIRMED", precio: "300.00", seña: "0.10", pagos: ["0.10"] }),
+        reserva({ estado: "CONFIRMED", precio: "0.20", seña: null, pagos: [] }),
+        reserva({ estado: "PENDING", precio: "500.00", seña: "150.00", pagos: [] }),
+        reserva({ estado: "CANCELLED", precio: "500.00", seña: "150.00", pagos: ["150.00"] }),
+      ]);
+
+      const respuesta = await consultar();
+
+      expect(respuesta.body.summary).toEqual({
+        totalBookings: 4,
+        confirmedCount: 2,
+        cancelledCount: 1,
+        totalRevenueARS: 0.3,
+      });
+      expect(respuesta.body.details).toHaveLength(4);
+    });
+
+    it("la forma JSON de la respuesta no incluye pagos", async () => {
+      buscarReservas.mockResolvedValue([
+        reserva({ estado: "CONFIRMED", precio: "300.00", seña: "90.00", pagos: ["90.00"] }),
+      ]);
+
+      const respuesta = await consultar();
+
+      expect(Object.keys(respuesta.body.details[0]).sort()).toEqual(
+        ["court", "id", "price", "sport", "startTime", "status"],
+      );
     });
   });
 });

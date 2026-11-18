@@ -7,6 +7,7 @@ import {
   NotFoundError,
 } from "../../core/errors/AppError.js";
 import { conBloqueoDeCancha } from "./bloqueoCancha.js";
+import { filtroOcupaTurno } from "./filtrosReserva.js";
 
 export interface CreateBookingInput {
   courtId: string;
@@ -144,7 +145,7 @@ export class BookingService {
     const bookings = await prisma.booking.findMany({
       where: {
         courtId,
-        status: { not: BookingStatus.CANCELLED },
+        ...filtroOcupaTurno(new Date()),
         startTime: {
           gte: startOfDay,
           lte: endOfDay,
@@ -192,9 +193,7 @@ export class BookingService {
           gte: startOfDay,
           lte: endOfDay,
         },
-        status: {
-          not: BookingStatus.CANCELLED,
-        },
+        ...filtroOcupaTurno(new Date()),
       },
       include: {
         court: true,
