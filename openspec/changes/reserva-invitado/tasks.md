@@ -230,11 +230,11 @@ Desviaciones:
 
 Requisitos: RES-006, RES-023 a RES-025, RES-030 a RES-032, PAG-020, PAG-022. Commit sugerido: `feat(reservas): crear reservas de invitado con seña por Mercado Pago`
 
-- [ ] **T-4.1 RED: utilidades puras.**
+- [x] **T-4.1 RED: utilidades puras.**
   - Archivos: `backend/tests/tokenAcceso.test.ts`, `backend/tests/sena.test.ts`, `backend/tests/trustProxy.test.ts` (crear).
   - Pruebas: `generarToken` devuelve 43 caracteres base64url y `hashearToken` el SHA-256 hexadecimal (64); `TOKEN_VALIDO` rechaza longitudes y caracteres inválidos; seña de 300.00 al 30 % = 90.00, de 3.32 (casos de redondeo `ROUND_HALF_UP`) y al 100 % (PAG-022); normalización de teléfono (quita espacios, guiones, paréntesis y `+`; 8 a 15 dígitos); `leerTrustProxy` devuelve `false` sin valor, el número indicado y nunca `true`.
   - Checks: `npm test -- tokenAcceso sena trustProxy` (RED por módulos inexistentes).
-- [ ] **T-4.2 GREEN: utilidades y DTO.**
+- [x] **T-4.2 GREEN: utilidades y DTO.**
   - Archivos: `backend/src/modules/public/tokenAcceso.ts` (crear), `backend/src/modules/public/public.dto.ts` (crear), `backend/src/core/validacion/esquemas.ts` (modificar: recibir `fechaHoraSchema` movido desde `booking.dto.ts`), `backend/src/modules/bookings/booking.dto.ts` (modificar: importar `fechaHoraSchema`).
   - Criterios (decisión 10 y contratos): `guestFirstName`/`guestLastName` con `trim` de 1 a 100; `guestEmail` opcional; cálculo de seña con `Prisma.Decimal`.
   - Checks: pruebas de T-4.1 en verde.

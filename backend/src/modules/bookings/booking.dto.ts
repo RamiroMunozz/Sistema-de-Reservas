@@ -1,13 +1,9 @@
 import { z } from "zod";
 import {
   esFechaExistente,
+  fechaHoraSchema,
   uuidSchema,
 } from "../../core/validacion/esquemas.js";
-
-const fechaHoraSchema = (campo: string) =>
-  z.string().datetime({
-    message: `${campo} debe ser una fecha ISO válida (ej: 2026-08-30T18:00:00.000Z)`,
-  });
 
 const fechaSchema = z
   .string()

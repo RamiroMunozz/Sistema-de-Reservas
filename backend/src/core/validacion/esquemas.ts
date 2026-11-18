@@ -11,3 +11,8 @@ export const esFechaExistente = (fecha: string) => {
     instante.toISOString().startsWith(fecha)
   );
 };
+
+export const fechaHoraSchema = (campo: string) =>
+  z.string().datetime({
+    message: `${campo} debe ser una fecha ISO válida (ej: 2026-08-30T18:00:00.000Z)`,
+  });
