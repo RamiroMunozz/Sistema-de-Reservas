@@ -5,25 +5,27 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Estado actual
 
-- **Rama activa:** `desarrollo`, 3 commits por delante de `main` (`8202f04`, `7621aad`, `8995431`). `main` y `origin/main` están en `a764975`. Sin commitear: documentación (`glosario.md`, `SKILL.md` de `dominio-reservas`, `variables-entorno.md`, `README.md`, esta bitácora) y todo `openspec/changes/reserva-invitado/` (el usuario commitea a mano).
-- **Specs vigentes:** los 5 dominios en `openspec/specs/` (autenticacion, canchas, administracion, pagos y reservas).
+- **Rama activa:** `desarrollo`. `main`, `desarrollo` y sus remotos están en `be9eda5`. Sin commitear: todo lo de `reserva-invitado` desde UT-6 (backend, frontend, specs vigentes fusionadas, carpeta archivada), la hoja de ruta y esta bitácora. El usuario commitea a mano.
+- **Specs vigentes:** los 5 dominios en `openspec/specs/`, con los requisitos de `reserva-invitado` fusionados (reservas 35, pagos 26, administracion 18, canchas 15).
 - **Cambios SDD:**
-  - `specs-base` y `deuda-auditoria` están hechos; el segundo está archivado en `openspec/changes/archive/2026-11-18-deuda-auditoria/`.
-  - `reserva-invitado` (N.º 3) está en apply: specs (47 requisitos), diseño y tareas cerrados; hechas UT-0 (salvo T-0.3), UT-1, UT-2 y la documentación T-10.1 a T-10.4. Sigue UT-3.
-- **Bases de datos:** desarrollo en el contenedor `sports_booking_postgres` (puerto 5433), ya con las migraciones `20261119120000_reserva_invitado` y `20261119120100_sin_solapamiento_excluye_vencidas`. Base descartable para pruebas en el contenedor `reservas_prueba` (puerto 5434); ver `docs/operacion/variables-entorno.md`.
-- **Tests del backend:** contra la base descartable, `npm test` da 192 pasan y 4 fallan, todas de `integration.test.ts` porque la base descartable no tiene semilla. Con la base disponible ya no fallan `rutasAdminReservas` ni `secretosJwt`. `npx tsc --noEmit` y `npm run build` sin errores.
-- **Mercado Pago:** credenciales de prueba y webhook (evento "Pagos (legacy)") cargados en `backend/.env`; `BACKEND_URL` apunta a un túnel rápido de cloudflared, cuya URL cambia en cada arranque.
+  - `specs-base` hecho (su carpeta sigue en `openspec/changes/specs-base/`, sin archivar).
+  - `deuda-auditoria` archivado en `openspec/changes/archive/2026-11-18-deuda-auditoria/`.
+  - `reserva-invitado` (N.º 3) hecho y archivado en `openspec/changes/archive/2026-11-19-reserva-invitado/`: 65 de 65 tareas, `verify-report.md` con la resolución de hallazgos y `archive-report.md`.
+  - No hay cambio activo. El siguiente de la hoja de ruta es `multi-tenant-negocios` (N.º 4).
+- **Bases de datos:** desarrollo en el contenedor `sports_booking_postgres` (puerto 5433), con las migraciones de `reserva-invitado`. Base descartable para pruebas en el contenedor `reservas_prueba` (puerto 5434), ya con semilla; ver `docs/operacion/variables-entorno.md`.
+- **Tests del backend:** contra la base descartable, `npm test` da 470 de 470 (32 archivos). `npx tsc --noEmit` y `npm run build` sin errores. Frontend: `tsc`, lint y build sin errores.
+- **Mercado Pago:** credenciales de prueba y webhook (evento "Pagos (legacy)") cargados en `backend/.env`; `BACKEND_URL` apunta a un túnel rápido de cloudflared, cuya URL cambia en cada arranque. Si el webhook no llega, revisar que `BACKEND_URL` coincida con la URL actual del túnel y reiniciar el backend. Sin sesión de comprador, se paga con la tarjeta de prueba `APRO`.
 - **Flujo de trabajo:** solo SDD, con los comandos globales `/gentle-sdd-*` y sus agentes. No se crean comandos ni agentes SDD propios del proyecto.
 - **Código:** sigue siendo single-tenant; multi-tenant es objetivo (ADR 0002).
 
 ## Próximo paso
 
-1. Commitear a mano la documentación y los artefactos de `reserva-invitado` con los mensajes sugeridos en la sesión del 2026-11-18, y hacer la integración diaria en `main`.
-2. Corregir el reloj de Windows (hora y zona horaria automáticas): la PC está 3 horas corrida respecto de Mercado Pago.
-3. Terminar T-0.3: un pago aprobado de prueba (usuario comprador de prueba) para comprobar el reembolso sin monto y la clave de idempotencia ante un fallo.
-4. Seguir con UT-3 de `reserva-invitado` con `/gentle-sdd-apply reserva-invitado`. El adaptador de Mercado Pago no debe enviar `expiration_date_from`.
-5. Actualizar la regla de la integración diaria en `/cerrar-sesion`: con base descartable ya no aplica "exactamente 5 fallas por conexión"; las 4 de `integration.test.ts` son por falta de semilla.
-6. Rotar a mano `JWT_SECRET` (`docs/operacion/variables-entorno.md`). Pendiente en `calidad-ci`: separar las pruebas que usan la base.
+1. Commitear a mano `reserva-invitado` con los mensajes sugeridos en la sesión del 2026-11-19 y hacer la integración diaria en `main` (con `npm test` contra la base descartable).
+2. Decidir sobre las specs vigentes: quitar o no la marca `[OBJETIVO]` de los requisitos ya implementados (24 líneas), y revisar el título de PAG-015 ("reactivar" en lugar de "reconfirmar").
+3. Empezar `multi-tenant-negocios` con `/gentle-sdd-new`. Llevar los riesgos multi-tenant de `verify-report.md` (S5): operaciones por id sin pertenencia, tope por teléfono global y prefijo `549` fijo.
+4. Pendientes registrados de `reserva-invitado`: sondeo cada 20 s y cuenta regresiva con el reloj del navegador (W3, W4), `auto_return` con `https` en el despliegue (W5), `POST /bookings/admin/create` sin lista blanca, y el panel que no avisa cuando vence la sesión del administrador.
+5. Actualizar la regla de la integración diaria en `/cerrar-sesion`: con base descartable y semilla, `npm test` debe pasar completo.
+6. Rotar a mano `JWT_SECRET` (`docs/operacion/variables-entorno.md`). Pendiente en `calidad-ci`: separar las pruebas que usan la base y agregar pruebas del frontend.
 
 ## Configuración vigente
 
@@ -35,6 +37,39 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 ## Registro de sesiones
 
 La más reciente primero. Se mantienen unas 10 entradas; las más antiguas se resumen en una línea al final.
+
+### 2026-11-19: `reserva-invitado`, de UT-6 al archivo
+
+- **Objetivo:** terminar, verificar y archivar `reserva-invitado`.
+- **Hecho:**
+  - UT-6: `estadoSena.ts`, `vistaPublica.ts` y las rutas por token (consultar, cancelar y reintentar el pago).
+  - T-0.3 cerrada en el sandbox de Mercado Pago (reembolso sin monto e idempotencia).
+  - UT-7: vista de administrador con pagos, `depositPercent` y reembolso por pago con clave de idempotencia por intento y consulta previa del pago.
+  - UT-8: frontend público (formulario de invitado y `/reserva/<código>`); T-8.4 manual con chrome-devtools y sus ajustes T-8.5 a T-8.7.
+  - UT-9a y UT-9b: panel con invitados, `wa.me`, "Vencida", reembolso por pago y porcentaje de seña; T-9a.3 (teléfono `+54 9` en formato internacional).
+  - T-7.7: reembolso real desde el panel, con 409 en el segundo intento.
+  - T-10.5 (hoja de ruta) y T-11.1: `sdd-verify` sobre unos 263 escenarios, sin ninguno sin cobertura; UT-12 corrigió C1 y W1 con TDD y ajustó W2 en la spec.
+  - Archivo en `openspec/changes/archive/2026-11-19-reserva-invitado/` con las specs vigentes fusionadas.
+- **Decisiones:**
+  - Avanzar paso por paso: una unidad a la vez, con el OK del usuario antes de la siguiente.
+  - Clave de idempotencia del reembolso por intento (`reembolso-<id>-<uuid>`) y consulta previa del pago en Mercado Pago.
+  - El invitado ve su link `/reserva/<código>` antes de pagar; `auto_return` solo con `https`.
+  - `expirarPreferencia` vence el link con una hora de margen.
+  - Teléfono con prefijo fijo `+54 9` y guardado como `549…`.
+  - Pago aprobado sin monto: advertencia en el log, sin fila (PAG-014 y PAG-026 ajustadas).
+  - W3 a W8 aceptados y registrados en `verify-report.md`.
+- **Hallazgos:**
+  - La clave de idempotencia de Mercado Pago guarda la respuesta fallida.
+  - El webhook "perdido" era `BACKEND_URL` apuntando a un túnel vencido; la `notification_url` queda fija en cada preferencia.
+  - Con `expiration_date_to` igual a "ahora", el link viejo seguía pagable unos 53 s por desfase de reloj.
+  - Sin `auto_return` (no se permite con `localhost`), Mercado Pago no devuelve al invitado al sitio.
+  - `wa.me` necesita el número con código de país.
+  - `toLocaleString` mostraba "03:56" en vez de 15:56; se usan métodos UTC.
+  - La creación de jugador y de administrador no liberaba las vencidas (C1), y el PATCH de administrador devolvía `accessTokenHash` (W1).
+  - Con la sesión de administrador vencida, el panel muestra todo vacío sin avisar.
+  - `sdd-archive-compose` 3.7.0 sigue exigiendo `### Requirement:`; se fusionó con un puente de formato verificado con `diff`.
+  - Claude Code puede cortar procesos en segundo plano (el túnel) si falta memoria.
+- **Commits:** ninguno en la sesión; todo queda sin commitear para el usuario. El commit `be9eda5` (UT-5b, del usuario) no sigue Conventional Commits y ya está publicado.
 
 ### 2026-11-18 (tarde): `reserva-invitado`, de specs a las primeras entregas
 
