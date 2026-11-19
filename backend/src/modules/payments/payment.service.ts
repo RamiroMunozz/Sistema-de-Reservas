@@ -2,7 +2,8 @@ import {
   InvalidWebhookSignatureError,
   WebhookSignatureValidator,
 } from "mercadopago";
-import { BookingStatus } from "@prisma/client";
+import { BookingStatus, PaymentMethod, Prisma } from "@prisma/client";
+import type { Booking } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../core/config/prisma.js";
 import {
@@ -13,10 +14,12 @@ import {
 } from "../../core/errors/AppError.js";
 import { crearPreferencia, obtenerPago } from "../../core/integraciones/mercadoPago.js";
 import { conBloqueoDeCancha } from "../bookings/bloqueoCancha.js";
+import { filtroOcupaTurno } from "../bookings/filtrosReserva.js";
 import {
   mensajeReservaNoPagable,
   reemplazarPreferenciaVigente,
 } from "../bookings/linkDePago.js";
+import { liberarReservasVencidas } from "../bookings/vencimiento.js";
 
 const ESTADOS_PAGABLES: BookingStatus[] = [
   BookingStatus.PENDING,
@@ -140,61 +143,191 @@ export class PaymentService {
       return;
     }
 
+    // Solo los pagos aprobados se registran; los demás estados no modifican nada (PAG-016).
     if (paymentData.status === "approved") {
-      await this.confirmarReservaPagada(
+      await this.registrarPagoAprobado(
         referencia.data,
         paymentId,
         paymentData.transaction_amount,
       );
-    } else if (
-      paymentData.status === "rejected" ||
-      paymentData.status === "cancelled"
-    ) {
-      await prisma.booking.updateMany({
-        where: { id: referencia.data, status: { in: ESTADOS_PAGABLES } },
-        data: { status: BookingStatus.CANCELLED },
-      });
     }
   }
 
-  private async confirmarReservaPagada(
+  /**
+   * Registra un pago aprobado en BookingPayment y confirma la reserva cuando
+   * corresponde (PAG-012, PAG-013). La reserva se relee dentro del bloqueo de la
+   * cancha para que la decisión refleje su estado en el instante del pago.
+   * Los casos de reembolso (monto distinto, pago duplicado, cancelada, completada
+   * y turno ocupado) quedan solo con advertencia hasta la entrega UT-5b.
+   */
+  private async registrarPagoAprobado(
     idReserva: string,
     idPago: string,
     montoPagado: number | undefined,
   ) {
-    const booking = await prisma.booking.findUnique({
+    const reservaPrevia = await prisma.booking.findUnique({
       where: { id: idReserva },
+      select: { courtId: true },
     });
 
-    if (!booking || booking.status === BookingStatus.COMPLETED) {
-      return;
-    }
-
-    if (montoPagado !== Number(booking.totalPrice)) {
-      console.warn(
-        `[PAGO] El monto del pago ${idPago} no coincide con la reserva ${idReserva}.`,
+    if (!reservaPrevia) {
+      this.advertirRevisionManual(
+        idReserva,
+        idPago,
+        "la reserva no existe en el sistema",
       );
       return;
     }
 
-    try {
-      await conBloqueoDeCancha(booking.courtId, (transaccion) =>
-        transaccion.booking.updateMany({
-          where: { id: idReserva, status: booking.status },
-          data: {
-            status: BookingStatus.CONFIRMED,
-            paymentMethod: "TRANSFER",
-          },
-        }),
-      );
-    } catch (error) {
-      if (!(error instanceof ConflictError)) {
-        throw error;
+    await conBloqueoDeCancha(reservaPrevia.courtId, async (transaccion) => {
+      const yaRegistrado = await transaccion.bookingPayment.findUnique({
+        where: { mpPaymentId: idPago },
+      });
+
+      if (yaRegistrado) {
+        return;
       }
 
-      console.warn(
-        `[PAGO] El pago ${idPago} requiere revisión manual: el turno de la reserva ${idReserva} ya está ocupado.`,
+      const reserva = await transaccion.booking.findUnique({
+        where: { id: idReserva },
+      });
+
+      if (!reserva) {
+        this.advertirRevisionManual(
+          idReserva,
+          idPago,
+          "la reserva no existe en el sistema",
+        );
+        return;
+      }
+
+      const monto = montoPagado ?? (await this.releerMonto(idPago));
+
+      if (monto === undefined) {
+        this.advertirRevisionManual(
+          idReserva,
+          idPago,
+          "Mercado Pago no informó el monto del pago",
+        );
+        return;
+      }
+
+      const montoEsperado = reserva.depositAmount ?? reserva.totalPrice;
+
+      if (!new Prisma.Decimal(monto).equals(montoEsperado)) {
+        this.advertirRevisionManual(
+          idReserva,
+          idPago,
+          "el monto no coincide con el esperado",
+        );
+        return;
+      }
+
+      const pagoValido = await transaccion.bookingPayment.findFirst({
+        where: { bookingId: idReserva, isValid: true, refundedAt: null },
+      });
+
+      if (pagoValido) {
+        this.advertirRevisionManual(
+          idReserva,
+          idPago,
+          "la reserva ya tiene un pago válido",
+        );
+        return;
+      }
+
+      const registrarComoValido = () =>
+        transaccion.bookingPayment.create({
+          data: {
+            bookingId: idReserva,
+            mpPaymentId: idPago,
+            amount: monto,
+            isValid: true,
+          },
+        });
+
+      if (reserva.status === BookingStatus.PENDING) {
+        await registrarComoValido();
+        await transaccion.booking.updateMany({
+          where: { id: idReserva, status: reserva.status },
+          data: {
+            status: BookingStatus.CONFIRMED,
+            paymentMethod: PaymentMethod.MERCADOPAGO,
+          },
+        });
+      } else if (reserva.status === BookingStatus.CONFIRMED) {
+        await registrarComoValido();
+        await transaccion.booking.updateMany({
+          where: { id: idReserva, status: reserva.status },
+          data: { paymentMethod: PaymentMethod.MERCADOPAGO },
+        });
+      } else if (reserva.status === BookingStatus.EXPIRED) {
+        await this.reactivarSiElTurnoEstaLibre(
+          transaccion,
+          reserva,
+          idPago,
+          registrarComoValido,
+        );
+      } else {
+        this.advertirRevisionManual(
+          idReserva,
+          idPago,
+          `la reserva está ${reserva.status}`,
+        );
+      }
+    });
+  }
+
+  private async reactivarSiElTurnoEstaLibre(
+    transaccion: Prisma.TransactionClient,
+    reserva: Booking,
+    idPago: string,
+    registrarComoValido: () => Promise<unknown>,
+  ) {
+    const ahora = new Date();
+    await liberarReservasVencidas(transaccion, reserva.courtId, ahora);
+
+    const solapadas = await transaccion.booking.count({
+      where: {
+        courtId: reserva.courtId,
+        id: { not: reserva.id },
+        startTime: { lt: reserva.endTime },
+        endTime: { gt: reserva.startTime },
+        ...filtroOcupaTurno(ahora),
+      },
+    });
+
+    if (solapadas > 0) {
+      this.advertirRevisionManual(
+        reserva.id,
+        idPago,
+        "el turno de la reserva ya está ocupado",
       );
+      return;
     }
+
+    await registrarComoValido();
+    await transaccion.booking.updateMany({
+      where: { id: reserva.id, status: reserva.status },
+      data: {
+        status: BookingStatus.CONFIRMED,
+        paymentMethod: PaymentMethod.MERCADOPAGO,
+      },
+    });
+  }
+
+  private async releerMonto(idPago: string): Promise<number | undefined> {
+    const pagoActual = await obtenerPago(idPago);
+    return pagoActual.transaction_amount;
+  }
+
+  private advertirRevisionManual(
+    idReserva: string,
+    idPago: string,
+    motivo: string,
+  ) {
+    console.warn(
+      `[PAGO] El pago ${idPago} de la reserva ${idReserva} requiere revisión manual: ${motivo}.`,
+    );
   }
 }

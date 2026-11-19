@@ -2,9 +2,21 @@ import { createHmac, randomUUID } from "node:crypto";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { buscarReserva, actualizarReservas, obtenerPago } = vi.hoisted(() => ({
+const {
+  buscarReserva,
+  actualizarReservas,
+  contarReservas,
+  buscarPagoPorId,
+  buscarPagoValido,
+  crearPago,
+  obtenerPago,
+} = vi.hoisted(() => ({
   buscarReserva: vi.fn(),
   actualizarReservas: vi.fn(),
+  contarReservas: vi.fn(),
+  buscarPagoPorId: vi.fn(),
+  buscarPagoValido: vi.fn(),
+  crearPago: vi.fn(),
   obtenerPago: vi.fn(),
 }));
 
@@ -17,7 +29,16 @@ vi.mock("../src/core/config/prisma.js", () => ({
     $transaction: (operacion: (transaccion: unknown) => Promise<unknown>) =>
       operacion({
         $executeRaw: async () => 0,
-        booking: { updateMany: actualizarReservas },
+        booking: {
+          findUnique: buscarReserva,
+          updateMany: actualizarReservas,
+          count: contarReservas,
+        },
+        bookingPayment: {
+          findUnique: buscarPagoPorId,
+          findFirst: buscarPagoValido,
+          create: crearPago,
+        },
       }),
   },
 }));
@@ -50,6 +71,7 @@ const reserva = (status: string) => ({
   courtId: randomUUID(),
   status,
   totalPrice: 1000,
+  depositAmount: null,
   startTime: new Date("2026-12-01T10:00:00.000Z"),
   endTime: new Date("2026-12-01T11:00:00.000Z"),
 });
@@ -62,6 +84,11 @@ const pago = (status: string, monto = 1000) => ({
 
 const enviarFirmado = () =>
   request(app).post(RUTA).set(firmar()).send({ type: "payment" });
+
+const confirmacion = (estado: string) => ({
+  where: { id: ID_RESERVA, status: estado },
+  data: { status: "CONFIRMED", paymentMethod: "MERCADOPAGO" },
+});
 
 describe("POST /payments/webhook", () => {
   beforeAll(() => {
@@ -78,8 +105,17 @@ describe("POST /payments/webhook", () => {
   beforeEach(() => {
     buscarReserva.mockReset();
     actualizarReservas.mockReset();
+    contarReservas.mockReset();
+    buscarPagoPorId.mockReset();
+    buscarPagoValido.mockReset();
+    crearPago.mockReset();
     obtenerPago.mockReset();
+    vi.mocked(console.warn).mockClear();
     actualizarReservas.mockResolvedValue({ count: 1 });
+    contarReservas.mockResolvedValue(0);
+    buscarPagoPorId.mockResolvedValue(null);
+    buscarPagoValido.mockResolvedValue(null);
+    crearPago.mockResolvedValue({});
   });
 
   describe("firma", () => {
@@ -135,64 +171,186 @@ describe("POST /payments/webhook", () => {
   });
 
   describe("pago aprobado", () => {
-    it.each(["PENDING", "CONFIRMED"])(
-      "confirma una reserva en estado %s si el monto coincide",
-      async (estado) => {
-        obtenerPago.mockResolvedValue(pago("approved"));
-        buscarReserva.mockResolvedValue(reserva(estado));
+    it("rama 1: un pago ya registrado no escribe nada (idempotencia)", async () => {
+      obtenerPago.mockResolvedValue(pago("approved"));
+      buscarReserva.mockResolvedValue(reserva("CONFIRMED"));
+      buscarPagoPorId.mockResolvedValue({ id: randomUUID() });
 
-        const respuesta = await enviarFirmado();
+      const respuesta = await enviarFirmado();
 
-        expect(respuesta.status).toBe(200);
-        expect(actualizarReservas).toHaveBeenCalledWith({
-          where: { id: ID_RESERVA, status: estado },
-          data: { status: "CONFIRMED", paymentMethod: "TRANSFER" },
-        });
-      },
-    );
+      expect(respuesta.status).toBe(200);
+      expect(buscarPagoPorId).toHaveBeenCalledWith({
+        where: { mpPaymentId: ID_PAGO },
+      });
+      expect(crearPago).not.toHaveBeenCalled();
+      expect(actualizarReservas).not.toHaveBeenCalled();
+    });
 
-    it("no confirma si el monto no coincide", async () => {
-      obtenerPago.mockResolvedValue(pago("approved", 1));
+    it("rama 2: una reserva inexistente avisa y no registra el pago", async () => {
+      obtenerPago.mockResolvedValue(pago("approved"));
+      buscarReserva.mockResolvedValue(null);
+
+      const respuesta = await enviarFirmado();
+
+      expect(respuesta.status).toBe(200);
+      expect(crearPago).not.toHaveBeenCalled();
+      expect(actualizarReservas).not.toHaveBeenCalled();
+      const advertencia = String(vi.mocked(console.warn).mock.calls[0]?.[0]);
+      expect(advertencia).toContain(ID_RESERVA);
+      expect(advertencia).toContain(ID_PAGO);
+      expect(advertencia).toContain("requiere revisión manual");
+    });
+
+    it("rama 3: sin monto relee el pago una vez y, si sigue sin monto, avisa y no registra", async () => {
+      obtenerPago.mockResolvedValue({
+        status: "approved",
+        external_reference: ID_RESERVA,
+      });
       buscarReserva.mockResolvedValue(reserva("PENDING"));
 
       const respuesta = await enviarFirmado();
 
       expect(respuesta.status).toBe(200);
+      expect(obtenerPago).toHaveBeenCalledTimes(2);
+      expect(crearPago).not.toHaveBeenCalled();
       expect(actualizarReservas).not.toHaveBeenCalled();
-    });
-
-    it("no reconfirma una reserva cancelada si el turno ya está ocupado", async () => {
-      obtenerPago.mockResolvedValue(pago("approved"));
-      buscarReserva.mockResolvedValue(reserva("CANCELLED"));
-      actualizarReservas.mockRejectedValue(
-        new Error('viola la restricción "bookings_sin_solapamiento"'),
-      );
-
-      const respuesta = await enviarFirmado();
-
-      expect(respuesta.status).toBe(200);
       expect(console.warn).toHaveBeenCalledWith(
         expect.stringContaining("requiere revisión manual"),
       );
     });
 
-    it("reconfirma una reserva cancelada si el turno sigue libre", async () => {
-      obtenerPago.mockResolvedValue(pago("approved"));
-      buscarReserva.mockResolvedValue(reserva("CANCELLED"));
+    it("rama 3: si la relectura trae el monto, registra el pago", async () => {
+      obtenerPago
+        .mockResolvedValueOnce({
+          status: "approved",
+          external_reference: ID_RESERVA,
+        })
+        .mockResolvedValueOnce(pago("approved"));
+      buscarReserva.mockResolvedValue(reserva("PENDING"));
 
       const respuesta = await enviarFirmado();
 
       expect(respuesta.status).toBe(200);
-      expect(actualizarReservas).toHaveBeenCalledWith({
-        where: { id: ID_RESERVA, status: "CANCELLED" },
-        data: { status: "CONFIRMED", paymentMethod: "TRANSFER" },
+      expect(obtenerPago).toHaveBeenCalledTimes(2);
+      expect(crearPago).toHaveBeenCalledWith({
+        data: expect.objectContaining({ mpPaymentId: ID_PAGO, isValid: true }),
       });
     });
+
+    it.each(["vigente", "vencida sin barrer"])(
+      "rama 6: confirma una PENDING %s sin liberar vencidas antes",
+      async () => {
+        obtenerPago.mockResolvedValue(pago("approved"));
+        buscarReserva.mockResolvedValue(reserva("PENDING"));
+
+        const respuesta = await enviarFirmado();
+
+        expect(respuesta.status).toBe(200);
+        expect(crearPago).toHaveBeenCalledWith({
+          data: {
+            bookingId: ID_RESERVA,
+            mpPaymentId: ID_PAGO,
+            amount: 1000,
+            isValid: true,
+          },
+        });
+        expect(actualizarReservas).toHaveBeenCalledTimes(1);
+        expect(actualizarReservas).toHaveBeenCalledWith(confirmacion("PENDING"));
+      },
+    );
+
+    it("rama 6: el monto esperado de una reserva de invitado es la seña", async () => {
+      obtenerPago.mockResolvedValue(pago("approved", 300));
+      buscarReserva.mockResolvedValue({
+        ...reserva("PENDING"),
+        depositAmount: "300.00",
+      });
+
+      const respuesta = await enviarFirmado();
+
+      expect(respuesta.status).toBe(200);
+      expect(crearPago).toHaveBeenCalledWith({
+        data: expect.objectContaining({ amount: 300, isValid: true }),
+      });
+      expect(actualizarReservas).toHaveBeenCalledWith(confirmacion("PENDING"));
+    });
+
+    it("rama 7: una CONFIRMED en efectivo sin pago válido registra el pago y pasa a MERCADOPAGO", async () => {
+      obtenerPago.mockResolvedValue(pago("approved"));
+      buscarReserva.mockResolvedValue({
+        ...reserva("CONFIRMED"),
+        paymentMethod: "CASH",
+      });
+
+      const respuesta = await enviarFirmado();
+
+      expect(respuesta.status).toBe(200);
+      expect(buscarPagoValido).toHaveBeenCalledWith({
+        where: { bookingId: ID_RESERVA, isValid: true, refundedAt: null },
+      });
+      expect(crearPago).toHaveBeenCalledWith({
+        data: expect.objectContaining({ mpPaymentId: ID_PAGO, isValid: true }),
+      });
+      expect(actualizarReservas).toHaveBeenCalledWith({
+        where: { id: ID_RESERVA, status: "CONFIRMED" },
+        data: { paymentMethod: "MERCADOPAGO" },
+      });
+    });
+
+    it("rama 9 con turno libre: libera vencidas, cuenta solapadas y reactiva la EXPIRED", async () => {
+      obtenerPago.mockResolvedValue(pago("approved"));
+      const expirada = reserva("EXPIRED");
+      buscarReserva.mockResolvedValue(expirada);
+      contarReservas.mockResolvedValue(0);
+
+      const respuesta = await enviarFirmado();
+
+      expect(respuesta.status).toBe(200);
+      expect(actualizarReservas).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            courtId: expirada.courtId,
+            status: "PENDING",
+          }),
+          data: { status: "EXPIRED" },
+        }),
+      );
+      expect(contarReservas).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          courtId: expirada.courtId,
+          id: { not: ID_RESERVA },
+          startTime: { lt: expirada.endTime },
+          endTime: { gt: expirada.startTime },
+          status: { notIn: ["CANCELLED", "EXPIRED"] },
+        }),
+      });
+      expect(crearPago).toHaveBeenCalledWith({
+        data: expect.objectContaining({ mpPaymentId: ID_PAGO, isValid: true }),
+      });
+      expect(actualizarReservas).toHaveBeenLastCalledWith(
+        confirmacion("EXPIRED"),
+      );
+    });
+
+    it.each(["rejected", "cancelled", "pending", "in_process"])(
+      "PAG-016: un pago %s no escribe nada",
+      async (estadoPago) => {
+        obtenerPago.mockResolvedValue(pago(estadoPago));
+        buscarReserva.mockResolvedValue(reserva("PENDING"));
+
+        const respuesta = await enviarFirmado();
+
+        expect(respuesta.status).toBe(200);
+        expect(crearPago).not.toHaveBeenCalled();
+        expect(actualizarReservas).not.toHaveBeenCalled();
+      },
+    );
 
     it("responde 500 para que se reintente si falla otro error de base", async () => {
       obtenerPago.mockResolvedValue(pago("approved"));
       buscarReserva.mockResolvedValue(reserva("PENDING"));
-      actualizarReservas.mockRejectedValue(new Error("base no disponible"));
+      crearPago.mockRejectedValue(new Error("base no disponible"));
       vi.spyOn(console, "error").mockImplementation(() => undefined);
 
       const respuesta = await enviarFirmado();
@@ -200,35 +358,19 @@ describe("POST /payments/webhook", () => {
       expect(respuesta.status).toBe(500);
     });
 
-    it("no modifica una reserva ya completada", async () => {
-      obtenerPago.mockResolvedValue(pago("approved"));
-      buscarReserva.mockResolvedValue(reserva("COMPLETED"));
+    it("no clasifica en esta entrega los casos de reembolso: avisa y no escribe", async () => {
+      obtenerPago.mockResolvedValue(pago("approved", 1));
+      buscarReserva.mockResolvedValue(reserva("PENDING"));
 
       const respuesta = await enviarFirmado();
 
       expect(respuesta.status).toBe(200);
+      expect(crearPago).not.toHaveBeenCalled();
       expect(actualizarReservas).not.toHaveBeenCalled();
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining("requiere revisión manual"),
+      );
     });
-  });
-
-  describe("pago rechazado o cancelado", () => {
-    it.each(["rejected", "cancelled"])(
-      "cancela solo reservas activas cuando el pago está %s",
-      async (estadoPago) => {
-        obtenerPago.mockResolvedValue(pago(estadoPago));
-
-        const respuesta = await enviarFirmado();
-
-        expect(respuesta.status).toBe(200);
-        expect(actualizarReservas).toHaveBeenCalledWith({
-          where: {
-            id: ID_RESERVA,
-            status: { in: ["PENDING", "CONFIRMED"] },
-          },
-          data: { status: "CANCELLED" },
-        });
-      },
-    );
   });
 
   describe("notificaciones que no aplican", () => {
@@ -263,16 +405,6 @@ describe("POST /payments/webhook", () => {
 
       expect(respuesta.status).toBe(200);
       expect(buscarReserva).not.toHaveBeenCalled();
-      expect(actualizarReservas).not.toHaveBeenCalled();
-    });
-
-    it("responde 200 sin cambios si la reserva no existe", async () => {
-      obtenerPago.mockResolvedValue(pago("approved"));
-      buscarReserva.mockResolvedValue(null);
-
-      const respuesta = await enviarFirmado();
-
-      expect(respuesta.status).toBe(200);
       expect(actualizarReservas).not.toHaveBeenCalled();
     });
   });

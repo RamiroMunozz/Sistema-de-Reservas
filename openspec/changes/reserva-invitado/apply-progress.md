@@ -9,7 +9,8 @@ Modo: TDD estricto (Vitest, `cd backend && npm test`). Base de pruebas: `reserva
 - UT-2: T-2.1 a T-2.4 hechas y commiteadas: `8995431`.
 - UT-3: T-3.1 a T-3.6 hechas y commiteadas en 5 cortes (ver abajo). Se implementó sin esperar T-0.3 (comprobaciones 4 y 5), por decisión del usuario.
 - UT-4: T-4.1 a T-4.7 hechas y commiteadas en 4 cortes (ver abajo).
-- UT-5a en adelante: pendientes.
+- UT-5a: T-5a.1 y T-5a.2 hechas y commiteadas en un solo commit.
+- UT-5b en adelante: pendientes.
 - Regla vigente (decisión del usuario): si una unidad pasa ~400 líneas, partirla en commits coherentes de ~400 o menos, sin consultar; frenar solo si no hay corte limpio.
 
 ## Evidencia del ciclo TDD
@@ -30,6 +31,8 @@ Modo: TDD estricto (Vitest, `cd backend && npm test`). Base de pruebas: `reserva
 | T-4.5 y T-4.6 | `tests/reservaInvitadoCrear.test.ts`, `tests/limitadorCreacionRuta.test.ts` | 28 de 29 fallan: 404 en `POST /api/v1/public/bookings` (una pasa por la aserción de que no escribe) | 1.ª corrida: 17 fallan con 429 (la propia app compartida agotaba el límite de 10); tras subir `LIMITE_CREACION_PUBLICA_MAXIMO` antes de importar la app, 1 fallaba (`monto` NaN: el servicio leía `depositAmount` de la fila devuelta, que el simulado no trae); tras usar la seña calculada: 29 de 29 pasan | Sin cambios |
 | T-4.7 | `tests/migracionReservaInvitado.test.ts` (modificada, base descartable) | Verificación de una implementación ya existente, sin RED por módulo faltante. Sensibilidad comprobada: con `TOPE_PENDIENTES_POR_TELEFONO=100` la prueba del teléfono falla (4 reservas en lugar de 2) | 20 de 20 pasan | Sin cambios |
 
+| T-5a.1 y T-5a.2 | `tests/webhookPago.test.ts` (reescrita) | 13 de 23 fallan: el webhook no escribía `BookingPayment` (`crearPago` sin llamar, `updateMany` con `TRANSFER`, rechazos que cancelaban) | 1.ª corrida: 22 de 23 (la regex de la advertencia asumía el orden reserva-pago; el mensaje dice pago y luego reserva, se corrigió la prueba); luego 23 de 23 | `registrarPagoAprobado` partido en `reactivarSiElTurnoEstaLibre`, `releerMonto` y `advertirRevisionManual` |
+
 Triangulación: el barrido y el vencimiento tienen casos con dos canchas, error de una cancha, pasada superpuesta y error de pasada; las restricciones tienen casos válidos e inválidos de cada una.
 
 ## Verificación al cierre de cada commit (variables de la base descartable)
@@ -41,6 +44,7 @@ Triangulación: el barrido y el vencimiento tienen casos con dos canchas, error 
 | UT-2 `8995431` | sin errores | 192 pasan, 4 fallan (solo `integration.test.ts`) | sin errores |
 | UT-3 (5 commits, estado final) | sin errores | 18 archivos, 246 pasan, 0 fallan (la base descartable ya tiene semilla) | sin errores |
 | UT-4 (4 commits, estado final) | sin errores | 25 archivos, 325 pasan, 0 fallan | sin errores |
+| UT-5a | sin errores | 25 archivos, 330 pasan, 0 fallan (una corrida previa dio 1 falla intermitente en `rutasAdminReservas` "GET /admin/all"; no se repitió y el archivo pasa 13 de 13 sin mis cambios) | sin errores |
 
 `npx prisma migrate status`: `localhost:5434`, "Database schema is up to date!" (5 migraciones).
 
@@ -93,6 +97,16 @@ UT-4 (TDD estricto, sin Co-Authored-By, sin push; `seed.ts` sin tocar). Estimado
 | UT-4d | ver `git log` | T-4.7 (concurrencia en base descartable), `tasks.md` y esta bitácora |
 
 Para que UT-1a compilara se incluyó en él solo la línea `[BookingStatus.EXPIRED]: []` de `booking.service.ts` y el ajuste de tipo de `payment.service.ts`; el resto de `booking.service.ts` va en UT-1b.
+
+UT-5a (TDD estricto, sin Co-Authored-By, sin push; `seed.ts` sin tocar): un commit, `payment.service.ts` (+164/-31) y `webhookPago.test.ts` (+191/-59).
+
+## Desviaciones de UT-5a
+
+- Los casos de UT-5b (rama 4 monto distinto, rama 5 pago duplicado, rama 8 `CANCELLED`, rama 9 con turno ocupado, rama 10 `COMPLETED`) no escriben fila ni cambian la reserva: solo emiten la advertencia "requiere revisión manual". Cambio respecto de antes: ya no se reactiva una `CANCELLED` ni un pago rechazado cancela reservas (PAG-016 lo exige).
+- Se quitaron de `webhookPago.test.ts` las pruebas de `CANCELLED` y `COMPLETED`; UT-5b las reescribe (T-5b.1). La de "reserva inexistente" pasó a la rama 2.
+- Rama 3: la relectura con `obtenerPago` ocurre dentro del bloqueo, como en la tabla del diseño.
+- Rama 7: `updateMany` condicional solo cambia `paymentMethod`.
+- Pruebas extra: la seña (`depositAmount`) como monto esperado y pagos `pending`/`in_process` sin escritura.
 
 ## Riesgos nuevos
 

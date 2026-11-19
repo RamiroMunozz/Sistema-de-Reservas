@@ -264,12 +264,12 @@ Requisitos: RES-006, RES-023 a RES-025, RES-030 a RES-032, PAG-020, PAG-022. Com
 
 Requisitos: PAG-012, PAG-013, PAG-014, PAG-016 (ramas 1, 2, 3, 6, 7 y la rama 9 con turno libre de la decisión 7). Commit sugerido: `feat(pagos): registrar pagos aprobados en BookingPayment y confirmar reservas`
 
-- [ ] **T-5a.1 RED: reescribir `backend/tests/webhookPago.test.ts` para las ramas de confirmación.**
+- [x] **T-5a.1 RED: reescribir `backend/tests/webhookPago.test.ts` para las ramas de confirmación.**
   - Archivos: `backend/tests/webhookPago.test.ts` (modificar). Transacción simulada con `booking` y `bookingPayment` (`findUnique`, `findFirst`, `create`, `updateMany`, `count`).
   - Pruebas: rama 1, `mpPaymentId` ya existente: no escribe nada (PAG-013, idempotencia); rama 2, reserva inexistente: advertencia y sin fila; rama 3, monto ausente: se relee con `obtenerPago` una vez y, si sigue sin monto, advertencia y sin fila; rama 6, `PENDING` vigente o vencida no barrida: fila `isValid: true`, reserva `CONFIRMED` con `MERCADOPAGO` mediante `updateMany` condicional al estado leído, sin `liberarReservasVencidas` previo; rama 7, `CONFIRMED` (por ejemplo `CASH`) sin pago válido: fila `isValid: true` y `paymentMethod` `MERCADOPAGO`; rama 9 con turno libre (`EXPIRED`): `liberarReservasVencidas`, conteo de solapadas con `filtroOcupaTurno` igual a 0, fila `isValid: true` y reserva `CONFIRMED` con `MERCADOPAGO`; un pago distinto de `approved` no escribe (PAG-016); toda advertencia incluye reserva y pago con "requiere revisión manual".
   - RED esperado: el webhook actual no escribe `BookingPayment`.
   - Checks: `npm test -- webhookPago`.
-- [ ] **T-5a.2 GREEN y REFACTOR: `registrarPagoAprobado` (ramas 1, 2, 3, 6, 7 y 9 con turno libre).**
+- [x] **T-5a.2 GREEN y REFACTOR: `registrarPagoAprobado` (ramas 1, 2, 3, 6, 7 y 9 con turno libre).**
   - Archivos: `backend/src/modules/payments/payment.service.ts` (modificar).
   - Criterios (decisión 7): lectura de `courtId` fuera del bloqueo; relectura de reserva y pago válido dentro de `conBloqueoDeCancha`; la firma, el filtro de eventos y la validación de `external_reference` se conservan.
   - Checks: `npm test -- webhookPago` en verde para estas ramas, `npx tsc --noEmit`.
