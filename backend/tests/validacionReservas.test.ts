@@ -19,7 +19,17 @@ vi.mock("../src/core/config/prisma.js", () => {
     create: crearReserva,
     update: actualizarReserva,
     updateMany: async () => ({ count: 0 }),
-    findUniqueOrThrow: async () => ({ id: "reserva", status: "CANCELLED" }),
+    // Reserva completa: la vista de administrador lee pagos, cancha y titular.
+    findUniqueOrThrow: async () => ({
+      id: "reserva",
+      status: "CANCELLED",
+      totalPrice: 1000,
+      depositAmount: null,
+      expiresAt: null,
+      court: { id: "cancha" },
+      user: null,
+      payments: [],
+    }),
   };
 
   return {

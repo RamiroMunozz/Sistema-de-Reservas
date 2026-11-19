@@ -118,7 +118,17 @@ describe("Cancelación y cambio de estado bajo el bloqueo de la cancha", () => {
       eventos.push("leer");
       return reserva();
     });
-    leerFinal.mockResolvedValue({ id: ID_RESERVA, status: "CANCELLED" });
+    // Reserva completa: la vista de administrador lee pagos, cancha y titular.
+    leerFinal.mockResolvedValue({
+      id: ID_RESERVA,
+      status: "CANCELLED",
+      totalPrice: 1000,
+      depositAmount: null,
+      expiresAt: null,
+      court: { id: ID_CANCHA },
+      user: null,
+      payments: [],
+    });
     marcarPagos.mockResolvedValue({ count: 0 });
     actualizarReserva.mockImplementation(async () => {
       eventos.push("actualizar");

@@ -11,6 +11,8 @@ import { cancelarEnTransaccion } from "./cancelacionReserva.js";
 import { filtroOcupaTurno } from "./filtrosReserva.js";
 import { invalidarLinkDePago } from "./linkDePago.js";
 import { liberarReservasVencidas } from "./vencimiento.js";
+import { armarVistaAdmin, incluirParaVistaAdmin } from "./vistaAdmin.js";
+import { armarVistaJugador } from "./vistaJugador.js";
 
 export interface CreateBookingInput {
   courtId: string;
@@ -80,8 +82,11 @@ export class BookingService {
       data.endTime,
     );
 
-    return conBloqueoDeCancha(data.courtId, (transaccion) =>
-      transaccion.booking.create({
+    return conBloqueoDeCancha(data.courtId, async (transaccion) => {
+      // Una PENDING vencida no debe ocupar el turno aunque el barrido no corrió (RES-026).
+      await liberarReservasVencidas(transaccion, data.courtId);
+
+      return transaccion.booking.create({
         data: {
           courtId: data.courtId,
           userId: userId,
@@ -94,8 +99,8 @@ export class BookingService {
         include: {
           court: true,
         },
-      }),
-    );
+      });
+    });
   }
 
   async getUserBookings(userId: string) {
@@ -160,9 +165,11 @@ export class BookingService {
         await cancelarEnTransaccion(transaccion, bookingId);
 
         return {
-          cancelada: await transaccion.booking.findUniqueOrThrow({
-            where: { id: bookingId },
-          }),
+          cancelada: armarVistaJugador(
+            await transaccion.booking.findUniqueOrThrow({
+              where: { id: bookingId },
+            }),
+          ),
           idPreferencia: booking.mpPreferenceId,
         };
       },
@@ -201,29 +208,22 @@ export class BookingService {
   }
 
   async getAllBookingsForAdmin() {
-    return prisma.booking.findMany({
-      include: {
-        court: true,
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
+    const reservas = await prisma.booking.findMany({
+      include: incluirParaVistaAdmin,
       orderBy: {
         startTime: "desc",
       },
     });
+    const ahora = new Date();
+
+    return reservas.map((reserva) => armarVistaAdmin(reserva, ahora));
   }
 
   async getDailyBookingsForAdmin(dateStr: string) {
     const startOfDay = new Date(`${dateStr}T00:00:00.000Z`);
     const endOfDay = new Date(`${dateStr}T23:59:59.999Z`);
 
-    return prisma.booking.findMany({
+    const reservas = await prisma.booking.findMany({
       where: {
         startTime: {
           gte: startOfDay,
@@ -231,21 +231,14 @@ export class BookingService {
         },
         ...filtroOcupaTurno(new Date()),
       },
-      include: {
-        court: true,
-        user: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-          },
-        },
-      },
+      include: incluirParaVistaAdmin,
       orderBy: {
         startTime: "asc",
       },
     });
+    const ahora = new Date();
+
+    return reservas.map((reserva) => armarVistaAdmin(reserva, ahora));
   }
 
   async updateBookingStatus(bookingId: string, status: BookingStatus) {
@@ -293,17 +286,7 @@ export class BookingService {
         return {
           actualizada: await transaccion.booking.findUniqueOrThrow({
             where: { id: bookingId },
-            include: {
-              court: true,
-              user: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true,
-                  email: true,
-                },
-              },
-            },
+            include: incluirParaVistaAdmin,
           }),
           idPreferencia:
             status === BookingStatus.CANCELLED ? reserva.mpPreferenceId : null,
@@ -314,7 +297,7 @@ export class BookingService {
     // Después del commit: un fallo de Mercado Pago no revierte la cancelación (PAG-025).
     await invalidarLinkDePago(idPreferencia);
 
-    return actualizada;
+    return armarVistaAdmin(actualizada, new Date());
   }
 
   async createAdminBooking(
@@ -332,8 +315,11 @@ export class BookingService {
       data.endTime,
     );
 
-    return conBloqueoDeCancha(data.courtId, (transaccion) =>
-      transaccion.booking.create({
+    return conBloqueoDeCancha(data.courtId, async (transaccion) => {
+      // Una PENDING vencida no debe ocupar el turno aunque el barrido no corrió (RES-026).
+      await liberarReservasVencidas(transaccion, data.courtId);
+
+      return transaccion.booking.create({
         data: {
           courtId: data.courtId,
           userId: adminUserId,
@@ -354,7 +340,7 @@ export class BookingService {
             },
           },
         },
-      }),
-    );
+      });
+    });
   }
 }
