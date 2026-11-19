@@ -1,6 +1,10 @@
 import { BookingStatus } from "@prisma/client";
 import { prisma } from "../../core/config/prisma.js";
-import { AppError } from "../../core/errors/AppError.js";
+import {
+  AppError,
+  ConflictError,
+  NotFoundError,
+} from "../../core/errors/AppError.js";
 import {
   crearPreferencia,
   obtenerVariableMercadoPago,
@@ -10,11 +14,19 @@ import {
   conBloqueoDeCancha,
 } from "../bookings/bloqueoCancha.js";
 import { validarTurnoReservable } from "../bookings/booking.service.js";
-import { invalidarLinkDePago } from "../bookings/linkDePago.js";
+import { cancelarEnTransaccion } from "../bookings/cancelacionReserva.js";
+import { estadoEfectivo, pagoValidoVigente } from "../bookings/estadoSena.js";
+import {
+  invalidarLinkDePago,
+  mensajeReservaNoPagable,
+  reemplazarPreferenciaVigente,
+} from "../bookings/linkDePago.js";
 import { liberarReservasVencidas } from "../bookings/vencimiento.js";
 import type { CrearReservaInvitadoDTO } from "./public.dto.js";
 import { calcularSena } from "./sena.js";
-import { generarToken, hashearToken } from "./tokenAcceso.js";
+import { TOKEN_VALIDO, generarToken, hashearToken } from "./tokenAcceso.js";
+import { armarVistaPublica } from "./vistaPublica.js";
+import type { VistaPublicaReserva } from "./vistaPublica.js";
 
 const MINUTOS_DE_VENCIMIENTO = 15;
 const MS_POR_MINUTO = 60 * 1000;
@@ -24,6 +36,12 @@ const VARIABLES_DE_MERCADO_PAGO = [
   "MERCADOPAGO_ACCESS_TOKEN",
   "MERCADOPAGO_WEBHOOK_SECRET",
 ];
+
+const MENSAJE_NO_ENCONTRADA = "Reserva no encontrada.";
+
+const SELECCION_DE_PAGOS = {
+  select: { isValid: true, refundReason: true, refundedAt: true, amount: true },
+} as const;
 
 export interface ReservaInvitadoCreada {
   token: string;
@@ -85,6 +103,148 @@ export class ReservaInvitadoService {
     });
 
     return { token, initPoint };
+  }
+
+  /** Consulta pública por token (RES-028). */
+  async consultar(token: string): Promise<VistaPublicaReserva> {
+    const reserva = await this.buscarPorToken(token);
+
+    return armarVistaPublica(reserva, new Date());
+  }
+
+  /** Cancelación por token bajo el bloqueo de la cancha (RES-029, PAG-025). */
+  async cancelar(token: string): Promise<VistaPublicaReserva> {
+    const { id, courtId } = await this.buscarPorToken(token);
+
+    const { vista, idPreferencia } = await conBloqueoDeCancha(
+      courtId,
+      async (transaccion) => {
+        // Una PENDING vencida pasa a EXPIRED antes de validar el estado.
+        await liberarReservasVencidas(transaccion, courtId);
+
+        const reserva = await transaccion.booking.findUnique({
+          where: { id },
+          include: {
+            court: { select: { name: true, sport: true } },
+            payments: SELECCION_DE_PAGOS,
+          },
+        });
+
+        if (!reserva) {
+          throw new NotFoundError(MENSAJE_NO_ENCONTRADA);
+        }
+
+        this.validarCancelable(reserva.status);
+
+        const { depositPaidAtCancel } = await cancelarEnTransaccion(transaccion, id);
+
+        return {
+          vista: armarVistaPublica(reserva, new Date(), {
+            status: BookingStatus.CANCELLED,
+            refundAtOwnerDiscretion: depositPaidAtCancel,
+          }),
+          idPreferencia: reserva.mpPreferenceId,
+        };
+      },
+    );
+
+    // Después del commit: un fallo de Mercado Pago no revierte la cancelación.
+    await invalidarLinkDePago(idPreferencia);
+
+    return vista;
+  }
+
+  /** Reintento del pago de la seña por token (PAG-021). */
+  async reintentarPago(token: string): Promise<{ initPoint: string }> {
+    const reserva = await this.buscarPorToken(token);
+    const ahora = new Date();
+    const estado = estadoEfectivo(reserva, ahora);
+
+    if (estado !== BookingStatus.PENDING || pagoValidoVigente(reserva.payments)) {
+      throw new ConflictError(mensajeReservaNoPagable(estado));
+    }
+
+    if (reserva.depositAmount === null || reserva.expiresAt === null) {
+      throw new NotFoundError(MENSAJE_NO_ENCONTRADA);
+    }
+
+    VARIABLES_DE_MERCADO_PAGO.forEach(obtenerVariableMercadoPago);
+
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    let preferencia: Awaited<ReturnType<typeof crearPreferencia>>;
+
+    try {
+      preferencia = await crearPreferencia({
+        idReserva: reserva.id,
+        titulo: `Seña - ${reserva.court.name}`,
+        descripcion: `Seña del turno de ${reserva.court.sport}`,
+        monto: reserva.depositAmount.toNumber(),
+        emailPagador: reserva.guestEmail ?? undefined,
+        urlRetorno: `${frontendUrl}/reserva/${token}`,
+        // Vence junto con la reserva: el reintento no extiende expiresAt.
+        venceEn: reserva.expiresAt,
+      });
+    } catch (error) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      console.error("[RESERVA_INVITADO] No se pudo generar el link de pago.", error);
+      throw new AppError("No se pudo generar el link de pago. Intenta de nuevo.", 502);
+    }
+
+    if (!preferencia.id || !preferencia.initPoint) {
+      await invalidarLinkDePago(preferencia.id ?? null);
+      throw new AppError("No se pudo generar el link de pago. Intenta de nuevo.", 502);
+    }
+
+    await reemplazarPreferenciaVigente({
+      idReserva: reserva.id,
+      idAnterior: reserva.mpPreferenceId,
+      idNueva: preferencia.id,
+      condicion: {
+        status: BookingStatus.PENDING,
+        expiresAt: { gt: ahora },
+        payments: { none: { isValid: true, refundedAt: null } },
+      },
+    });
+
+    return { initPoint: preferencia.initPoint };
+  }
+
+  private validarCancelable(estado: BookingStatus) {
+    if (estado === BookingStatus.CANCELLED) {
+      throw new ConflictError("La reserva ya se encuentra cancelada.");
+    }
+
+    if (estado === BookingStatus.COMPLETED) {
+      throw new ConflictError("No se puede cancelar una reserva completada.");
+    }
+
+    if (estado === BookingStatus.EXPIRED) {
+      throw new ConflictError("La reserva venció y no se puede cancelar.");
+    }
+  }
+
+  /** Busca por el hash del token; un formato inválido no consulta la base. */
+  private async buscarPorToken(token: string) {
+    if (!TOKEN_VALIDO.test(token)) {
+      throw new NotFoundError(MENSAJE_NO_ENCONTRADA);
+    }
+
+    const reserva = await prisma.booking.findUnique({
+      where: { accessTokenHash: hashearToken(token) },
+      include: {
+        court: { select: { name: true, sport: true } },
+        payments: SELECCION_DE_PAGOS,
+      },
+    });
+
+    if (!reserva) {
+      throw new NotFoundError(MENSAJE_NO_ENCONTRADA);
+    }
+
+    return reserva;
   }
 
   /**

@@ -15,4 +15,30 @@ export class PublicController {
       next(error);
     }
   };
+
+  consultarReserva = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      return res.json(await reservaInvitadoService.consultar(String(req.params.token)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  cancelarReserva = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      return res.json(await reservaInvitadoService.cancelar(String(req.params.token)));
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  reintentarPago = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      return res.json(
+        await reservaInvitadoService.reintentarPago(String(req.params.token)),
+      );
+    } catch (error) {
+      next(error);
+    }
+  };
 }

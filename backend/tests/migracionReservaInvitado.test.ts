@@ -6,6 +6,7 @@ import { conBloqueoDeCancha } from "../src/modules/bookings/bloqueoCancha.js";
 import { cancelarEnTransaccion } from "../src/modules/bookings/cancelacionReserva.js";
 import { PaymentService } from "../src/modules/payments/payment.service.js";
 import { ReservaInvitadoService } from "../src/modules/public/reservaInvitado.service.js";
+import { generarToken, hashearToken } from "../src/modules/public/tokenAcceso.js";
 
 // La creación de invitado se prueba contra la base real; Mercado Pago, simulado.
 vi.mock("../src/core/integraciones/mercadoPago.js", () => ({
@@ -474,6 +475,70 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Migraciones de reserva-invitado (base desc
       const { estado, pagos } = await leerResultado(reserva.idReserva);
       expect(estado).toBe("CANCELLED");
       expect(pagos).toEqual([{ is_valid: false, refund_reason: "PAID_AFTER_CANCEL" }]);
+    });
+  });
+
+  describe("cancelaciones simultáneas por token (RES-029)", () => {
+    const servicio = new ReservaInvitadoService();
+    const idCanchaPropia = randomUUID();
+    const idReserva = randomUUID();
+    const token = generarToken();
+
+    beforeAll(async () => {
+      const { inicio, fin } = horario(10);
+      await prisma.$executeRaw`
+        INSERT INTO "courts" ("id", "complex_id", "name", "sport", "surface", "price_per_slot")
+        VALUES (${idCanchaPropia}::uuid, ${idComplejo}::uuid, 'Cancha cancelación por token', 'PADEL', 'CEMENTO', 1000)`;
+      await prisma.$executeRaw`
+        INSERT INTO "bookings"
+          ("id", "court_id", "start_time", "end_time", "total_price", "status",
+           "guest_first_name", "guest_last_name", "guest_phone", "deposit_amount",
+           "access_token_hash", "updated_at")
+        VALUES
+          (${idReserva}::uuid, ${idCanchaPropia}::uuid, ${inicio}, ${fin}, 1000,
+           'CONFIRMED'::"BookingStatus", 'Ana', 'Pérez', '5491100000001', 300.00,
+           ${hashearToken(token)}, now())`;
+      await insertarPago({ idReserva, idMp: idMp(), esValido: true });
+      idsReservas.push(idReserva);
+    });
+
+    afterAll(async () => {
+      await prisma.$executeRaw`DELETE FROM "booking_payments" WHERE "booking_id" = ${idReserva}::uuid`;
+      await prisma.$executeRaw`DELETE FROM "bookings" WHERE "id" = ${idReserva}::uuid`;
+      await prisma.$executeRaw`DELETE FROM "courts" WHERE "id" = ${idCanchaPropia}::uuid`;
+    });
+
+    it("dos cancelaciones simultáneas dejan una sola exitosa y un único pago a criterio del canchero", async () => {
+      const resultados = await Promise.allSettled([
+        servicio.cancelar(token),
+        servicio.cancelar(token),
+      ]);
+
+      const exitosas = resultados.filter(
+        (r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof servicio.cancelar>>> =>
+          r.status === "fulfilled",
+      );
+      const rechazadas = resultados.filter((r) => r.status === "rejected");
+
+      expect(exitosas).toHaveLength(1);
+      expect(exitosas[0]?.value).toMatchObject({
+        status: "CANCELLED",
+        refundAtOwnerDiscretion: true,
+      });
+      expect(rechazadas).toHaveLength(1);
+      expect((rechazadas[0] as PromiseRejectedResult).reason).toMatchObject({
+        statusCode: 409,
+      });
+
+      const reservas = await prisma.$queryRaw<
+        { status: string; deposit_paid_at_cancel: boolean | null }[]
+      >`SELECT "status"::text AS status, "deposit_paid_at_cancel" FROM "bookings" WHERE "id" = ${idReserva}::uuid`;
+      const pagos = await prisma.$queryRaw<{ refund_reason: string | null }[]>`
+        SELECT "refund_reason"::text AS refund_reason FROM "booking_payments"
+        WHERE "booking_id" = ${idReserva}::uuid`;
+
+      expect(reservas[0]).toEqual({ status: "CANCELLED", deposit_paid_at_cancel: true });
+      expect(pagos).toEqual([{ refund_reason: "OWNER_DISCRETION" }]);
     });
   });
 });
