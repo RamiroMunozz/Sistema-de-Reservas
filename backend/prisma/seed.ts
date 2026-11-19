@@ -6,7 +6,8 @@ const prisma = new PrismaClient();
 async function main() {
   console.log("🌱 Iniciando la carga de datos iniciales (Seed)...");
 
-  // 1. Limpieza de datos en cascada
+  // 1. Limpieza de datos en cascada (los pagos primero: su relación con la reserva es Restrict)
+  await prisma.bookingPayment.deleteMany();
   await prisma.booking.deleteMany();
   await prisma.courtSchedule.deleteMany();
   await prisma.court.deleteMany();

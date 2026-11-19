@@ -10,7 +10,8 @@ Modo: TDD estricto (Vitest, `cd backend && npm test`). Base de pruebas: `reserva
 - UT-3: T-3.1 a T-3.6 hechas y commiteadas en 5 cortes (ver abajo). Se implementó sin esperar T-0.3 (comprobaciones 4 y 5), por decisión del usuario.
 - UT-4: T-4.1 a T-4.7 hechas y commiteadas en 4 cortes (ver abajo).
 - UT-5a: T-5a.1 y T-5a.2 hechas y commiteadas en un solo commit.
-- UT-5b en adelante: pendientes.
+- UT-5b: T-5b.1 a T-5b.3 hechas, sin commitear (los hace el usuario).
+- UT-6 en adelante: pendientes.
 - Regla vigente (decisión del usuario): si una unidad pasa ~400 líneas, partirla en commits coherentes de ~400 o menos, sin consultar; frenar solo si no hay corte limpio.
 
 ## Evidencia del ciclo TDD
@@ -32,6 +33,8 @@ Modo: TDD estricto (Vitest, `cd backend && npm test`). Base de pruebas: `reserva
 | T-4.7 | `tests/migracionReservaInvitado.test.ts` (modificada, base descartable) | Verificación de una implementación ya existente, sin RED por módulo faltante. Sensibilidad comprobada: con `TOPE_PENDIENTES_POR_TELEFONO=100` la prueba del teléfono falla (4 reservas en lugar de 2) | 20 de 20 pasan | Sin cambios |
 
 | T-5a.1 y T-5a.2 | `tests/webhookPago.test.ts` (reescrita) | 13 de 23 fallan: el webhook no escribía `BookingPayment` (`crearPago` sin llamar, `updateMany` con `TRANSFER`, rechazos que cancelaban) | 1.ª corrida: 22 de 23 (la regex de la advertencia asumía el orden reserva-pago; el mensaje dice pago y luego reserva, se corrigió la prueba); luego 23 de 23 | `registrarPagoAprobado` partido en `reactivarSiElTurnoEstaLibre`, `releerMonto` y `advertirRevisionManual` |
+| T-5b.1 y T-5b.2 | `tests/webhookPago.test.ts` (ramas de reembolso agregadas) | 16 de 40 fallan (rama 4 en cada estado, 5, 8, 9 ocupado, respaldo `ConflictError` y rama 10: el código de UT-5a solo advertía). Nota: el GREEN se escribió antes de las pruebas; el RED se observó restaurando `payment.service.ts` a HEAD con las pruebas nuevas y volviendo a poner la implementación | 40 de 40 pasan a la primera | `registrarPagoAprobado` queda como envoltorio del respaldo; la clasificación vive en `clasificarPago` y `registrarNoValido` |
+| T-5b.3 | `tests/migracionReservaInvitado.test.ts` (modificada, base descartable) | Verificación de una implementación ya existente, sin RED por módulo faltante | 5 repeticiones del webhook contra la cancelación: reserva `CANCELLED` y una sola fila de pago; 25 de 25 en el archivo | Sin cambios |
 
 Triangulación: el barrido y el vencimiento tienen casos con dos canchas, error de una cancha, pasada superpuesta y error de pasada; las restricciones tienen casos válidos e inválidos de cada una.
 
@@ -45,6 +48,7 @@ Triangulación: el barrido y el vencimiento tienen casos con dos canchas, error 
 | UT-3 (5 commits, estado final) | sin errores | 18 archivos, 246 pasan, 0 fallan (la base descartable ya tiene semilla) | sin errores |
 | UT-4 (4 commits, estado final) | sin errores | 25 archivos, 325 pasan, 0 fallan | sin errores |
 | UT-5a | sin errores | 25 archivos, 330 pasan, 0 fallan (una corrida previa dio 1 falla intermitente en `rutasAdminReservas` "GET /admin/all"; no se repitió y el archivo pasa 13 de 13 sin mis cambios) | sin errores |
+| UT-5b | sin errores | 25 archivos, 352 pasan; 1 falla intermitente en `rutasAdminReservas` "GET /admin/all" en 3 de 6 corridas completas (el archivo pasa 13 de 13 aislado; ver riesgos) | sin errores |
 
 `npx prisma migrate status`: `localhost:5434`, "Database schema is up to date!" (5 migraciones).
 
@@ -67,6 +71,7 @@ Triangulación: el barrido y el vencimiento tienen casos con dos canchas, error 
 - UT-4: la falla de `crearPreferencia` (o de guardar `mpPreferenceId`) responde 502 "No se pudo generar el link de pago. Intenta de nuevo." salvo un `AppError` (por ejemplo 503), que se propaga. La compensación pasa la reserva a `CANCELLED` con `depositPaidAtCancel: false` (PAG-023) solo si sigue `PENDING`. Si la preferencia se creó pero no se pudo guardar, se invalida (mejor esfuerzo); el diseño no lo preveía.
 - UT-4: el porcentaje de seña se lee con `prisma.complex.findUniqueOrThrow` tras validar el turno (no se amplió `validarTurnoReservable`).
 - UT-4: el 201 devuelve `initPoint` (no `sandboxInitPoint`).
+- UT-4 (invalidar una preferencia creada pero no guardada, mejor esfuerzo): Decisión del usuario: se mantiene.
 - Las líneas de UT-1 superan el presupuesto: pruebas 525 líneas, migraciones 98, resto ~190.
 
 ## Commits (sin Co-Authored-By, sin push)
@@ -108,7 +113,23 @@ UT-5a (TDD estricto, sin Co-Authored-By, sin push; `seed.ts` sin tocar): un comm
 - Rama 7: `updateMany` condicional solo cambia `paymentMethod`.
 - Pruebas extra: la seña (`depositAmount`) como monto esperado y pagos `pending`/`in_process` sin escritura.
 
+UT-5b (TDD estricto, sin Co-Authored-By, sin push, SIN commitear; el agente no modificó `backend/prisma/seed.ts`, que trae un arreglo del usuario pendiente de commit fuera de UT-5b): `payment.service.ts` (+~190/-~85), `webhookPago.test.ts` (+~160), `migracionReservaInvitado.test.ts` (+~80). Total ~406 adiciones y 79 eliminaciones en el árbol (incluye 3 líneas ajenas de `seed.ts`).
+
+## Desviaciones de UT-5b
+
+- La reescritura de las "líneas 179 a 190" ya estaba hecha en UT-5a (se quitó la prueba que reactivaba `CANCELLED`); UT-5b agrega la prueba de rama 8 (`PAID_AFTER_CANCEL`, sin `updateMany`).
+- Respaldo `ConflictError`: solo se activa si el error salió de reactivar una `EXPIRED` (bandera interna); un solapamiento en otra rama se propaga (409). La segunda transacción reconfirma la idempotencia por `mpPaymentId` antes de insertar `SLOT_TAKEN`.
+- Un pago sin monto tras la relectura (rama 3) sigue sin fila; `registrarNoValido` avisa si no hay monto (caso solo del respaldo).
+- Prueba de concurrencia (ajustada tras la revisión R3): las 5 repeticiones que aceptaban cualquier orden se reemplazaron por dos casos deterministas. Una transacción "portero" retiene el bloqueo de la cancha, se espera en `pg_locks` a que la primera operación quede encolada, se lanza la segunda y se suelta (PostgreSQL atiende la cola en orden de llegada). Pago primero: `CANCELLED` con `{ is_valid: true, OWNER_DISCRETION }`. Cancelación primero: `CANCELLED` con `{ is_valid: false, PAID_AFTER_CANCEL }`. Comprobado con mutación (expectativas intercambiadas: los dos casos fallan).
+- Ajustes tras la segunda revisión (3 advertencias, sin bloqueantes):
+  - R4: el respaldo `SLOT_TAKEN` reutiliza el monto con el que se intentó reactivar la `EXPIRED` (`montoDeLaReactivacion`) y ya no vuelve a llamar a Mercado Pago bajo el bloqueo. TDD: RED con `obtenerPago` llamado 3 veces en lugar de 2; GREEN 41/41 en `webhookPago`.
+  - R2: el `switch` sobre `reserva.status` tiene un `default` con guarda `never` que llama a `advertirRevisionManual`, para que un estado nuevo no pierda el pago en silencio.
+  - R3: las pruebas deterministas usan `enOrden`, que suelta el bloqueo en un `finally` y espera todas las operaciones lanzadas con `Promise.allSettled`.
+  - Checks: `npm test` 350/350 en dos corridas, `npx tsc --noEmit` y `npm run build` limpios.
+
 ## Riesgos nuevos
+
+- Resuelto: `rutasAdminReservas` "GET /admin/all" fallaba de forma intermitente porque `migracionReservaInvitado.test.ts` insertaba reservas de invitado en la misma base en paralelo. Decisión del usuario: `fileParallelism: false` en `backend/vitest.config.ts`. Suite completa sin fallas en 6 corridas seguidas (~27 s cada una): 4 con 352/352 y, tras reemplazar la prueba de carrera, 2 con 349/349.
 
 - Las pruebas de agenda (RES-013) usan `prisma` simulado en `disponibilidad.test.ts`; `rutasAdminReservas.test.ts` no se modificó (corre contra la base real). No hay prueba contra PostgreSQL del filtro con una `PENDING` vencida no barrida.
 - `getAllBookingsForAdmin` no se tocó (muestra todas las reservas, también `EXPIRED`); la lista completa del panel las muestra con su estado.

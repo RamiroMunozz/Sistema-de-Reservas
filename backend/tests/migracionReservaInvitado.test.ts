@@ -1,6 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { prisma } from "../src/core/config/prisma.js";
+import { obtenerPago } from "../src/core/integraciones/mercadoPago.js";
+import { conBloqueoDeCancha } from "../src/modules/bookings/bloqueoCancha.js";
+import { cancelarEnTransaccion } from "../src/modules/bookings/cancelacionReserva.js";
+import { PaymentService } from "../src/modules/payments/payment.service.js";
 import { ReservaInvitadoService } from "../src/modules/public/reservaInvitado.service.js";
 
 // La creación de invitado se prueba contra la base real; Mercado Pago, simulado.
@@ -328,6 +332,148 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Migraciones de reserva-invitado (base desc
         expect((rechazada as PromiseRejectedResult).reason).toMatchObject({ statusCode: 429 });
       }
       expect(Number(pendientes[0]?.total)).toBe(2);
+    });
+  });
+
+  describe("webhook de pago contra cancelación (PAG-012)", () => {
+    const SECRETO = "secreto_webhook_concurrencia";
+    const servicioPagos = new PaymentService();
+    const idsCanchas: string[] = [];
+
+    const firmar = (idPago: string) => {
+      const ts = "1704908010";
+      const idPedido = `pedido-${idPago}`;
+      const firma = createHmac("sha256", SECRETO)
+        .update(`id:${idPago};request-id:${idPedido};ts:${ts};`)
+        .digest("hex");
+      return { firma: `ts=${ts},v1=${firma}`, idPedido };
+    };
+
+    beforeAll(() => {
+      vi.stubEnv("MERCADOPAGO_WEBHOOK_SECRET", SECRETO);
+    });
+
+    afterAll(async () => {
+      vi.unstubAllEnvs();
+      for (const id of idsCanchas) {
+        await prisma.$executeRaw`DELETE FROM "booking_payments" WHERE "booking_id" IN (SELECT "id" FROM "bookings" WHERE "court_id" = ${id}::uuid)`;
+        await prisma.$executeRaw`DELETE FROM "bookings" WHERE "court_id" = ${id}::uuid`;
+        await prisma.$executeRaw`DELETE FROM "courts" WHERE "id" = ${id}::uuid`;
+      }
+    });
+
+    // Retiene el bloqueo de la cancha desde otra transacción hasta que se llame a soltar().
+    const retenerBloqueo = async (idCancha: string) => {
+      let soltar = () => {};
+      const liberado = new Promise<void>((resolver) => {
+        soltar = resolver;
+      });
+      let avisarTomado = () => {};
+      const tomado = new Promise<void>((resolver) => {
+        avisarTomado = resolver;
+      });
+      const transaccion = prisma.$transaction(
+        async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${idCancha}))`;
+          avisarTomado();
+          await liberado;
+        },
+        { maxWait: 5000, timeout: 15000 },
+      );
+      await tomado;
+      return { soltar, terminado: transaccion };
+    };
+
+    // Espera a que haya exactamente `cantidad` transacciones encoladas en bloqueos de aviso.
+    // Los archivos corren en serie (fileParallelism: false), así que no hay esperas ajenas.
+    const esperarEncoladas = async (cantidad: number) => {
+      for (let intento = 0; intento < 200; intento += 1) {
+        const filas = await prisma.$queryRaw<{ total: bigint }[]>`
+          SELECT count(*) AS total FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`;
+        if (Number(filas[0]?.total) === cantidad) return;
+        await new Promise((resolver) => setTimeout(resolver, 10));
+      }
+      throw new Error(`No se encolaron ${cantidad} transacciones en el bloqueo de la cancha`);
+    };
+
+    // Lanza las operaciones en el orden dado, cada una encolada detrás del bloqueo
+    // retenido, y lo suelta siempre: si una espera falla, el bloqueo no queda tomado
+    // ni quedan promesas sin esperar que afecten a la prueba siguiente.
+    const enOrden = async (idCancha: string, operaciones: Array<() => Promise<unknown>>) => {
+      const portero = await retenerBloqueo(idCancha);
+      const lanzadas: Promise<unknown>[] = [];
+      try {
+        for (const [indice, operacion] of operaciones.entries()) {
+          lanzadas.push(operacion());
+          await esperarEncoladas(indice + 1);
+        }
+      } finally {
+        portero.soltar();
+        const resultados = await Promise.allSettled([portero.terminado, ...lanzadas]);
+        const fallida = resultados.find(
+          (resultado): resultado is PromiseRejectedResult => resultado.status === "rejected",
+        );
+        if (fallida) throw fallida.reason;
+      }
+    };
+
+    const prepararReserva = async (nombre: string, idPago: string) => {
+      const idCanchaPropia = randomUUID();
+      idsCanchas.push(idCanchaPropia);
+      await prisma.$executeRaw`
+        INSERT INTO "courts" ("id", "complex_id", "name", "sport", "surface", "price_per_slot")
+        VALUES (${idCanchaPropia}::uuid, ${idComplejo}::uuid, ${nombre}, 'PADEL', 'CEMENTO', 1000)`;
+      const idReserva = randomUUID();
+      const { inicio, fin } = horario(9);
+      await prisma.$executeRaw`
+        INSERT INTO "bookings"
+          ("id", "user_id", "court_id", "start_time", "end_time", "total_price", "status", "updated_at")
+        VALUES
+          (${idReserva}::uuid, ${idUsuario}::uuid, ${idCanchaPropia}::uuid, ${inicio}, ${fin},
+           1000, 'PENDING'::"BookingStatus", now())`;
+      vi.mocked(obtenerPago).mockResolvedValue({
+        status: "approved",
+        transaction_amount: 1000,
+        external_reference: idReserva,
+      } as Awaited<ReturnType<typeof obtenerPago>>);
+      const { firma, idPedido } = firmar(idPago);
+      return {
+        idCancha: idCanchaPropia,
+        idReserva,
+        procesarPago: () =>
+          servicioPagos.procesarNotificacion({ firma, idPedido, idPago, tipo: "payment" }),
+        cancelar: () =>
+          conBloqueoDeCancha(idCanchaPropia, (transaccion) =>
+            cancelarEnTransaccion(transaccion, idReserva),
+          ),
+      };
+    };
+
+    const leerResultado = async (idReserva: string) => {
+      const reservas = await prisma.$queryRaw<{ status: string }[]>`
+        SELECT "status"::text AS status FROM "bookings" WHERE "id" = ${idReserva}::uuid`;
+      const pagos = await prisma.$queryRaw<{ is_valid: boolean; refund_reason: string | null }[]>`
+        SELECT "is_valid", "refund_reason"::text AS refund_reason
+        FROM "booking_payments" WHERE "booking_id" = ${idReserva}::uuid`;
+      return { estado: reservas[0]?.status, pagos };
+    };
+
+    it("si el pago toma el bloqueo primero, confirma y la cancelación lo marca OWNER_DISCRETION", async () => {
+      const reserva = await prepararReserva("Cancha webhook primero", "900000001");
+      await enOrden(reserva.idCancha, [reserva.procesarPago, reserva.cancelar]);
+
+      const { estado, pagos } = await leerResultado(reserva.idReserva);
+      expect(estado).toBe("CANCELLED");
+      expect(pagos).toEqual([{ is_valid: true, refund_reason: "OWNER_DISCRETION" }]);
+    });
+
+    it("si la cancelación toma el bloqueo primero, el pago queda PAID_AFTER_CANCEL sin reactivar", async () => {
+      const reserva = await prepararReserva("Cancha cancelación primero", "900000002");
+      await enOrden(reserva.idCancha, [reserva.cancelar, reserva.procesarPago]);
+
+      const { estado, pagos } = await leerResultado(reserva.idReserva);
+      expect(estado).toBe("CANCELLED");
+      expect(pagos).toEqual([{ is_valid: false, refund_reason: "PAID_AFTER_CANCEL" }]);
     });
   });
 });

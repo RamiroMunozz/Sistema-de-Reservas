@@ -278,17 +278,17 @@ Requisitos: PAG-012, PAG-013, PAG-014, PAG-016 (ramas 1, 2, 3, 6, 7 y la rama 9 
 
 Requisitos: PAG-012 a PAG-016 (ramas 4, 5, 8, 10 y la rama 9 con turno ocupado). Commit sugerido: `feat(pagos): clasificar pagos con motivo de reembolso en el webhook`
 
-- [ ] **T-5b.1 RED: reescribir `backend/tests/webhookPago.test.ts` para las ramas de reembolso.**
+- [x] **T-5b.1 RED: reescribir `backend/tests/webhookPago.test.ts` para las ramas de reembolso.**
   - Archivos: `backend/tests/webhookPago.test.ts` (modificar).
   - Pruebas: rama 4, monto distinto de `depositAmount ?? totalPrice` (con `Prisma.Decimal`) en **cada** estado, incluido `COMPLETED` y con un pago válido existente: fila `isValid: false` con `AMOUNT_MISMATCH` y la `PENDING` sigue `PENDING`; rama 5, ya hay un pago válido sin reembolso: `DUPLICATE_PAYMENT`, y un pago válido ya reembolsado no bloquea uno nuevo; rama 8, `CANCELLED`: `PAID_AFTER_CANCEL` sin reactivar; rama 9 con turno ocupado (`EXPIRED`): `SLOT_TAKEN` sin cambio de estado; rama 10, `COMPLETED` sin pago válido vigente: fila `isValid: true` sin motivo y sin cambio de estado (con las reglas 4 y 5 también en `COMPLETED`); respaldo: si la restricción reporta solapamiento (`ConflictError`, transacción revertida), una segunda transacción bajo el mismo bloqueo inserta la fila `SLOT_TAKEN`; el orden de evaluación respeta la tabla de la decisión 7.
   - **Reescribir las líneas 179 a 190** de `webhookPago.test.ts`: la prueba actual que espera que `CANCELLED` se reactive pasa a esperar que la reserva siga `CANCELLED` con una fila `PAID_AFTER_CANCEL` y sin `updateMany` de estado (PAG-012).
   - RED esperado: el código de UT-5a no clasifica estos casos.
   - Checks: `npm test -- webhookPago`.
-- [ ] **T-5b.2 GREEN y REFACTOR: ramas 4, 5, 8, 10 y rama 9 con turno ocupado.**
+- [x] **T-5b.2 GREEN y REFACTOR: ramas 4, 5, 8, 10 y rama 9 con turno ocupado.**
   - Archivos: `backend/src/modules/payments/payment.service.ts` (modificar).
   - Criterios (decisión 7): `liberarReservasVencidas` y conteo de solapadas con `filtroOcupaTurno` solo en la rama 9; el motivo se persiste al clasificar.
   - Checks: `npm test -- webhookPago` completo en verde, `npm test`, `npx tsc --noEmit`.
-- [ ] **T-5b.3 Verificación en base descartable: webhook contra cancelación.**
+- [x] **T-5b.3 Verificación en base descartable: webhook contra cancelación.**
   - Archivos: `backend/tests/migracionReservaInvitado.test.ts` (modificar, con `skipIf`).
   - Pruebas: un pago aprobado y una cancelación simultáneos no dejan la reserva reactivada ni sin fila de pago.
   - Checks: `npm test -- migracionReservaInvitado` con `DATABASE_URL_PRUEBA`.

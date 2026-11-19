@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -358,18 +359,185 @@ describe("POST /payments/webhook", () => {
       expect(respuesta.status).toBe(500);
     });
 
-    it("no clasifica en esta entrega los casos de reembolso: avisa y no escribe", async () => {
-      obtenerPago.mockResolvedValue(pago("approved", 1));
-      buscarReserva.mockResolvedValue(reserva("PENDING"));
+    const filaNoValida = (motivo: string, monto = 1000) => ({
+      data: {
+        bookingId: ID_RESERVA,
+        mpPaymentId: ID_PAGO,
+        amount: monto,
+        isValid: false,
+        refundReason: motivo,
+      },
+    });
 
-      const respuesta = await enviarFirmado();
+    const ESTADOS = ["PENDING", "CONFIRMED", "CANCELLED", "COMPLETED", "EXPIRED"];
 
-      expect(respuesta.status).toBe(200);
-      expect(crearPago).not.toHaveBeenCalled();
-      expect(actualizarReservas).not.toHaveBeenCalled();
-      expect(console.warn).toHaveBeenCalledWith(
-        expect.stringContaining("requiere revisión manual"),
+    describe("ramas de reembolso", () => {
+      it.each(ESTADOS)(
+        "rama 4: un monto distinto en una reserva %s guarda AMOUNT_MISMATCH y no cambia el estado",
+        async (estado) => {
+          obtenerPago.mockResolvedValue(pago("approved", 1));
+          buscarReserva.mockResolvedValue(reserva(estado));
+
+          const respuesta = await enviarFirmado();
+
+          expect(respuesta.status).toBe(200);
+          expect(crearPago).toHaveBeenCalledTimes(1);
+          expect(crearPago).toHaveBeenCalledWith(filaNoValida("AMOUNT_MISMATCH", 1));
+          expect(actualizarReservas).not.toHaveBeenCalled();
+          expect(contarReservas).not.toHaveBeenCalled();
+        },
       );
+
+      it("rama 4: compara con Prisma.Decimal contra la seña, no contra el total", async () => {
+        obtenerPago.mockResolvedValue(pago("approved", 1000));
+        buscarReserva.mockResolvedValue({
+          ...reserva("PENDING"),
+          depositAmount: new Prisma.Decimal("300.00"),
+        });
+
+        await enviarFirmado();
+
+        expect(crearPago).toHaveBeenCalledWith(filaNoValida("AMOUNT_MISMATCH", 1000));
+        expect(actualizarReservas).not.toHaveBeenCalled();
+      });
+
+      it("rama 4 antes que la 5: un monto distinto con un pago válido existente es AMOUNT_MISMATCH", async () => {
+        obtenerPago.mockResolvedValue(pago("approved", 1));
+        buscarReserva.mockResolvedValue(reserva("COMPLETED"));
+        buscarPagoValido.mockResolvedValue({ id: randomUUID() });
+
+        await enviarFirmado();
+
+        expect(crearPago).toHaveBeenCalledWith(filaNoValida("AMOUNT_MISMATCH", 1));
+        expect(buscarPagoValido).not.toHaveBeenCalled();
+      });
+
+      it.each(ESTADOS)(
+        "rama 5: un pago válido sin reembolso en una reserva %s guarda DUPLICATE_PAYMENT",
+        async (estado) => {
+          obtenerPago.mockResolvedValue(pago("approved"));
+          buscarReserva.mockResolvedValue(reserva(estado));
+          buscarPagoValido.mockResolvedValue({ id: randomUUID() });
+
+          const respuesta = await enviarFirmado();
+
+          expect(respuesta.status).toBe(200);
+          expect(crearPago).toHaveBeenCalledTimes(1);
+          expect(crearPago).toHaveBeenCalledWith(filaNoValida("DUPLICATE_PAYMENT"));
+          expect(actualizarReservas).not.toHaveBeenCalled();
+        },
+      );
+
+      it("rama 5: un pago válido ya reembolsado no bloquea uno nuevo", async () => {
+        obtenerPago.mockResolvedValue(pago("approved"));
+        buscarReserva.mockResolvedValue(reserva("CONFIRMED"));
+
+        await enviarFirmado();
+
+        // La consulta excluye los reembolsados con refundedAt: null; sin resultado, se registra.
+        expect(buscarPagoValido).toHaveBeenCalledWith({
+          where: { bookingId: ID_RESERVA, isValid: true, refundedAt: null },
+        });
+        expect(crearPago).toHaveBeenCalledWith({
+          data: expect.objectContaining({ isValid: true }),
+        });
+      });
+
+      it("rama 8: una CANCELLED guarda PAID_AFTER_CANCEL y no se reactiva (PAG-012)", async () => {
+        obtenerPago.mockResolvedValue(pago("approved"));
+        buscarReserva.mockResolvedValue(reserva("CANCELLED"));
+
+        const respuesta = await enviarFirmado();
+
+        expect(respuesta.status).toBe(200);
+        expect(crearPago).toHaveBeenCalledWith(filaNoValida("PAID_AFTER_CANCEL"));
+        expect(actualizarReservas).not.toHaveBeenCalled();
+        expect(contarReservas).not.toHaveBeenCalled();
+      });
+
+      it("rama 9 con turno ocupado: guarda SLOT_TAKEN y la EXPIRED sigue igual", async () => {
+        obtenerPago.mockResolvedValue(pago("approved"));
+        buscarReserva.mockResolvedValue(reserva("EXPIRED"));
+        contarReservas.mockResolvedValue(1);
+
+        const respuesta = await enviarFirmado();
+
+        expect(respuesta.status).toBe(200);
+        expect(contarReservas).toHaveBeenCalledTimes(1);
+        expect(crearPago).toHaveBeenCalledWith(filaNoValida("SLOT_TAKEN"));
+        // Solo el barrido de vencidas; ninguna confirmación.
+        expect(actualizarReservas).toHaveBeenCalledTimes(1);
+        expect(actualizarReservas).not.toHaveBeenCalledWith(confirmacion("EXPIRED"));
+      });
+
+      it("rama 9: si la restricción reporta solapamiento, una segunda transacción guarda SLOT_TAKEN", async () => {
+        obtenerPago.mockResolvedValue(pago("approved"));
+        buscarReserva.mockResolvedValue(reserva("EXPIRED"));
+        actualizarReservas
+          .mockResolvedValueOnce({ count: 0 })
+          .mockRejectedValueOnce(
+            new Error('conflicto con la restricción "bookings_sin_solapamiento"'),
+          );
+
+        const respuesta = await enviarFirmado();
+
+        expect(respuesta.status).toBe(200);
+        expect(crearPago).toHaveBeenCalledTimes(2);
+        expect(crearPago).toHaveBeenNthCalledWith(1, {
+          data: expect.objectContaining({ isValid: true }),
+        });
+        expect(crearPago).toHaveBeenLastCalledWith(filaNoValida("SLOT_TAKEN"));
+      });
+
+      it("rama 9: el respaldo reutiliza el monto releído y no vuelve a llamar a Mercado Pago", async () => {
+        obtenerPago
+          .mockResolvedValueOnce({ status: "approved", external_reference: ID_RESERVA })
+          .mockResolvedValue(pago("approved"));
+        buscarReserva.mockResolvedValue(reserva("EXPIRED"));
+        actualizarReservas
+          .mockResolvedValueOnce({ count: 0 })
+          .mockRejectedValueOnce(
+            new Error('conflicto con la restricción "bookings_sin_solapamiento"'),
+          );
+
+        const respuesta = await enviarFirmado();
+
+        expect(respuesta.status).toBe(200);
+        // La consulta inicial y una sola relectura del monto.
+        expect(obtenerPago).toHaveBeenCalledTimes(2);
+        expect(crearPago).toHaveBeenLastCalledWith(filaNoValida("SLOT_TAKEN"));
+      });
+
+      it("un solapamiento fuera de la reactivación de una EXPIRED no se convierte en SLOT_TAKEN", async () => {
+        obtenerPago.mockResolvedValue(pago("approved"));
+        buscarReserva.mockResolvedValue(reserva("PENDING"));
+        actualizarReservas.mockRejectedValue(
+          new Error('conflicto con la restricción "bookings_sin_solapamiento"'),
+        );
+
+        const respuesta = await enviarFirmado();
+
+        expect(respuesta.status).toBe(409);
+        expect(crearPago).toHaveBeenCalledTimes(1);
+      });
+
+      it("rama 10: una COMPLETED sin pago válido registra el pago válido sin motivo ni cambio de estado", async () => {
+        obtenerPago.mockResolvedValue(pago("approved"));
+        buscarReserva.mockResolvedValue(reserva("COMPLETED"));
+
+        const respuesta = await enviarFirmado();
+
+        expect(respuesta.status).toBe(200);
+        expect(crearPago).toHaveBeenCalledWith({
+          data: {
+            bookingId: ID_RESERVA,
+            mpPaymentId: ID_PAGO,
+            amount: 1000,
+            isValid: true,
+          },
+        });
+        expect(actualizarReservas).not.toHaveBeenCalled();
+      });
     });
   });
 
