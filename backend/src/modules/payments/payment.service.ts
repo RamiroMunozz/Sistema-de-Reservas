@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   InvalidWebhookSignatureError,
   WebhookSignatureValidator,
@@ -7,12 +8,17 @@ import type { Booking } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../../core/config/prisma.js";
 import {
+  AppError,
   ConflictError,
   ForbiddenError,
   NotFoundError,
   UnauthorizedError,
 } from "../../core/errors/AppError.js";
-import { crearPreferencia, obtenerPago } from "../../core/integraciones/mercadoPago.js";
+import {
+  crearPreferencia,
+  obtenerPago,
+  reembolsarPago as reembolsarEnMercadoPago,
+} from "../../core/integraciones/mercadoPago.js";
 import { conBloqueoDeCancha } from "../bookings/bloqueoCancha.js";
 import { filtroOcupaTurno } from "../bookings/filtrosReserva.js";
 import {
@@ -20,6 +26,7 @@ import {
   reemplazarPreferenciaVigente,
 } from "../bookings/linkDePago.js";
 import { liberarReservasVencidas } from "../bookings/vencimiento.js";
+import { armarVistaAdmin, incluirParaVistaAdmin } from "../bookings/vistaAdmin.js";
 
 const ESTADOS_PAGABLES: BookingStatus[] = [
   BookingStatus.PENDING,
@@ -92,6 +99,64 @@ export class PaymentService {
       sandboxInitPoint: preferencia.sandboxInitPoint,
       preferenceId: preferencia.id,
     };
+  }
+
+  /**
+   * Reembolso manual de un pago registrado (PAG-024). Nunca es automático: lo
+   * decide el administrador. Devuelve la reserva en vista de administrador.
+   */
+  async reembolsarPago(idPago: string) {
+    const pago = await prisma.bookingPayment.findUnique({ where: { id: idPago } });
+
+    if (!pago) {
+      throw new NotFoundError("Pago no encontrado.");
+    }
+
+    if (pago.refundReason === null) {
+      throw new ConflictError(
+        "Este pago no tiene motivo de reembolso y no se puede reembolsar.",
+      );
+    }
+
+    if (pago.refundedAt !== null) {
+      throw new ConflictError("Este pago ya fue reembolsado.");
+    }
+
+    await this.reembolsarEnMercadoPago(pago.id, pago.mpPaymentId);
+
+    // El where evita registrar dos veces un reembolso si otro pedido llegó antes.
+    await prisma.bookingPayment.updateMany({
+      where: { id: pago.id, refundedAt: null },
+      data: { refundedAt: new Date() },
+    });
+
+    const reserva = await prisma.booking.findUniqueOrThrow({
+      where: { id: pago.bookingId },
+      include: incluirParaVistaAdmin,
+    });
+
+    return armarVistaAdmin(reserva, new Date());
+  }
+
+  /**
+   * Mercado Pago guarda la respuesta fallida de una clave de idempotencia
+   * (T-0.3, comprobación 5): la clave lleva un componente por intento para que
+   * un reintento no repita el error guardado. Si el pago ya figura reembolsado
+   * (un intento anterior reembolsó pero no llegó a registrarlo) no se reembolsa
+   * de nuevo.
+   */
+  private async reembolsarEnMercadoPago(idPago: string, idPagoMp: string) {
+    try {
+      const pagoMp = await obtenerPago(idPagoMp);
+
+      if (pagoMp.status !== "refunded") {
+        await reembolsarEnMercadoPago(idPagoMp, `reembolso-${idPago}-${randomUUID()}`);
+      }
+    } catch (error) {
+      // El detalle queda en el log del servidor y nunca llega a la respuesta.
+      console.error(`[PAGO] Falló el reembolso del pago ${idPagoMp}:`, error);
+      throw new AppError("No se pudo procesar el reembolso con Mercado Pago.", 502);
+    }
   }
 
   async procesarNotificacion(notificacion: NotificacionWebhook) {

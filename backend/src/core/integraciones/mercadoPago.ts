@@ -83,7 +83,10 @@ export const crearPreferencia = async (
         failure: datos.urlRetorno,
         pending: datos.urlRetorno,
       },
-      // Se omite auto_return para evitar el error 400 en localhost
+      // auto_return exige una back_url https: con http (localhost) da error 400 (PAG-006)
+      ...(datos.urlRetorno.startsWith("https://")
+        ? { auto_return: "approved" as const }
+        : {}),
       // source_news=webhooks evita las notificaciones IPN, que no llevan firma
       notification_url: `${backendUrl}/api/v1/payments/webhook?source_news=webhooks`,
       external_reference: datos.idReserva,
@@ -100,9 +103,13 @@ export const crearPreferencia = async (
   };
 };
 
+const MARGEN_VENCIMIENTO_MS = 60 * 60 * 1000;
+
 /**
- * Hace que la preferencia expire en este instante. Mercado Pago exige reenviar
- * los ítems en la actualización, por eso se lee la preferencia antes.
+ * Hace que la preferencia expire: fija el vencimiento una hora antes de ahora,
+ * para que un reloj local atrasado respecto de Mercado Pago no deje el link
+ * vigente. Mercado Pago exige reenviar los ítems en la actualización, por eso
+ * se lee la preferencia antes.
  */
 export const expirarPreferencia = async (idPreferencia: string): Promise<void> => {
   const preferencia = new Preference(crearClienteMercadoPago());
@@ -113,7 +120,9 @@ export const expirarPreferencia = async (idPreferencia: string): Promise<void> =
     updatePreferenceRequest: {
       items: actual.items ?? [],
       expires: true,
-      expiration_date_to: new Date().toISOString(),
+      expiration_date_to: new Date(
+        Date.now() - MARGEN_VENCIMIENTO_MS,
+      ).toISOString(),
     },
   });
 };

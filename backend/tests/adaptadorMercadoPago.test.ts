@@ -88,7 +88,7 @@ describe("Adaptador de Mercado Pago", () => {
   });
 
   describe("crearPreferencia", () => {
-    it("arma el ítem, la referencia, las URLs y no envía auto_return", async () => {
+    it("arma el ítem, la referencia y las URLs, y con retorno https envía auto_return approved (PAG-006)", async () => {
       const resultado = await crearPreferencia({
         ...datosBase,
         emailPagador: "dueno@example.com",
@@ -115,7 +115,7 @@ describe("Adaptador de Mercado Pago", () => {
         failure: datosBase.urlRetorno,
         pending: datosBase.urlRetorno,
       });
-      expect(cuerpo).not.toHaveProperty("auto_return");
+      expect(cuerpo.auto_return).toBe("approved");
       expect(cuerpo.notification_url).toBe(
         "https://api.ejemplo.test/api/v1/payments/webhook?source_news=webhooks",
       );
@@ -123,6 +123,20 @@ describe("Adaptador de Mercado Pago", () => {
         id: "preferencia-1",
         initPoint: "https://mp.test/pago",
         sandboxInitPoint: "https://mp.test/sandbox",
+      });
+    });
+
+    it("con retorno http no envía auto_return pero sí las back_urls (PAG-006)", async () => {
+      const urlRetorno = "http://localhost:5173/reserva/token";
+
+      await crearPreferencia({ ...datosBase, urlRetorno });
+
+      const cuerpo = crearPref.mock.calls[0][0].body;
+      expect(cuerpo).not.toHaveProperty("auto_return");
+      expect(cuerpo.back_urls).toEqual({
+        success: urlRetorno,
+        failure: urlRetorno,
+        pending: urlRetorno,
       });
     });
 
@@ -149,7 +163,7 @@ describe("Adaptador de Mercado Pago", () => {
   });
 
   describe("expirarPreferencia", () => {
-    it("lee la preferencia y la actualiza reenviando los ítems para que expire ahora", async () => {
+    it("lee la preferencia y la actualiza reenviando los ítems para que expire una hora antes de ahora", async () => {
       const items = [{ id: "reserva-1", title: "Reserva", quantity: 1, unit_price: 1000 }];
       obtenerPref.mockResolvedValue({ id: "preferencia-1", items });
       actualizarPref.mockResolvedValue({});
@@ -162,7 +176,8 @@ describe("Adaptador de Mercado Pago", () => {
         updatePreferenceRequest: {
           items,
           expires: true,
-          expiration_date_to: AHORA.toISOString(),
+          // Una hora de margen: Mercado Pago compara con su propio reloj.
+          expiration_date_to: "2026-12-01T11:00:00.000Z",
         },
       });
     });

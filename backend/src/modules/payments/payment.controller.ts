@@ -3,6 +3,7 @@ import {
   consultaWebhookSchema,
   crearPreferenciaSchema,
   cuerpoWebhookSchema,
+  idPagoRegistradoSchema,
 } from "./payment.dto.js";
 import { PaymentService } from "./payment.service.js";
 
@@ -32,6 +33,17 @@ export class PaymentController {
         idUsuario,
       );
       return res.status(200).json(preference);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  refundPayment = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { paymentId } = idPagoRegistradoSchema.parse(req.params);
+      const reserva = await this.paymentService.reembolsarPago(paymentId);
+
+      return res.status(200).json(reserva);
     } catch (error) {
       next(error);
     }
