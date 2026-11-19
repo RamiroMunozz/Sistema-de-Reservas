@@ -6,6 +6,7 @@ import {
   CreateCourtDTO,
   UpdateCourtDTO,
   MetricsQueryDTO,
+  PorcentajeSenaDTO,
 } from "./admin.dto.js";
 
 export class AdminService {
@@ -43,6 +44,30 @@ export class AdminService {
     return prisma.court.update({
       where: { id },
       data: dto,
+    });
+  }
+
+  async getDepositPercent(id: string) {
+    const complejo = await prisma.complex.findUnique({
+      where: { id },
+      select: { id: true, depositPercent: true },
+    });
+
+    if (!complejo) {
+      throw new NotFoundError("Complejo no encontrado");
+    }
+
+    return complejo;
+  }
+
+  async updateDepositPercent(id: string, dto: PorcentajeSenaDTO) {
+    await this.getDepositPercent(id);
+
+    // El valor nuevo solo afecta a las reservas que se creen después (PAG-022).
+    return prisma.complex.update({
+      where: { id },
+      data: { depositPercent: dto.depositPercent },
+      select: { id: true, depositPercent: true },
     });
   }
 

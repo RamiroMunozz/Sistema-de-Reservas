@@ -4,6 +4,8 @@ import {
   createCourtSchema,
   updateCourtSchema,
   metricsQuerySchema,
+  idComplejoSchema,
+  porcentajeSenaSchema,
 } from "./admin.dto.js";
 import { idCanchaSchema } from "../courts/court.dto.js";
 
@@ -34,6 +36,35 @@ export class AdminController {
       const validatedData = updateCourtSchema.parse(req.body);
       const court = await this.adminService.updateCourt(id, validatedData);
       res.status(200).json(court);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  getDepositPercent = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const { id } = idComplejoSchema.parse(req.params);
+      const complejo = await this.adminService.getDepositPercent(id);
+      res.status(200).json(complejo);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  updateDepositPercent = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const { id } = idComplejoSchema.parse(req.params);
+      const datos = porcentajeSenaSchema.parse(req.body);
+      const complejo = await this.adminService.updateDepositPercent(id, datos);
+      res.status(200).json(complejo);
     } catch (error) {
       next(error);
     }

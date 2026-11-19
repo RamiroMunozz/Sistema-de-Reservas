@@ -13,5 +13,7 @@ router.use(requireRole(["ADMIN"]));
 router.post("/courts", controller.createCourt);
 router.patch("/courts/:id", controller.updateCourt);
 router.get("/metrics", controller.getMetrics);
+router.get("/complexes/:id/deposit-percent", controller.getDepositPercent);
+router.patch("/complexes/:id/deposit-percent", controller.updateDepositPercent);
 
 export { router as adminRoutes };
