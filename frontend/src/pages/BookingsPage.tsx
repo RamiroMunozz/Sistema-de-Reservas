@@ -9,7 +9,16 @@ import {
   Banknote,
   X,
 } from "lucide-react";
-import type { Court, Sport } from "../types/index.js";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/useAuth";
+import { mensajeDeError } from "../utils/mensajeDeError";
+import type {
+  Court,
+  CrearReservaInvitadoPayload,
+  EstadoNavegacionReserva,
+  ReservaInvitadoCreada,
+  Sport,
+} from "../types/index.js";
 
 interface SlotItem {
   time: string;
@@ -19,7 +28,33 @@ interface SlotItem {
   courtName: string;
 }
 
+interface FormularioInvitado {
+  nombre: string;
+  apellido: string;
+  telefono: string;
+  correo: string;
+}
+
+const FORMULARIO_VACIO: FormularioInvitado = {
+  nombre: "",
+  apellido: "",
+  telefono: "",
+  correo: "",
+};
+
+const CLASES_CAMPO =
+  "w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500";
+
+/** Prefijo de celular de Argentina (+54 9). Con multi-tenant saldrá del país del negocio. */
+const PREFIJO_TELEFONO_INTERNACIONAL = "549";
+/** Código de área sin 0 más número sin 15. */
+const DIGITOS_TELEFONO_LOCAL = 10;
+
 export const BookingsPage: React.FC = () => {
+  const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
+  const [formulario, setFormulario] =
+    useState<FormularioInvitado>(FORMULARIO_VACIO);
   const [courts, setCourts] = useState<Court[]>([]);
   const [selectedSport, setSelectedSport] = useState<Sport | "ALL">("ALL");
   const [selectedDate, setSelectedDate] = useState<string>(
@@ -172,6 +207,73 @@ export const BookingsPage: React.FC = () => {
       } else {
         setBookingError("Ocurrió un error inesperado.");
       }
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  // Reserva sin sesión (RES-020): crea la reserva de invitado y redirige a Mercado Pago.
+  const handleReservaInvitado = async (evento: React.FormEvent) => {
+    evento.preventDefault();
+    if (!selectedSlot) return;
+    setBookingLoading(true);
+    setBookingError(null);
+
+    try {
+      const startTime = `${selectedDate}T${selectedSlot.time}:00.000Z`;
+      const endHour = (parseInt(selectedSlot.time.split(":")[0], 10) + 1)
+        .toString()
+        .padStart(2, "0");
+      const endTime = `${selectedDate}T${endHour}:00:00.000Z`;
+
+      const digitosTelefono = formulario.telefono.replace(/\D/g, "");
+      if (digitosTelefono.length !== DIGITOS_TELEFONO_LOCAL) {
+        setBookingError(
+          "Ingresá el código de área sin 0 y el número sin 15: 10 dígitos en total (por ejemplo, 11 5555 1234).",
+        );
+        return;
+      }
+
+      const correo = formulario.correo.trim();
+      const payload: CrearReservaInvitadoPayload = {
+        courtId: selectedSlot.courtId,
+        startTime,
+        endTime,
+        guestFirstName: formulario.nombre.trim(),
+        guestLastName: formulario.apellido.trim(),
+        // Formato internacional: lo necesita el enlace wa.me del panel (ADM-016)
+        guestPhone: `${PREFIJO_TELEFONO_INTERNACIONAL}${digitosTelefono}`,
+        ...(correo ? { guestEmail: correo } : {}),
+      };
+
+      const res = await api.post<ReservaInvitadoCreada>(
+        "/public/bookings",
+        payload,
+      );
+
+      if (res.data.initPoint) {
+        // El invitado ve primero su enlace (RES-020) y desde ahí paga la seña.
+        const estado: EstadoNavegacionReserva = {
+          initPoint: res.data.initPoint,
+        };
+        navigate(`/reserva/${encodeURIComponent(res.data.token)}`, {
+          state: estado,
+        });
+      } else {
+        setBookingError("No se pudo obtener el link de pago de Mercado Pago.");
+      }
+    } catch (err: unknown) {
+      let porDefecto = "No se pudo completar la reserva.";
+      if (isAxiosError(err)) {
+        if (err.response?.status === 409) {
+          porDefecto = "El turno seleccionado ya fue reservado.";
+        } else if (err.response?.status === 429) {
+          porDefecto = "Hiciste demasiados intentos. Esperá un momento y probá de nuevo.";
+        } else if (err.response?.status === 503) {
+          porDefecto = "El servicio no está disponible por ahora. Probá más tarde.";
+        }
+      }
+      setBookingError(mensajeDeError(err, porDefecto));
     } finally {
       setBookingLoading(false);
     }
@@ -371,7 +473,7 @@ export const BookingsPage: React.FC = () => {
 
             <div className="bg-slate-950 border border-slate-800 rounded-xl p-4 mb-6 flex justify-between items-center">
               <span className="text-xs text-slate-400">
-                Monto total a abonar:
+                {isAuthenticated ? "Monto total a abonar:" : "Precio del turno:"}
               </span>
               <span className="text-lg font-bold text-emerald-400">
                 ${Number(selectedSlot.price).toLocaleString("es-AR")}
@@ -385,6 +487,77 @@ export const BookingsPage: React.FC = () => {
               </div>
             )}
 
+            {!isAuthenticated ? (
+              <form onSubmit={handleReservaInvitado} className="space-y-3">
+                <p className="text-xs text-slate-400">
+                  Reservás sin cuenta: completá tus datos y pagás la seña por
+                  Mercado Pago. Tenés 15 minutos para pagar.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <input
+                    type="text"
+                    required
+                    maxLength={100}
+                    placeholder="Nombre"
+                    aria-label="Nombre"
+                    value={formulario.nombre}
+                    onChange={(e) =>
+                      setFormulario({ ...formulario, nombre: e.target.value })
+                    }
+                    className={CLASES_CAMPO}
+                  />
+                  <input
+                    type="text"
+                    required
+                    maxLength={100}
+                    placeholder="Apellido"
+                    aria-label="Apellido"
+                    value={formulario.apellido}
+                    onChange={(e) =>
+                      setFormulario({ ...formulario, apellido: e.target.value })
+                    }
+                    className={CLASES_CAMPO}
+                  />
+                </div>
+                <div className="flex items-stretch gap-2">
+                  <span className="flex items-center px-3 rounded-lg border border-slate-800 bg-slate-900 text-slate-300 text-sm font-semibold select-none">
+                    +54 9
+                  </span>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    required
+                    placeholder="11 5555 1234 (sin 0 ni 15)"
+                    aria-label="Teléfono"
+                    value={formulario.telefono}
+                    onChange={(e) =>
+                      setFormulario({ ...formulario, telefono: e.target.value })
+                    }
+                    className={`${CLASES_CAMPO} flex-1`}
+                  />
+                </div>
+                <input
+                  type="email"
+                  placeholder="Correo (opcional)"
+                  aria-label="Correo"
+                  value={formulario.correo}
+                  onChange={(e) =>
+                    setFormulario({ ...formulario, correo: e.target.value })
+                  }
+                  className={CLASES_CAMPO}
+                />
+                <button
+                  type="submit"
+                  disabled={bookingLoading}
+                  className="w-full py-3 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold rounded-xl transition text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <CreditCard className="w-4 h-4" />
+                  {bookingLoading
+                    ? "Generando link..."
+                    : "Reservar y pagar la seña"}
+                </button>
+              </form>
+            ) : (
             <div className="space-y-3">
               <button
                 onClick={handlePayWithMercadoPago}
@@ -408,6 +581,7 @@ export const BookingsPage: React.FC = () => {
                   : "Abonar en Efectivo en el Club"}
               </button>
             </div>
+            )}
           </div>
         </div>
       )}

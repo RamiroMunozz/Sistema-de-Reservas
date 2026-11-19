@@ -4,6 +4,7 @@ import { AuthProvider } from "./context/AuthContext";
 import { Navbar } from "./components/Navbar";
 import { LoginPage } from "./pages/LoginPage";
 import { BookingsPage } from "./pages/BookingsPage";
+import { ReservaInvitadoPage } from "./pages/ReservaInvitadoPage";
 import { MyBookingsPage } from "./pages/MyBookingsPage";
 import { AdminDashboard } from "./pages/AdminDashboard";
 import { ProtectedRoute } from "./components/ProtectedRoute";
@@ -18,6 +19,7 @@ export const App: React.FC = () => {
             <Routes>
               <Route path="/" element={<BookingsPage />} />
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/reserva/:codigo" element={<ReservaInvitadoPage />} />
               <Route
                 path="/mis-reservas"
                 element={
