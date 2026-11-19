@@ -106,7 +106,7 @@ Sin commit de código. Resuelve las preguntas abiertas del diseño.
     3. Tras aplicar A y B, correr `npx prisma migrate dev` y comprobar que no propone borrar `bookings_sin_solapamiento`, `bookings_horario_valido`, `booking_payments_un_pago_valido` ni `booking_payments_motivo_coherente`.
   - Criterios: las tres comprobaciones registradas con el resultado observado. Si alguna falla, se detiene el apply y se vuelve a diseño.
   - Checks: salida de los comandos de Prisma y `psql` registrada.
-- [ ] **T-0.3 Verificar en el sandbox de Mercado Pago** (pregunta abierta 2 del diseño). _Bloqueada: faltan credenciales de prueba de Mercado Pago._
+- [x] **T-0.3 Verificar en el sandbox de Mercado Pago** (pregunta abierta 2 del diseño). _Hecha el 2026-11-19: la comprobación 5 dio distinto del supuesto (la clave guarda la respuesta fallida) y abre un ajuste en UT-7; ver `verify-notes.md`._
   - Archivos: `openspec/changes/reserva-invitado/verify-notes.md`.
   - Comprobaciones, cada una con el resultado observado:
     1. Una preferencia expirada con `Preference.update` (`expires: true`, `expiration_date_to` en el pasado) **impide pagar** desde su `init_point`.
@@ -297,20 +297,20 @@ Requisitos: PAG-012 a PAG-016 (ramas 4, 5, 8, 10 y la rama 9 con turno ocupado).
 
 Requisitos: RES-028, RES-029, PAG-021, PAG-023. Commit sugerido: `feat(reservas): consultar, cancelar y reintentar el pago por token`
 
-- [ ] **T-6.1 RED: `estadoSena.ts`.**
+- [x] **T-6.1 RED: `estadoSena.ts`.**
   - Archivos: `backend/tests/estadoSena.test.ts` (crear).
   - Pruebas: `estadoEfectivo` informa `EXPIRED` para una `PENDING` con `expiresAt <= ahora`; `pagoValidoVigente`; `derivarEstadoSena` (nulo sin `depositAmount`; `PAID`; `REFUNDED`; `PENDING` con un pago `AMOUNT_MISMATCH`); `derivarReembolsoPendiente` (`REQUIRED`, `AT_DISCRETION`, `null`, mezclas de motivos); `devolucionACriterioDelCanchero` (RES-028).
   - Checks: `npm test -- estadoSena`.
-- [ ] **T-6.2 GREEN: `estadoSena.ts`.**
+- [x] **T-6.2 GREEN: `estadoSena.ts`.**
   - Archivos: `backend/src/modules/bookings/estadoSena.ts` (crear).
   - Criterios: contratos de la sección "Interfaces y contratos" del diseño.
   - Checks: pruebas de T-6.1 en verde.
-- [ ] **T-6.3 RED: rutas por token.**
+- [x] **T-6.3 RED: rutas por token.**
   - Archivos: `backend/tests/rutasPublicasToken.test.ts` (crear).
   - Pruebas: `GET /public/bookings/:token` devuelve la vista pública en lista blanca (sin pagos ni `courtId` internos; `status` efectivo; `refundAtOwnerDiscretion`); token con formato inválido o inexistente: 404 idéntico "Reserva no encontrada." sin consultar la base (formato inválido); `PATCH .../cancel`: libera vencidas primero, valida bajo el bloqueo, usa `cancelarEnTransaccion`, invalida el link después del commit y su `refundAtOwnerDiscretion` es el `depositPaidAtCancel` (RES-029); 409 si no es cancelable; `POST .../payment`: 409 si no está `PENDING` vigente o si ya tiene un pago válido, pero **no** si el pago previo es `AMOUNT_MISMATCH`; usa `reemplazarPreferenciaVigente` y devuelve `{ initPoint }` (PAG-021); las tres rutas usan `limitadorConsultaPublica`; PAG-023.
   - RED esperado: rutas inexistentes.
   - Checks: `npm test -- rutasPublicasToken`.
-- [ ] **T-6.4 GREEN, REFACTOR y concurrencia.**
+- [x] **T-6.4 GREEN, REFACTOR y concurrencia.**
   - Archivos: `backend/src/modules/public/reservaInvitado.service.ts`, `public.controller.ts`, `public.routes.ts` (modificar).
   - Criterios (decisiones 6, 8 y 10); concurrencia de RES-029 verificada en `backend/tests/migracionReservaInvitado.test.ts` (modificar, `skipIf`).
   - Checks: `npm test`, `npx tsc --noEmit`, `npm run build`.
@@ -321,34 +321,34 @@ Requisitos: RES-013 (campos), ADM-008, ADM-015, PAG-024. Commit sugerido: `feat(
 
 Depende de T-0.3 (idempotencia y reembolso total).
 
-- [ ] **T-7.1 RED: vista de administrador con `payments`.**
+- [x] **T-7.1 RED: vista de administrador con `payments`.**
   - Archivos: `backend/tests/rutasAdminReservas.test.ts` (modificar).
   - Pruebas: la lista y el detalle de reservas incluyen `payments` (`VistaPagoAdmin` con fechas ISO UTC y `amount` numérico), `depositStatus` y `refundDue` (RES-013, ADM-008); las reservas con cuenta tienen `depositStatus` nulo; sin fuga de campos como `accessTokenHash`.
   - RED esperado: la vista actual no incluye pagos.
   - Checks: `npm test -- rutasAdminReservas`.
-- [ ] **T-7.2 GREEN: vistas de administrador.**
+- [x] **T-7.2 GREEN: vistas de administrador.**
   - Archivos: `backend/src/modules/bookings/booking.service.ts` (modificar), `backend/src/modules/admin/admin.service.ts` (modificar si aplica).
   - Criterios: mapeo explícito en lista blanca; `estadoSena.ts` calcula los derivados.
   - Checks: pruebas de T-7.1 en verde.
-- [ ] **T-7.3 RED: `depositPercent` (ADM-015).**
+- [x] **T-7.3 RED: `depositPercent` (ADM-015).**
   - Archivos: `backend/tests/depositPercent.test.ts` (crear).
   - Pruebas: `GET` y `PATCH /api/v1/admin/complexes/:id/deposit-percent` con `ADMIN` responden 200 `{ id, depositPercent }`; `USER` recibe 403 y sin token 401; el esquema `z.number().int().min(1).max(100)` rechaza 0, 101, 30.5 y texto; id no UUID: 400; complejo inexistente: 404.
   - RED esperado: rutas inexistentes.
   - Checks: `npm test -- depositPercent`.
-- [ ] **T-7.4 GREEN: `depositPercent`.**
+- [x] **T-7.4 GREEN: `depositPercent`.**
   - Archivos: `backend/src/modules/admin/admin.dto.ts`, `admin.controller.ts`, `admin.service.ts` y su archivo de rutas bajo `backend/src/modules/admin/` (modificar).
   - Criterios (decisión 8).
   - Checks: pruebas de T-7.3 en verde.
-- [ ] **T-7.5 RED: reembolso por pago (PAG-024).**
+- [x] **T-7.5 RED: reembolso por pago (PAG-024).**
   - Archivos: `backend/tests/reembolsoPago.test.ts` (crear).
-  - Pruebas: `POST /api/v1/payments/admin/payments/:paymentId/refund`: 401 sin token, 403 con `USER`, 400 si `:paymentId` no es UUID, 404 si la fila no existe, 409 si `refundReason` es nulo o `refundedAt` no es nulo (sin llamar a Mercado Pago), 200 con `refundedAt` fijado y la reserva en vista de administrador con sus pagos; 502 "No se pudo procesar el reembolso con Mercado Pago." con `refundedAt` nulo y sin detalle interno; la clave de idempotencia es `reembolso-<bookingPaymentId>` (por pago); `updateMany where { id, refundedAt: null }` evita el doble reembolso; un pago válido sin motivo no es reembolsable.
+  - Pruebas: `POST /api/v1/payments/admin/payments/:paymentId/refund`: 401 sin token, 403 con `USER`, 400 si `:paymentId` no es UUID, 404 si la fila no existe, 409 si `refundReason` es nulo o `refundedAt` no es nulo (sin llamar a Mercado Pago), 200 con `refundedAt` fijado y la reserva en vista de administrador con sus pagos; 502 "No se pudo procesar el reembolso con Mercado Pago." con `refundedAt` nulo y sin detalle interno; la clave de idempotencia es por intento, `reembolso-<bookingPaymentId>-<uuid>` (dos intentos usan claves distintas; ajuste por T-0.3); si `obtenerPago` informa el pago como `refunded`, no se llama a `reembolsarPago` y solo se fija `refundedAt`; `updateMany where { id, refundedAt: null }` evita el doble reembolso; un pago válido sin motivo no es reembolsable.
   - RED esperado: ruta inexistente.
   - Checks: `npm test -- reembolsoPago`.
-- [ ] **T-7.6 GREEN y REFACTOR.**
+- [x] **T-7.6 GREEN y REFACTOR.**
   - Archivos: `backend/src/modules/payments/payment.service.ts`, `payment.controller.ts`, `payments.routes.ts`, `payment.dto.ts` (modificar).
   - Criterios (decisión 11): `PaymentService.reembolsarPago(idPago)`.
   - Checks: `npm test`, `npx tsc --noEmit`, `npm run build`.
-- [ ] **T-7.7 Verificación en sandbox del reembolso real.**
+- [x] **T-7.7 Verificación en sandbox del reembolso real.** _Hecha el 2026-11-19 desde el panel: reembolso total del pago `189435953093` y 409 en el segundo intento (ver `verify-notes.md`)._
   - Archivos: `openspec/changes/reserva-invitado/verify-notes.md` (modificar).
   - Criterios: con un pago de prueba, el reembolso por la ruta devuelve el total y un segundo intento no reembolsa dos veces; registrar el resultado observado.
 
@@ -358,43 +358,60 @@ Requisitos: RES-020, RES-034. **Excepción de tamaño registrada** (~420 líneas
 
 Sin pruebas automatizadas. Cada tarea verifica con `cd frontend && npx tsc --noEmit` y el linter (`npm run lint`).
 
-- [ ] **T-8.1 Tipos.**
+- [x] **T-8.1 Tipos.**
   - Archivos: `frontend/src/types/index.ts`.
   - Criterios: `EXPIRED` en el estado, `userId: string | null`, datos de invitado, `BookingPayment`, `RefundReason`, vista pública; sin `any`.
   - Checks: `npx tsc --noEmit`.
-- [ ] **T-8.2 Formulario de invitado (RES-020).**
+- [x] **T-8.2 Formulario de invitado (RES-020).**
   - Archivos: `frontend/src/pages/BookingsPage.tsx`.
   - Criterios: sin sesión, formulario con nombre, apellido, teléfono y correo opcional; `POST /api/v1/public/bookings`; redirección a `initPoint`; manejo de 409, 429 y 503; fechas con métodos UTC; sin `setState` síncrono en el cuerpo de `useEffect`.
   - Checks: `npx tsc --noEmit`, `npm run lint`; comprobación manual con el sandbox.
-- [ ] **T-8.3 Página de seguimiento (RES-034) y ruta.**
+- [x] **T-8.3 Página de seguimiento (RES-034) y ruta.**
   - Archivos: `frontend/src/pages/ReservaInvitadoPage.tsx` (crear), `frontend/src/App.tsx` (modificar: ruta `/reserva/:codigo`).
   - Criterios: muestra estado efectivo, horario en UTC, seña, vencimiento y la nota de devolución a criterio del canchero; acciones de cancelar y de reintentar el pago según estado; 404 amable ante un token inexistente.
   - Checks: `npx tsc --noEmit`, `npm run lint`; comprobación manual del retorno desde Mercado Pago (`back_urls`).
-- [ ] **T-8.4 Verificación manual del flujo público.**
+- [x] **T-8.4 Verificación manual del flujo público.** _Hecha el 2026-11-19 (ver `verify-notes.md`): la primera pasada abrió T-8.5 a T-8.7; la repetición de "volver" y "reintentar" cumple. `auto_return` con `https` queda para verificar al desplegar._
+- [x] **T-8.5 Ajuste por T-8.4: vencer la preferencia con margen.**
+  - Archivos: `backend/src/core/integraciones/mercadoPago.ts`, `backend/tests/` (prueba del adaptador con el SDK simulado).
+  - Criterios: `expirarPreferencia` envía `expiration_date_to` una hora antes de ahora (diseño, `expirarPreferencia`). RED observado antes del cambio.
+  - Checks: `npm test`, `npx tsc --noEmit`.
+- [x] **T-8.6 Ajuste por T-8.4: `auto_return` solo con `https` (PAG-006).**
+  - Archivos: `backend/src/core/integraciones/mercadoPago.ts` y su prueba.
+  - Criterios: con `urlRetorno` `https` se envía `auto_return: "approved"`; con `http` no se envía. RED observado antes del cambio.
+  - Checks: `npm test`, `npx tsc --noEmit`.
+- [x] **T-8.7 Ajuste por T-8.4: el invitado ve su enlace antes de pagar (RES-020, RES-034).**
+  - Archivos: `frontend/src/pages/BookingsPage.tsx`, `frontend/src/pages/ReservaInvitadoPage.tsx`.
+  - Criterios: tras `POST /public/bookings` se navega a `/reserva/<token>` con el `initPoint` en el estado de la navegación; la página destaca "Guardá este enlace" y su botón de pago usa ese `initPoint`; sin él (recarga) usa el reintento.
+  - Checks: `npx tsc --noEmit`, `npm run lint`, `npm run build`; verificación manual con chrome-devtools.
   - Criterios: flujo completo en el sandbox (crear, pagar, volver, cancelar, reintentar) con chrome-devtools; registrar lo observado.
 
 ## UT-9a: Panel, invitados, estado "Vencida" y `wa.me` (entrega 9, primera parte)
 
 Requisitos: RES-022, ADM-016. Commit sugerido: `feat(frontend): mostrar al invitado en el panel y enlace de WhatsApp`
 
-- [ ] **T-9a.1 Utilidad `wa.me` (ADM-016).**
+- [x] **T-9a.1 Utilidad `wa.me` (ADM-016).**
   - Archivos: `frontend/src/utils/whatsapp.ts` (crear).
   - Criterios: arma `https://wa.me/<dígitos>?text=<texto codificado>` con el teléfono normalizado; sin `any`.
   - Checks: `npx tsc --noEmit`, `npm run lint`.
-- [ ] **T-9a.2 Presentación del invitado en el panel (RES-022).**
+- [x] **T-9a.2 Presentación del invitado en el panel (RES-022).**
   - Archivos: `frontend/src/pages/AdminDashboard.tsx`.
   - Criterios: nombre, teléfono y correo del invitado en la agenda y en la lista; botón de WhatsApp; estado `EXPIRED` mostrado como "Vencida"; horarios con métodos UTC.
   - Checks: `npx tsc --noEmit`, `npm run lint`; comprobación manual.
+- [x] **T-9a.3 Ajuste por la comprobación manual: teléfono en formato internacional (RES-020, ADM-016).**
+  - Archivos: `frontend/src/pages/BookingsPage.tsx`, `frontend/src/utils/whatsapp.ts`.
+  - Motivo: el formulario aceptaba números locales (`1155551111`) y el enlace `wa.me` los trataba como de otro país.
+  - Criterios: prefijo fijo `+54 9` a la vista, 10 dígitos (área sin 0 y número sin 15), envío de `549` más los dígitos; el mensaje de WhatsApp ya no aclara "(hora UTC)".
+  - Hecha el 2026-11-19 por el orquestador. Checks: `npm run build` y `npm run lint` sin errores; en el navegador, "011 15 5555 1234" se rechaza, "11 5555 1234" se guarda como `5491155551234` y el panel arma `https://wa.me/5491155551234?text=…`. La grilla con un invitado `CONFIRMED` queda por ver en la prueba de UT-9b.
 
 ## UT-9b: Panel, lista de pagos a reembolsar y formulario de `depositPercent` (entrega 9, segunda parte)
 
 Requisitos: ADM-017, ADM-018. Commit sugerido: `feat(frontend): reembolso por pago y porcentaje de seña en el panel`
 
-- [ ] **T-9b.1 Lista de pagos a reembolsar (ADM-017).**
+- [x] **T-9b.1 Lista de pagos a reembolsar (ADM-017).**
   - Archivos: `frontend/src/pages/AdminDashboard.tsx`.
   - Criterios: por reserva, lista de pagos con motivo (etiquetas de la tabla del diseño) y un botón por pago que llama a `POST /api/v1/payments/admin/payments/:paymentId/refund`; los pagos ya reembolsados se muestran como tales; manejo del 502.
   - Checks: `npx tsc --noEmit`, `npm run lint`; comprobación manual.
-- [ ] **T-9b.2 Control del porcentaje de seña (ADM-018).**
+- [x] **T-9b.2 Control del porcentaje de seña (ADM-018).**
   - Archivos: `frontend/src/pages/AdminDashboard.tsx`.
   - Criterios: lectura y guardado de `depositPercent` (entero de 1 a 100) con el id del complejo de la primera cancha; mensajes de error.
   - Checks: `npx tsc --noEmit`, `npm run lint`; comprobación manual.
@@ -415,15 +432,27 @@ Commit sugerido: `docs(reserva-invitado): glosario, skill de dominio, variables 
 - [x] **T-10.4 Corregir la propuesta.**
   - Archivos: `openspec/changes/reserva-invitado/proposal.md`.
   - Criterios: indicar que `administracion` ya tenía una spec base y que se agrega `canchas` (CAN-006); alinear la decisión D3 con `EXPIRED` según el diseño.
-- [ ] **T-10.5 Hoja de ruta.**
+- [x] **T-10.5 Hoja de ruta.** _Hecha el 2026-11-19; el estado sigue "en curso" hasta el archivo del cambio._
   - Archivos: `docs/producto/hoja-de-ruta.md`.
   - Criterios: reflejar el alcance real de `reserva-invitado` en su fila.
 
 ---
 
+## UT-12: Ajustes por la verificación (`verify-report.md`)
+
+- [x] **T-12.1 C1: liberar las vencidas al crear reservas de jugador y de administrador (RES-026, RES-007).**
+  - Archivos: `backend/src/modules/bookings/booking.service.ts`, prueba en `backend/tests/`.
+  - Criterios: `createBooking` y `createAdminBooking` llaman `liberarReservasVencidas(transaccion, courtId)` como primera operación dentro de `conBloqueoDeCancha` (diseño, `liberarReservasVencidas`). RED observado: prueba del orden "liberar, crear" con Prisma simulado y, contra la base descartable, una `PENDING` vencida sin barrer no impide crear otra reserva en ese turno (201).
+  - Checks: `npm test`, `npx tsc --noEmit`.
+- [x] **T-12.2 W1: lista blanca en las respuestas de administrador (RES-025, ADM-008).**
+  - Archivos: `backend/src/modules/bookings/booking.service.ts` (y el controlador si hace falta), prueba en `backend/tests/`.
+  - Criterios: `PATCH /bookings/admin/:id/status` responde con `armarVistaAdmin` (sin `accessTokenHash` ni `mpPreferenceId`); `cancelBooking` del jugador no devuelve `accessTokenHash` ni `mpPreferenceId`. RED observado con una reserva de invitado.
+  - Checks: `npm test`, `npx tsc --noEmit`.
+- [x] **T-12.3 W2: pago aprobado sin monto (PAG-014, PAG-026).** _Hecha el 2026-11-19: se ajustó la spec a la excepción que ya implementan el diseño y el código (advertencia en el log, sin fila ni confirmación)._
+
 ## Verificación final
 
-- [ ] **T-11.1 Verificación completa.**
+- [x] **T-11.1 Verificación completa.** _Hecha el 2026-11-19: comandos en verde (470 pruebas tras UT-12), auditoría de cobertura con `sdd-verify` y resolución de hallazgos en `verify-report.md`._
   - Comandos (en `backend/`): `npm test` sin fallas nuevas respecto de T-0.1 (las 6 ambientales siguen siendo las únicas) y con las pruebas de base descartable en verde con `DATABASE_URL_PRUEBA`; `npx tsc --noEmit`; `npm run build`. En `frontend/`: `npx tsc --noEmit`, `npm run lint` y `npm run build`.
   - Criterios: los escenarios de las cuatro delta specs cubiertos por pruebas en verde o por verificación manual registrada; `rg -n "\bany\b|as unknown as" backend/src` sin código nuevo afectado; verificaciones de T-0.2, T-0.3 y T-7.7 registradas en `verify-notes.md`.
   - Registrar el resultado observado de cada comando; no declarar lo que no se corrió.
@@ -446,7 +475,7 @@ Commit sugerido: `docs(reserva-invitado): glosario, skill de dominio, variables 
 | ADM-015 | T-7.3, T-7.4, T-9b.2 |
 | PAG-024 | T-7.5, T-7.6, T-7.7 |
 | RES-020, RES-034 | T-8.1 a T-8.4 |
-| RES-022, ADM-016 | T-9a.1, T-9a.2 |
+| RES-022, ADM-016 | T-9a.1, T-9a.2, T-9a.3 |
 | ADM-017, ADM-018 | T-9b.1, T-9b.2 |
 | Preguntas abiertas del diseño | T-0.2, T-0.3, T-7.7 |
 | Documentación y propuesta | T-10.1 a T-10.5 |

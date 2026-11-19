@@ -110,6 +110,7 @@ ALTER TABLE "bookings"
 - `liberarReservasVencidas(tx, courtId)` en `backend/src/modules/bookings/vencimiento.ts`: ejecuta `tx.booking.updateMany({ where: { courtId, status: PENDING, expiresAt: { lte: ahora } }, data: { status: EXPIRED } })`.
 - Corre como primera operación dentro de `conBloqueoDeCancha` en:
   - la creación de invitado (RES-026);
+  - la creación de jugador (`createBooking`) y la de administrador (`createAdminBooking`), para que una `PENDING` vencida sin barrer no dé 409 (RES-026, RES-007; hallazgo C1 de la verificación);
   - `cancelBooking` (RES-011) y `updateBookingStatus` (RES-015);
   - la cancelación por token (RES-029) y el reintento de pago (PAG-021);
   - la rama `EXPIRED` del webhook.
@@ -174,7 +175,7 @@ export const filtroNoVencida = (ahora: Date): Prisma.BookingWhereInput => ({
 **Elección:** `backend/src/core/integraciones/mercadoPago.ts`:
 
 - `crearPreferencia(datos)`: `Preference.create`. Con `venceEn`, envía `expires: true`, `expiration_date_from` y `expiration_date_to`; esas propiedades están verificadas en `PreferenceRequest` del SDK instalado.
-- `expirarPreferencia(id)`: `Preference.get` y luego `Preference.update({ id, updatePreferenceRequest: { items, expires: true, expiration_date_to: ahora } })`. En el SDK instalado, `items` es obligatorio en el tipo `PreferenceRequest`, por eso se reenvían los ítems leídos.
+- `expirarPreferencia(id)`: `Preference.get` y luego `Preference.update({ id, updatePreferenceRequest: { items, expires: true, expiration_date_to: ahora menos una hora } })`. Se usa un instante en el pasado con margen porque con `ahora` el efecto depende del reloj del servidor: en T-8.4, con el reloj local 53 s adelantado, el link viejo se pudo pagar durante ese lapso. En el SDK instalado, `items` es obligatorio en el tipo `PreferenceRequest`, por eso se reenvían los ítems leídos.
 - `obtenerPago(id)`: `Payment.get`.
 - `reembolsarPago(mpPaymentId, claveIdempotencia)`: `PaymentRefund.create({ payment_id, requestOptions: { idempotencyKey } })`. Sin `body.amount`, reembolsa el saldo completo de ese pago, que es su `amount`. `PaymentRefund` se exporta desde la raíz del paquete y `Options.idempotencyKey` existe en el SDK instalado.
 - Conserva el 503 de PAG-007 (`obtenerVariableMercadoPago`).
@@ -356,7 +357,8 @@ ALTER TABLE "booking_payments"
 - **Exclusión en lugar de índice único parcial:** Prisma 5 no representa índices parciales y, en una migración posterior, propondría borrar un índice que no conoce. Las restricciones de exclusión, como la `bookings_sin_solapamiento` existente, quedan fuera de su gestión. `EXCLUDE USING btree` con `=` no requiere `btree_gist`.
 - **Reembolso por pago (PAG-024):** `PaymentService.reembolsarPago(idPago)`:
   - responde 404 si la fila no existe, y 409 si `refundReason` es nulo o `refundedAt` no es nulo (en ese caso no llama a Mercado Pago);
-  - llama al adaptador con la clave de idempotencia `reembolso-<bookingPaymentId>`;
+  - consulta antes el pago en Mercado Pago (`obtenerPago`): si ya figura `refunded` (un intento anterior reembolsó pero no llegó a registrarlo), no llama a `reembolsarPago` y solo fija `refundedAt`;
+  - si no, llama al adaptador con una clave de idempotencia por intento, `reembolso-<bookingPaymentId>-<uuid>`. Mercado Pago guarda la respuesta fallida de una clave (T-0.3, comprobación 5), así que una clave fija por pago bloquearía para siempre el reembolso tras un primer fallo. El doble reembolso lo evitan el `updateMany` de abajo y el propio Mercado Pago, que rechaza un reembolso mayor al saldo no reembolsado;
   - si Mercado Pago acepta, ejecuta `updateMany where { id, refundedAt: null }` con `refundedAt` igual a ahora;
   - si falla, responde 502 "No se pudo procesar el reembolso con Mercado Pago.", sin detalle interno y con `refundedAt` nulo.
 
@@ -590,7 +592,7 @@ Total estimado: ~3.550 líneas.
 ## Preguntas abiertas
 
 - [ ] **Validar en base descartable** la necesidad de las dos migraciones, el uso de `'OWNER_DISCRETION'` en el `CHECK` de la migración A y que un `migrate dev` posterior no proponga borrar `booking_payments_un_pago_valido` ni `booking_payments_motivo_coherente`.
-- [ ] **Sandbox de Mercado Pago:**
+- [x] **Sandbox de Mercado Pago** (resuelta en T-0.3; la clave de idempotencia sí guarda las respuestas fallidas y pasó a ser por intento):
   - que la expiración por `update` impide pagar;
   - que acepta el sufijo `Z`;
   - que reenviar los `items` no altera la preferencia;

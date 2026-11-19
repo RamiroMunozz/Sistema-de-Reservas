@@ -264,7 +264,7 @@ El sistema DEBE guardar en la reserva el id de la preferencia de Mercado Pago vi
 
 ### PAG-026: Registro de los pagos aprobados [OBJETIVO]
 
-El sistema DEBE registrar cada pago aprobado que Mercado Pago informa por el webhook para una reserva existente como un pago de la reserva (`BookingPayment`) con: su `mpPaymentId` (único en todo el sistema, base de la idempotencia), su `amount` (`transaction_amount`), `isValid` (verdadero si el monto es igual al esperado: `depositAmount` si la reserva lo tiene y, si no, `totalPrice`; la ausencia de monto es inválida), su `refundReason` (nulo, o uno de `AMOUNT_MISMATCH`, `SLOT_TAKEN`, `PAID_AFTER_CANCEL`, `DUPLICATE_PAYMENT`, `OWNER_DISCRETION`) su `refundedAt` (nulo hasta que se reembolsa) y su `createdAt`. NINGÚN pago aprobado de una reserva existente DEBE quedar solo en el log. El pago aceptado de una reserva es su pago válido sin motivo de reembolso (el que la confirmó o respalda). Un pago ya reembolsado (`refundedAt` no nulo) NO cuenta como pago válido sin reembolso: un pago válido nuevo posterior a un reembolso se acepta como tal (PAG-012). Al cancelar una reserva con un pago aceptado, ese pago DEBE pasar a motivo `OWNER_DISCRETION` (el reembolso lo decide el canchero, DP-11) y `depositPaidAtCancel` queda verdadero. Un pago aprobado cuya `external_reference` no corresponde a ninguna reserva de este sistema no es de este sistema: se rige por PAG-011 y NO se registra (solo advertencia).
+El sistema DEBE registrar cada pago aprobado que Mercado Pago informa por el webhook para una reserva existente como un pago de la reserva (`BookingPayment`) con: su `mpPaymentId` (único en todo el sistema, base de la idempotencia), su `amount` (`transaction_amount`), `isValid` (verdadero si el monto es igual al esperado: `depositAmount` si la reserva lo tiene y, si no, `totalPrice`). Un pago aprobado sin `transaction_amount` NO DEBE confirmar la reserva ni crear fila (la columna `amount` es obligatoria): DEBE registrarse una advertencia en el log con el id del pago para revisarlo a mano. Mercado Pago informa el monto en todo pago aprobado, así que es un caso excepcional, su `refundReason` (nulo, o uno de `AMOUNT_MISMATCH`, `SLOT_TAKEN`, `PAID_AFTER_CANCEL`, `DUPLICATE_PAYMENT`, `OWNER_DISCRETION`) su `refundedAt` (nulo hasta que se reembolsa) y su `createdAt`. NINGÚN pago aprobado de una reserva existente DEBE quedar solo en el log. El pago aceptado de una reserva es su pago válido sin motivo de reembolso (el que la confirmó o respalda). Un pago ya reembolsado (`refundedAt` no nulo) NO cuenta como pago válido sin reembolso: un pago válido nuevo posterior a un reembolso se acepta como tal (PAG-012). Al cancelar una reserva con un pago aceptado, ese pago DEBE pasar a motivo `OWNER_DISCRETION` (el reembolso lo decide el canchero, DP-11) y `depositPaidAtCancel` queda verdadero. Un pago aprobado cuya `external_reference` no corresponde a ninguna reserva de este sistema no es de este sistema: se rige por PAG-011 y NO se registra (solo advertencia).
 
 #### Escenario: Pago registrado
 - Dado un pago aprobado "111" por el monto esperado de una reserva `PENDING`
@@ -334,10 +334,10 @@ Motivo: la reserva de invitado no tiene usuario ni correo obligatorio y cobra so
 
 ### PAG-006: URLs de retorno y de notificación
 
-El sistema DEBE fijar, para las reservas con cuenta, `back_urls.success`, `failure` y `pending` en `<FRONTEND_URL>/mis-reservas` (con `http://localhost:5173` si `FRONTEND_URL` no está definida), y, para las reservas de invitado, en `<FRONTEND_URL>/reserva/<token>`. NO DEBE enviar `auto_return`, y DEBE fijar `notification_url` en `<BACKEND_URL>/api/v1/payments/webhook?source_news=webhooks` en ambos casos.
+El sistema DEBE fijar, para las reservas con cuenta, `back_urls.success`, `failure` y `pending` en `<FRONTEND_URL>/mis-reservas` (con `http://localhost:5173` si `FRONTEND_URL` no está definida), y, para las reservas de invitado, en `<FRONTEND_URL>/reserva/<token>`. DEBE enviar `auto_return: "approved"` solo cuando las URLs de retorno usan `https`; con `http` (por ejemplo `localhost`) NO DEBE enviarlo. DEBE fijar `notification_url` en `<BACKEND_URL>/api/v1/payments/webhook?source_news=webhooks` en ambos casos.
 
-Motivo: el invitado vuelve a su link privado, que muestra el estado de la reserva.
-(Previously: las tres URLs de retorno apuntaban siempre a `/mis-reservas`.)
+Motivo: el invitado vuelve a su link privado, que muestra el estado de la reserva. Mercado Pago rechaza `auto_return` con URLs de `localhost`, y sin `auto_return` la página de pago aprobado no garantiza el regreso (T-8.4).
+(Previously: las tres URLs de retorno apuntaban siempre a `/mis-reservas`, y nunca se enviaba `auto_return`.)
 
 #### Escenario: URL de notificación
 - Dado `BACKEND_URL` igual a `https://api.ejemplo.test`
@@ -352,7 +352,17 @@ Motivo: el invitado vuelve a su link privado, que muestra el estado de la reserv
 #### Escenario: Retorno del invitado
 - Dada una reserva de invitado con token `abc`
 - Cuando se crea su preferencia
-- Entonces las URLs de retorno apuntan a `<FRONTEND_URL>/reserva/abc` y no se envía `auto_return`
+- Entonces las URLs de retorno apuntan a `<FRONTEND_URL>/reserva/abc`
+
+#### Escenario: Regreso automático con `https`
+- Dada `FRONTEND_URL` igual a `https://app.ejemplo.test`
+- Cuando se crea una preferencia
+- Entonces se envía `auto_return: "approved"`
+
+#### Escenario: Sin regreso automático en desarrollo
+- Dada `FRONTEND_URL` sin definir (`http://localhost:5173`)
+- Cuando se crea una preferencia
+- Entonces no se envía `auto_return`
 
 ### PAG-012: Pago aprobado
 
@@ -483,7 +493,7 @@ Motivo: resuelve la observación 5: la idempotencia deja de depender solo del es
 
 ### PAG-014: Diferencia de monto
 
-El sistema NO DEBE confirmar ni reactivar la reserva cuando `transaction_amount` del pago aprobado es distinto del monto esperado (comparación estricta numérica, incluida la ausencia de monto); el monto esperado es el `depositAmount` si la reserva lo tiene y, si no, el `totalPrice`. En ese caso, en cualquier estado (incluida `COMPLETED`, donde solo se registra) y aunque ya exista un pago válido (PAG-012), DEBE registrar el pago con `isValid` falso y motivo `AMOUNT_MISMATCH` sin cambiar el estado ni el `paymentMethod` de la reserva, y responder 200. El pago NO cuenta como seña pagada (PAG-023). Una reserva `PENDING` con un pago de monto incorrecto sigue `PENDING` y vence normalmente (RES-026); si luego llega un pago por el monto esperado, la confirma (PAG-012), y el pago anterior sigue pendiente de reembolso.
+El sistema NO DEBE confirmar ni reactivar la reserva cuando `transaction_amount` del pago aprobado es distinto del monto esperado (comparación estricta numérica; la ausencia de monto sigue la excepción de PAG-026: advertencia en el log, sin fila ni confirmación); el monto esperado es el `depositAmount` si la reserva lo tiene y, si no, el `totalPrice`. En ese caso, en cualquier estado (incluida `COMPLETED`, donde solo se registra) y aunque ya exista un pago válido (PAG-012), DEBE registrar el pago con `isValid` falso y motivo `AMOUNT_MISMATCH` sin cambiar el estado ni el `paymentMethod` de la reserva, y responder 200. El pago NO cuenta como seña pagada (PAG-023). Una reserva `PENDING` con un pago de monto incorrecto sigue `PENDING` y vence normalmente (RES-026); si luego llega un pago por el monto esperado, la confirma (PAG-012), y el pago anterior sigue pendiente de reembolso.
 
 Motivo: la reserva de invitado cobra solo la seña, y un pago cobrado con monto incorrecto debe quedar registrado y poder reembolsarse desde el panel, sin impedir que el invitado pague bien.
 (Previously: el monto esperado era siempre el `totalPrice`, la reserva no se modificaba y el pago cobrado quedaba solo como advertencia de consola.)

@@ -4,14 +4,18 @@ Modo: TDD estricto (Vitest, `cd backend && npm test`). Base de pruebas: `reserva
 
 ## Estado
 
-- UT-0: T-0.1 y T-0.2 hechas. T-0.3 bloqueada: faltan credenciales de prueba de Mercado Pago.
+- UT-0: T-0.1, T-0.2 y T-0.3 hechas. T-0.3 se cerró el 2026-11-19: la comprobación 5 mostró que la clave de idempotencia guarda la respuesta fallida, lo que abre un ajuste en UT-7 (ver `verify-notes.md`).
 - UT-1: T-1.1 a T-1.8 hechas y commiteadas en dos cortes (el cambio real era de 813 líneas): UT-1a `8202f04` y UT-1b `7621aad`.
 - UT-2: T-2.1 a T-2.4 hechas y commiteadas: `8995431`.
 - UT-3: T-3.1 a T-3.6 hechas y commiteadas en 5 cortes (ver abajo). Se implementó sin esperar T-0.3 (comprobaciones 4 y 5), por decisión del usuario.
 - UT-4: T-4.1 a T-4.7 hechas y commiteadas en 4 cortes (ver abajo).
 - UT-5a: T-5a.1 y T-5a.2 hechas y commiteadas en un solo commit.
-- UT-5b: T-5b.1 a T-5b.3 hechas, sin commitear (los hace el usuario).
-- UT-6 en adelante: pendientes.
+- UT-5b: T-5b.1 a T-5b.3 hechas y commiteadas: `be9eda5`.
+- UT-6: T-6.1 a T-6.4 hechas, sin commitear (los hace el usuario).
+- UT-7: T-7.1 a T-7.6 hechas, sin commitear (los hace el usuario). T-7.7 (sandbox con un pago real) queda para el usuario.
+- UT-8: T-8.1 a T-8.3 y T-8.5 a T-8.7 hechas, sin commitear; T-8.4 (flujo manual) del orquestador.
+- UT-9a: T-9a.1 y T-9a.2 hechas, sin commitear; la comprobación manual del panel queda para el orquestador. UT-9b en adelante: pendientes.
+- UT-9b: T-9b.1 y T-9b.2 hechas, sin commitear; la comprobación manual (incluido el reembolso real, T-7.7) queda para el orquestador.
 - Regla vigente (decisión del usuario): si una unidad pasa ~400 líneas, partirla en commits coherentes de ~400 o menos, sin consultar; frenar solo si no hay corte limpio.
 
 ## Evidencia del ciclo TDD
@@ -35,6 +39,12 @@ Modo: TDD estricto (Vitest, `cd backend && npm test`). Base de pruebas: `reserva
 | T-5a.1 y T-5a.2 | `tests/webhookPago.test.ts` (reescrita) | 13 de 23 fallan: el webhook no escribía `BookingPayment` (`crearPago` sin llamar, `updateMany` con `TRANSFER`, rechazos que cancelaban) | 1.ª corrida: 22 de 23 (la regex de la advertencia asumía el orden reserva-pago; el mensaje dice pago y luego reserva, se corrigió la prueba); luego 23 de 23 | `registrarPagoAprobado` partido en `reactivarSiElTurnoEstaLibre`, `releerMonto` y `advertirRevisionManual` |
 | T-5b.1 y T-5b.2 | `tests/webhookPago.test.ts` (ramas de reembolso agregadas) | 16 de 40 fallan (rama 4 en cada estado, 5, 8, 9 ocupado, respaldo `ConflictError` y rama 10: el código de UT-5a solo advertía). Nota: el GREEN se escribió antes de las pruebas; el RED se observó restaurando `payment.service.ts` a HEAD con las pruebas nuevas y volviendo a poner la implementación | 40 de 40 pasan a la primera | `registrarPagoAprobado` queda como envoltorio del respaldo; la clasificación vive en `clasificarPago` y `registrarNoValido` |
 | T-5b.3 | `tests/migracionReservaInvitado.test.ts` (modificada, base descartable) | Verificación de una implementación ya existente, sin RED por módulo faltante | 5 repeticiones del webhook contra la cancelación: reserva `CANCELLED` y una sola fila de pago; 25 de 25 en el archivo | Sin cambios |
+| T-6.1 y T-6.2 | `tests/estadoSena.test.ts` | Suite sin cargar: `Cannot find module ./estadoSena.js` | 25 de 25 pasan a la primera | Tipos de `amount` y `depositAmount` aceptan `Decimal` o número |
+| T-6.3 y T-6.4 | `tests/rutasPublicasToken.test.ts` (36 pruebas) | 35 de 36 fallan: 404 en las tres rutas por token (pasaba solo la de formato inválido) | 1.ª corrida: 12 fallan por errores de la prueba (el cuerpo del error usa `detail`, no `message`; una sobrescritura de `marcarPagos` ocultaba un evento; `instance` difiere entre rutas); corregidas: 36 de 36 pasan | Sin cambios |
+| T-6.4 (concurrencia RES-029) | `tests/migracionReservaInvitado.test.ts` (modificada, base descartable) | Verificación de una implementación ya existente, sin RED por módulo faltante | Dos cancelaciones simultáneas por token: una 200 y otra 409, reserva `CANCELLED`, `depositPaidAtCancel` verdadero y un único pago `OWNER_DISCRETION`; 23 de 23 en el archivo | Sin cambios |
+| T-7.1 y T-7.2 | `tests/rutasAdminReservas.test.ts` (describe nuevo, base descartable, 7 pruebas) | 6 de 7 fallan: `payments`, `depositStatus` y `refundDue` indefinidos, una PENDING vencida figura `PENDING` y la vista filtra `accessTokenHash`; pasa solo la de usuario nulo del invitado | 20 de 20 en el archivo (13 previas + 7) | `vistaAdmin.ts` (lista blanca) usado por `/admin/all` y `/admin/daily` |
+| T-7.3 y T-7.4 | `tests/depositPercent.test.ts` (21 pruebas, prisma simulado) | 15 de 21 fallan (404: rutas inexistentes); las 6 que pasan son 401/403 por middleware y 404 de complejo inexistente, que pasan por la ausencia de ruta | 21 de 21 | Sin cambios |
+| T-7.5 y T-7.6 | `tests/reembolsoPago.test.ts` (22 pruebas, prisma y adaptador simulados) | 21 de 22 fallan (404: ruta inexistente); pasa solo la de pago inexistente (404 por ausencia de ruta) | 22 de 22 a la primera | Reembolso extraído a `reembolsarEnMercadoPago` (privado) para aislar el 502 |
 
 Triangulación: el barrido y el vencimiento tienen casos con dos canchas, error de una cancha, pasada superpuesta y error de pasada; las restricciones tienen casos válidos e inválidos de cada una.
 
@@ -49,6 +59,8 @@ Triangulación: el barrido y el vencimiento tienen casos con dos canchas, error 
 | UT-4 (4 commits, estado final) | sin errores | 25 archivos, 325 pasan, 0 fallan | sin errores |
 | UT-5a | sin errores | 25 archivos, 330 pasan, 0 fallan (una corrida previa dio 1 falla intermitente en `rutasAdminReservas` "GET /admin/all"; no se repitió y el archivo pasa 13 de 13 sin mis cambios) | sin errores |
 | UT-5b | sin errores | 25 archivos, 352 pasan; 1 falla intermitente en `rutasAdminReservas` "GET /admin/all" en 3 de 6 corridas completas (el archivo pasa 13 de 13 aislado; ver riesgos) | sin errores |
+| UT-6 | sin errores | 27 archivos, 412 pasan, 0 fallan (la base descartable ya tiene semilla) | sin errores |
+| UT-7 | sin errores | 29 archivos, 462 pasan, 0 fallan | sin errores |
 
 `npx prisma migrate status`: `localhost:5434`, "Database schema is up to date!" (5 migraciones).
 
@@ -145,3 +157,80 @@ UT-5b (TDD estricto, sin Co-Authored-By, sin push, SIN commitear; el agente no m
 - Pendiente fuera de alcance: `README.md` (línea 136) sigue diciendo que `DATABASE_URL_PRUEBA` debe tener el mismo valor que `DATABASE_URL`.
 - Sin commit ni código tocado.
 
+
+## UT-6 (TDD estricto, sin Co-Authored-By, sin push, SIN commitear)
+
+- Archivos nuevos: `estadoSena.ts` (89 líneas), `vistaPublica.ts` (59), `estadoSena.test.ts` (239) y `rutasPublicasToken.test.ts` (585). Modificados: `reservaInvitado.service.ts` (+166), `public.controller.ts` (+26), `public.routes.ts` (+18/-1) y `migracionReservaInvitado.test.ts` (+65). Total ~1.250 líneas, de ellas ~830 de pruebas y ~490 de código.
+- Desviaciones: `vistaPublica.ts` no figura en el diseño (el mapeo en lista blanca se extrajo para mantener el servicio legible); el 404 por formato inválido vive en el servicio (`buscarPorToken`), no en el controlador; el reintento exige también `expiresAt` y `depositAmount` no nulos (si no, 404). La relectura de `reemplazarPreferenciaVigente` comparte `findUnique` con la búsqueda por token en las pruebas simuladas.
+- Riesgo de tamaño: la unidad pasa de ~380 estimadas a ~1.250 líneas reales, por la cobertura de pruebas. Corte limpio sugerido: `estadoSena` + su prueba (~330) y rutas por token (resto).
+
+
+## UT-7 (TDD estricto, sin Co-Authored-By, sin push, SIN commitear)
+
+- Archivos nuevos: `bookings/vistaAdmin.ts` (96), `depositPercent.test.ts` (185) y `reembolsoPago.test.ts` (352). Modificados: `booking.service.ts` (+11/-24), `admin.{dto,service,controller,routes}.ts` (+72/-1), `payment.{dto,service,controller}.ts` y `payments.routes.ts` (+93/-1), `rutasAdminReservas.test.ts` (+254/-1). Total ~1.090 líneas, de ellas ~790 de pruebas y ~300 de código; estimadas ~400. Cortes de commit limpios: (a) vistas de administrador, (b) `depositPercent`, (c) reembolso por pago.
+- Ajuste de T-0.3 aplicado: clave de idempotencia por intento `reembolso-<bookingPaymentId>-<uuid>` (`crypto.randomUUID()`); antes de reembolsar se consulta `obtenerPago` y, si figura `refunded`, solo se fija `refundedAt`; `updateMany where { id, refundedAt: null }`; 502 "No se pudo procesar el reembolso con Mercado Pago." sin detalle (el error real va al log del servidor); la falla de la consulta previa también responde 502.
+- Desviaciones:
+  - `vistaAdmin.ts` no figura en el diseño ni en T-7.2 (se agregó para compartir el mapeo entre la lista, la agenda y el reembolso).
+  - `totalPrice` y `depositAmount` salen como número en la vista de administrador (antes `totalPrice` salía como cadena por el `Decimal` de Prisma); el frontend ya acepta `string | number`.
+  - `/admin/all` y `/admin/daily` devuelven el estado efectivo (una PENDING vencida figura `EXPIRED`, ADM-008).
+  - La respuesta del reembolso es la reserva en vista de administrador con sus pagos (decisión 8 y T-7.5); la spec PAG-024 dice "el pago actualizado": el pago actualizado figura dentro de `payments`.
+  - Un reembolso aceptado por Mercado Pago cuyo `updateMany` afecta 0 filas (otro pedido ya lo registró) responde 200 sin pisar `refundedAt`.
+  - `rutasAdminReservas.test.ts` tenía dos bytes en Windows-1252 (la "á" de un título): se pasaron a UTF-8 para poder editarlo.
+  - El `PATCH /bookings/admin/:id/status` (`updateBookingStatus`) y `POST /admin/create` siguen devolviendo la fila de Prisma completa (incluye `accessTokenHash` de una reserva de invitado); no estaba en el alcance de ADM-008. Queda como candidato a una pasada de lista blanca.
+- Pruebas de la vista de administrador contra la base descartable (`skipIf` sin `DATABASE_URL_PRUEBA`); `depositPercent` y reembolso con `prisma` y Mercado Pago simulados.
+- T-7.7 (reembolso real en sandbox) pendiente del usuario.
+
+
+## UT-8 (frontend sin pruebas automatizadas, sin Co-Authored-By, sin push, SIN commitear)
+
+- T-8.1, T-8.2 y T-8.3 hechas; T-8.4 (flujo manual con chrome-devtools y sandbox de MP) queda para el orquestador.
+- Modo: sin TDD (el frontend no tiene pruebas hasta `calidad-ci`); verificación por `tsc`, `lint` y `build`, los tres limpios.
+- Archivos: `frontend/src/types/index.ts` (+68/-2: `BookingStatus` completo, `EstadoSena`, `RefundReason`, `BookingPayment`, `userId: string | null`, datos de invitado, `VistaPublicaReserva`), `frontend/src/pages/BookingsPage.tsx` (+147/-2: formulario de invitado sin sesión), `frontend/src/pages/ReservaInvitadoPage.tsx` (nuevo, 389), `frontend/src/utils/mensajeDeError.ts` (nuevo, 28), `frontend/src/App.tsx` (+2: ruta `/reserva/:codigo`). Total ~640 líneas frente a ~420 estimadas; cubierto por la excepción de tamaño de UT-8.
+- Desviaciones: `utils/mensajeDeError.ts` no figura en el diseño (comparte la extracción de `detail`/`message` y de los errores por campo del 400); la pantalla se vuelve a consultar cada 20 s mientras la reserva está `PENDING` (para ver la confirmación del webhook tras volver de Mercado Pago; 45 consultas en 15 min, bajo el límite de 60); la confirmación de cancelar usa `window.confirm`; el monto de la seña no se muestra en el formulario (lo calcula el servidor), solo el precio del turno; `MyBookingsPage` conserva su tipo local y no se tocó.
+- Rollback: revertir `ReservaInvitadoPage.tsx`, `mensajeDeError.ts`, la ruta en `App.tsx`, el formulario en `BookingsPage.tsx` y los tipos nuevos.
+
+## Ajustes T-8.5 a T-8.7 (por la verificación manual T-8.4, sin Co-Authored-By, sin push, SIN commitear)
+
+- T-8.5, T-8.6 y T-8.7 hechas; T-8.4 sigue abierta hasta repetir "volver" y "reintentar" (orquestador).
+- T-8.5 y T-8.6 con TDD estricto (`backend/tests/adaptadorMercadoPago.test.ts`, SDK simulado, `Date` fijado con `vi.useFakeTimers({ toFake: ["Date"] })`).
+  - RED: `npx vitest run tests/adaptadorMercadoPago.test.ts` dio 2 fallas de 15: `expiration_date_to` recibido `2026-12-01T12:00:00.000Z` en vez de `11:00:00.000Z`, y `auto_return` ausente con retorno `https`. La prueba de `http` (sin `auto_return`) ya pasaba porque el código nunca lo enviaba; queda como protección.
+  - GREEN: 15/15.
+- T-8.7 sin pruebas automatizadas: `BookingsPage.tsx` navega a `/reserva/<token>` con `state: { initPoint }` (tipo `EstadoNavegacionReserva` en `types/index.ts`); `ReservaInvitadoPage.tsx` valida el `state` con un guard (`unknown`, sin `any`), usa ese `initPoint` en "Pagar la seña" sin llamar al reintento y muestra el recuadro "Guardá este enlace antes de pagar" con el enlace completo y "Copiar enlace". Sin `state` (recarga) usa el reintento.
+- Archivos: `backend/src/core/integraciones/mercadoPago.ts` (+9/-3), `backend/tests/adaptadorMercadoPago.test.ts` (+19/-4), `frontend/src/pages/BookingsPage.tsx` (+12/-3), `frontend/src/pages/ReservaInvitadoPage.tsx` (+64/-1), `frontend/src/types/index.ts` (+5).
+- Verificación: `npm test` backend con base descartable 29 archivos y 463 pruebas pasan; `tsc --noEmit` y `npm run build` de backend y frontend limpios; `npm run lint` del frontend limpio.
+- Desvío: el tipo `EstadoNavegacionReserva` no figura en el diseño (compartido entre las dos páginas).
+- Rollback: revertir los cambios de estos cinco archivos.
+
+## UT-9a (frontend sin pruebas automatizadas, sin Co-Authored-By, sin push, SIN commitear)
+
+- T-9a.1 y T-9a.2 hechas. Sin ciclo TDD: el frontend no tiene pruebas hasta `calidad-ci`; verificación por `tsc`, `lint` y `build`.
+- Archivos: `frontend/src/utils/whatsapp.ts` (nuevo, ~44: `normalizarTelefono`, `formatearTurnoUTC`, `armarEnlaceWhatsApp` -> `https://wa.me/<dígitos>?text=<codificado>`, `null` sin dígitos), `frontend/src/pages/AdminDashboard.tsx` (+158/-19: tipo `AdminBooking` con `BookingStatus`, `user` nulo y datos de invitado; etiquetas "Invitado" y de seña; `BotonWhatsApp`; grilla y lista con nombre, teléfono, correo, seña y turno UTC; `EXPIRED` mostrada como "Vencida" y sin botón "Cancelar" en la lista; `EXPIRED` excluida de la grilla).
+- Verificación: `cd frontend && npx tsc --noEmit` exit 0; `npm run lint` exit 0; `npm run build` exit 0 (1880 módulos).
+- Desvíos: en la grilla, la reserva de invitado muestra la marca "Invitado" en lugar de la etiqueta de método de pago (los invitados se guardan con `paymentMethod` CASH y se vería "Efectivo", engañoso). El botón de WhatsApp se ofrece también en la lista. Mensaje de WhatsApp en español, con la hora indicada como UTC.
+- Rollback: borrar `whatsapp.ts` y revertir `AdminDashboard.tsx`.
+
+## UT-9b (frontend sin pruebas automatizadas, sin Co-Authored-By, sin push, SIN commitear)
+
+- T-9b.1 y T-9b.2 hechas. Sin ciclo TDD: el frontend no tiene pruebas hasta `calidad-ci`; verificación por `tsc`, `lint` y `build`.
+- Archivo: `frontend/src/pages/AdminDashboard.tsx` (~+280 sobre UT-9a; el diff acumulado de la rama de trabajo es +438/-19). Cambios:
+  - `ListaPagos` por reserva en la pestaña "Todas las reservas": monto, id de pago de Mercado Pago, etiqueta del motivo (tabla del diseño), "Reembolsado el <fecha UTC>" o "Pago válido"; botón "Reembolsar" solo para pagos con `refundReason` y sin `refundedAt`.
+  - `handleRefundPayment`: `window.confirm` con monto e id, `POST /payments/admin/payments/:id/refund`, reemplaza la reserva con la vista devuelta, aviso de éxito o de error con `mensajeDeError` (detail/message del servidor, incluye el 409 y el 502); un solo reembolso a la vez.
+  - Marca "Reembolso pendiente" (`REQUIRED`) o "Reembolso a criterio" (`AT_DISCRETION`) según `refundDue`.
+  - Pestaña "Canchas": formulario "Porcentaje de seña" con `GET/PATCH /admin/complexes/:id/deposit-percent`; el id del complejo es el `complexId` de la primera cancha (el estado `complexId` ya existente); valida entero 1 a 100 antes de enviar; ante error muestra el mensaje del servidor y restaura el valor anterior.
+- Verificación: `npx tsc -b --noEmit` exit 0; `npm run lint` exit 0; `npm run build` exit 0 (1880 módulos).
+- Desvíos: la lista de pagos solo está en la pestaña "Todas las reservas" (la grilla diaria no la muestra); el porcentaje de seña va en la pestaña "Canchas" y no en una pestaña nueva; `refundDue` se muestra como marca en la tarjeta de la reserva; sin complejo (sin canchas) el campo queda deshabilitado.
+- Rollback: revertir los cambios de UT-9b en `AdminDashboard.tsx` (`ListaPagos`, `handleRefundPayment`, formulario de seña, efecto 4).
+
+## UT-12 (T-12.1 y T-12.2, TDD estricto, sin Co-Authored-By, sin push, SIN commitear)
+
+| Tarea | Prueba (RED primero) | RED observado | GREEN | Refactor |
+|---|---|---|---|---|
+| T-12.1 (C1) | `tests/liberarAlCrearReserva.test.ts` (prisma simulado, 2 pruebas) y `tests/liberarAlCrearReservaBase.test.ts` (base descartable, 2 pruebas) | Simulado: el orden era `bloqueo, crear` sin `liberar`. Base: 409 en lugar de 201 con una PENDING de invitado vencida sin barrer (POST /bookings y POST /bookings/admin/create) | 4 de 4 | Ninguno |
+| T-12.2 (W1) | `tests/respuestasListaBlanca.test.ts` (prisma simulado, 3 pruebas, reserva de invitado) | PATCH admin y cancelación del jugador devolvían `accessTokenHash` y `mpPreferenceId`; el PATCH no pedía `payments` | 3 de 3 | Ninguno |
+
+- `booking.service.ts`: `createBooking` y `createAdminBooking` llaman `liberarReservasVencidas` como primera operación bajo el bloqueo; `updateBookingStatus` lee con `incluirParaVistaAdmin` y responde `armarVistaAdmin(...)` (estado efectivo, `depositStatus`, `refundDue`, `payments`); `cancelBooking` responde `armarVistaJugador(...)`.
+- `vistaJugador.ts` (nuevo): lista blanca de 10 campos de la reserva del jugador.
+- Pruebas existentes ajustadas: el simulado de `findUniqueOrThrow` en `validacionReservas.test.ts` y `cancelacionBajoBloqueo.test.ts` devuelve ahora una reserva completa (cancha, titular y pagos), porque el PATCH de administrador arma la vista.
+- Frontend: sin cambios; `AdminDashboard.tsx` no usa el cuerpo de la respuesta del PATCH (solo espera que no falle).
+- Verificación: `npm test` 32 archivos, 470 pasan, 0 fallan (con `DATABASE_URL` y `DATABASE_URL_PRUEBA` de la base descartable); `npx tsc --noEmit` y `npm run build` sin errores.
+- Desvío: el cuerpo de `PATCH /bookings/:id/cancel` pierde `depositPaidAtCancel`, `guest*`, `expiresAt` y `depositAmount` (un jugador con cuenta no los usa); el frontend no lee ese cuerpo.
