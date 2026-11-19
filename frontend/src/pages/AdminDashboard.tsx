@@ -21,8 +21,21 @@ import {
   CheckCircle2,
   X,
   ShieldAlert,
+  MessageCircle,
+  Undo2,
+  Percent,
 } from "lucide-react";
-import type { Sport, Surface, Court } from "../types/index.js";
+import type {
+  Sport,
+  Surface,
+  Court,
+  BookingStatus,
+  EstadoSena,
+  RefundReason,
+  BookingPayment,
+} from "../types/index.js";
+import { armarEnlaceWhatsApp, formatearTurnoUTC } from "../utils/whatsapp";
+import { mensajeDeError } from "../utils/mensajeDeError";
 
 interface MetricsSummary {
   totalBookings: number;
@@ -36,7 +49,7 @@ interface AdminBooking {
   courtId: string;
   startTime: string;
   endTime: string;
-  status: "CONFIRMED" | "CANCELLED" | "COMPLETED" | "PENDING";
+  status: BookingStatus;
   totalPrice: string | number;
   paymentMethod: "CASH" | "TRANSFER" | "MERCADOPAGO";
   court: {
@@ -50,8 +63,166 @@ interface AdminBooking {
     lastName?: string;
     email: string;
     phone?: string;
-  };
+  } | null;
+  // Reserva de invitado (ADM-016): `userId` y `user` vienen nulos.
+  userId?: string | null;
+  guestFirstName?: string | null;
+  guestLastName?: string | null;
+  guestPhone?: string | null;
+  guestEmail?: string | null;
+  depositAmount?: number | null;
+  depositStatus?: EstadoSena | null;
+  // Pagos registrados y reembolso pendiente (ADM-017).
+  payments?: BookingPayment[];
+  refundDue?: "REQUIRED" | "AT_DISCRETION" | null;
 }
+
+const ETIQUETAS_ESTADO: Record<BookingStatus, string> = {
+  PENDING: "Pendiente",
+  CONFIRMED: "Confirmada",
+  CANCELLED: "Cancelada",
+  COMPLETED: "Completada",
+  EXPIRED: "Vencida",
+};
+
+const ETIQUETAS_SENA: Record<EstadoSena, string> = {
+  PENDING: "Seña pendiente",
+  PAID: "Seña pagada",
+  REFUNDED: "Seña reembolsada",
+};
+
+const CLASES_SENA: Record<EstadoSena, string> = {
+  PENDING: "bg-amber-500/20 text-amber-400",
+  PAID: "bg-emerald-500/20 text-emerald-400",
+  REFUNDED: "bg-slate-500/20 text-slate-300",
+};
+
+const esInvitado = (reserva: AdminBooking): boolean => !reserva.user;
+
+const nombreDelInvitado = (reserva: AdminBooking): string =>
+  `${reserva.guestFirstName ?? ""} ${reserva.guestLastName ?? ""}`.trim() ||
+  "Invitado";
+
+const formatearMonto = (monto: number): string =>
+  `$${monto.toLocaleString("es-AR")}`;
+
+const EtiquetaInvitado: React.FC = () => (
+  <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase bg-violet-500/20 text-violet-300">
+    Invitado
+  </span>
+);
+
+const EtiquetaSena: React.FC<{ reserva: AdminBooking }> = ({ reserva }) => {
+  if (!reserva.depositStatus) return null;
+  const monto =
+    reserva.depositAmount != null
+      ? ` ${formatearMonto(reserva.depositAmount)}`
+      : "";
+  return (
+    <span
+      className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${CLASES_SENA[reserva.depositStatus]}`}
+    >
+      {ETIQUETAS_SENA[reserva.depositStatus]}
+      {monto}
+    </span>
+  );
+};
+
+const BotonWhatsApp: React.FC<{ reserva: AdminBooking }> = ({ reserva }) => {
+  if (!reserva.guestPhone) return null;
+  const enlace = armarEnlaceWhatsApp({
+    telefono: reserva.guestPhone,
+    nombreInvitado: reserva.guestFirstName?.trim() || nombreDelInvitado(reserva),
+    nombreCancha: reserva.court?.name || "la cancha",
+    inicio: reserva.startTime,
+  });
+  if (!enlace) return null;
+  return (
+    <a
+      href={enlace}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="p-1 hover:bg-emerald-500/30 text-emerald-400 rounded transition inline-flex items-center gap-1"
+      title="Contactar por WhatsApp"
+    >
+      <MessageCircle className="w-3.5 h-3.5" />
+      <span className="text-[10px] font-semibold">WhatsApp</span>
+    </a>
+  );
+};
+
+const ETIQUETAS_REEMBOLSO: Record<RefundReason, string> = {
+  AMOUNT_MISMATCH: "Reembolso obligatorio: monto no coincide",
+  SLOT_TAKEN: "Reembolso obligatorio: pago sin turno",
+  PAID_AFTER_CANCEL: "Reembolso obligatorio: pagó después de cancelar",
+  DUPLICATE_PAYMENT: "Reembolso obligatorio: pago duplicado",
+  OWNER_DISCRETION: "Seña sin reembolsar: a criterio del canchero",
+};
+
+// Métodos UTC nativos (AGENTS.md): toLocaleString dependía del navegador y mostraba 03:56 en vez de 15:56
+const formatearFechaUTC = (iso: string): string => formatearTurnoUTC(iso);
+
+interface ListaPagosProps {
+  pagos: BookingPayment[];
+  reembolsando: string | null;
+  onReembolsar: (pago: BookingPayment) => void;
+}
+
+const ListaPagos: React.FC<ListaPagosProps> = ({
+  pagos,
+  reembolsando,
+  onReembolsar,
+}) => {
+  if (pagos.length === 0) return null;
+  return (
+    <ul className="mt-2 space-y-1.5 border-t border-slate-800 pt-2">
+      {pagos.map((pago) => {
+        const pendiente = pago.refundReason !== null && pago.refundedAt === null;
+        return (
+          <li
+            key={pago.id}
+            className="flex flex-wrap items-center gap-2 text-xs text-slate-300"
+          >
+            <span className="font-semibold text-white">
+              {formatearMonto(pago.amount)}
+            </span>
+            <span className="text-slate-500">Pago MP {pago.mpPaymentId}</span>
+            {pago.refundedAt !== null ? (
+              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-slate-500/20 text-slate-300">
+                Reembolsado el {formatearFechaUTC(pago.refundedAt)}
+              </span>
+            ) : pago.refundReason ? (
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                  pago.refundReason === "OWNER_DISCRETION"
+                    ? "bg-amber-500/20 text-amber-400"
+                    : "bg-red-500/20 text-red-400"
+                }`}
+              >
+                {ETIQUETAS_REEMBOLSO[pago.refundReason]}
+              </span>
+            ) : (
+              <span className="text-[10px] px-1.5 py-0.5 rounded font-bold bg-emerald-500/20 text-emerald-400">
+                Pago válido
+              </span>
+            )}
+            {pendiente && (
+              <button
+                type="button"
+                onClick={() => onReembolsar(pago)}
+                disabled={reembolsando !== null}
+                className="px-2 py-1 bg-sky-500/10 hover:bg-sky-500 text-sky-400 hover:text-white border border-sky-500/30 text-[11px] font-semibold rounded-lg transition flex items-center gap-1 disabled:opacity-50"
+              >
+                <Undo2 className="w-3 h-3" />
+                {reembolsando === pago.id ? "Reembolsando..." : "Reembolsar"}
+              </button>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
 
 export const AdminDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<"grid" | "courts" | "bookings">(
@@ -92,6 +263,22 @@ export const AdminDashboard: React.FC = () => {
   // Historial de Todas las Reservas
   const [allBookings, setAllBookings] = useState<AdminBooking[]>([]);
   const [loadingBookings, setLoadingBookings] = useState(true);
+
+  // Reembolso manual por pago (ADM-017)
+  const [reembolsando, setReembolsando] = useState<string | null>(null);
+  const [avisoReembolso, setAvisoReembolso] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+
+  // Porcentaje de seña del complejo (ADM-018)
+  const [depositPercent, setDepositPercent] = useState<number | null>(null);
+  const [depositInput, setDepositInput] = useState("");
+  const [depositSaving, setDepositSaving] = useState(false);
+  const [depositFeedback, setDepositFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
 
   // Estados generales
   const [formLoading, setFormLoading] = useState(false);
@@ -223,6 +410,112 @@ export const AdminDashboard: React.FC = () => {
       isMounted = false;
     };
   }, [activeTab]);
+
+  // 4. Cargar el porcentaje de seña del complejo (ADM-018)
+  useEffect(() => {
+    if (!complexId) return;
+    let isMounted = true;
+
+    api
+      .get<{ id: string; depositPercent: number }>(
+        `/admin/complexes/${complexId}/deposit-percent`,
+      )
+      .then((res) => {
+        if (isMounted) {
+          setDepositPercent(res.data.depositPercent);
+          setDepositInput(String(res.data.depositPercent));
+        }
+      })
+      .catch((err: unknown) => {
+        if (isMounted) {
+          setDepositFeedback({
+            type: "error",
+            message: mensajeDeError(
+              err,
+              "No se pudo cargar el porcentaje de seña.",
+            ),
+          });
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [complexId]);
+
+  // Guardar el porcentaje de seña (ADM-018): entero de 1 a 100
+  const handleSaveDepositPercent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const texto = depositInput.trim();
+    const valor = Number(texto);
+    if (texto === "" || !Number.isInteger(valor) || valor < 1 || valor > 100) {
+      setDepositFeedback({
+        type: "error",
+        message: "Ingresá un número entero entre 1 y 100.",
+      });
+      return;
+    }
+
+    setDepositSaving(true);
+    setDepositFeedback(null);
+    try {
+      const res = await api.patch<{ id: string; depositPercent: number }>(
+        `/admin/complexes/${complexId}/deposit-percent`,
+        { depositPercent: valor },
+      );
+      setDepositPercent(res.data.depositPercent);
+      setDepositInput(String(res.data.depositPercent));
+      setDepositFeedback({
+        type: "success",
+        message: `Porcentaje de seña actualizado: ${res.data.depositPercent}%.`,
+      });
+    } catch (err: unknown) {
+      // Se conserva el valor anterior en el campo.
+      setDepositInput(depositPercent === null ? "" : String(depositPercent));
+      setDepositFeedback({
+        type: "error",
+        message: mensajeDeError(
+          err,
+          "No se pudo guardar el porcentaje de seña.",
+        ),
+      });
+    } finally {
+      setDepositSaving(false);
+    }
+  };
+
+  // Reembolsar un pago (ADM-017): mueve plata real, pide confirmación
+  const handleRefundPayment = async (
+    bookingId: string,
+    pago: BookingPayment,
+  ) => {
+    const confirmar = window.confirm(
+      `¿Reembolsar ${formatearMonto(pago.amount)} del pago ${pago.mpPaymentId} en Mercado Pago? Esta acción devuelve el dinero al pagador y no se puede deshacer.`,
+    );
+    if (!confirmar) return;
+
+    setReembolsando(pago.id);
+    setAvisoReembolso(null);
+    try {
+      const res = await api.post<AdminBooking>(
+        `/payments/admin/payments/${pago.id}/refund`,
+      );
+      setAllBookings((prev) =>
+        prev.map((b) => (b.id === bookingId ? { ...b, ...res.data } : b)),
+      );
+      setAvisoReembolso({
+        type: "success",
+        message: `Pago ${pago.mpPaymentId} reembolsado.`,
+      });
+    } catch (err: unknown) {
+      setAvisoReembolso({
+        type: "error",
+        message: mensajeDeError(err, "No se pudo reembolsar el pago."),
+      });
+    } finally {
+      setReembolsando(null);
+    }
+  };
 
   // Cambiar estado en la grilla diaria
   const handleDailyStatusChange = async (
@@ -365,7 +658,13 @@ export const AdminDashboard: React.FC = () => {
 
     return dailyBookings.find((b) => {
       // Validar que el objeto exista y tenga startTime
-      if (!b || !b.startTime || b.status === "CANCELLED") return false;
+      if (
+        !b ||
+        !b.startTime ||
+        b.status === "CANCELLED" ||
+        b.status === "EXPIRED"
+      )
+        return false;
 
       // Coincidencia de cancha
       const matchedCourtId = b.courtId || b.court?.id;
@@ -599,21 +898,39 @@ export const AdminDashboard: React.FC = () => {
                                       {booking.user
                                         ? `${booking.user.firstName || ""} ${booking.user.lastName || ""}`.trim() ||
                                           booking.user.email.split("@")[0]
-                                        : "Cliente"}
+                                        : nombreDelInvitado(booking)}
                                     </span>
                                   </div>
-                                  <span
-                                    className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
-                                      booking.paymentMethod === "TRANSFER"
-                                        ? "bg-sky-500/20 text-sky-400"
-                                        : "bg-amber-500/20 text-amber-400"
-                                    }`}
-                                  >
-                                    {booking.paymentMethod === "TRANSFER"
-                                      ? "Transferencia"
-                                      : "Efectivo"}
-                                  </span>
+                                  {esInvitado(booking) ? (
+                                    <EtiquetaInvitado />
+                                  ) : (
+                                    <span
+                                      className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                                        booking.paymentMethod === "TRANSFER"
+                                          ? "bg-sky-500/20 text-sky-400"
+                                          : "bg-amber-500/20 text-amber-400"
+                                      }`}
+                                    >
+                                      {booking.paymentMethod === "TRANSFER"
+                                        ? "Transferencia"
+                                        : "Efectivo"}
+                                    </span>
+                                  )}
                                 </div>
+
+                                {esInvitado(booking) && (
+                                  <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                                    {booking.guestPhone && (
+                                      <span>{booking.guestPhone}</span>
+                                    )}
+                                    <EtiquetaSena reserva={booking} />
+                                    {booking.status === "PENDING" && (
+                                      <span className="text-[9px] px-1.5 py-0.5 rounded font-bold uppercase bg-amber-500/20 text-amber-400">
+                                        {ETIQUETAS_ESTADO.PENDING}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
 
                                 <div className="flex items-center justify-between pt-1 border-t border-slate-800/60 text-[10px]">
                                   <span>
@@ -624,6 +941,7 @@ export const AdminDashboard: React.FC = () => {
                                   </span>
 
                                   <div className="flex items-center gap-1">
+                                    <BotonWhatsApp reserva={booking} />
                                     {booking.status === "CONFIRMED" && (
                                       <button
                                         onClick={() =>
@@ -769,6 +1087,52 @@ export const AdminDashboard: React.FC = () => {
                 {formLoading ? "Guardando..." : "Registrar Cancha"}
               </button>
             </form>
+
+            <form
+              onSubmit={handleSaveDepositPercent}
+              className="mt-8 pt-6 border-t border-slate-800 space-y-3"
+            >
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Percent className="w-5 h-5 text-emerald-400" />
+                Porcentaje de seña
+              </h2>
+              <p className="text-slate-400 text-xs">
+                Vigente: {depositPercent === null ? "—" : `${depositPercent}%`}.
+                Aplica a las reservas nuevas de invitados.
+              </p>
+              {depositFeedback && (
+                <div
+                  className={`p-3 rounded-xl text-xs border ${
+                    depositFeedback.type === "success"
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                      : "bg-red-500/10 border-red-500/30 text-red-400"
+                  }`}
+                >
+                  {depositFeedback.message}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={100}
+                  step={1}
+                  value={depositInput}
+                  onChange={(e) => setDepositInput(e.target.value)}
+                  disabled={depositPercent === null}
+                  aria-label="Porcentaje de seña"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 px-3 text-white text-sm focus:outline-none focus:border-emerald-500 transition disabled:opacity-50"
+                />
+                <button
+                  type="submit"
+                  disabled={depositSaving || depositPercent === null}
+                  className="px-4 bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold rounded-lg text-sm transition disabled:opacity-50"
+                >
+                  {depositSaving ? "Guardando..." : "Guardar"}
+                </button>
+              </div>
+            </form>
           </div>
 
           <div className="lg:col-span-2">
@@ -812,6 +1176,17 @@ export const AdminDashboard: React.FC = () => {
             </div>
           ) : (
             <div className="space-y-3">
+              {avisoReembolso && (
+                <div
+                  className={`p-3 rounded-xl text-xs border ${
+                    avisoReembolso.type === "success"
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                      : "bg-red-500/10 border-red-500/30 text-red-400"
+                  }`}
+                >
+                  {avisoReembolso.message}
+                </div>
+              )}
               {allBookings.map((b) => {
                 const startDate = new Date(b.startTime);
                 const dateStr = startDate.toLocaleDateString("es-AR", {
@@ -826,6 +1201,7 @@ export const AdminDashboard: React.FC = () => {
                   .toString()
                   .padStart(2, "0");
                 const isCancelled = b.status === "CANCELLED";
+                const isExpired = b.status === "EXPIRED";
 
                 return (
                   <div
@@ -841,11 +1217,28 @@ export const AdminDashboard: React.FC = () => {
                           className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                             isCancelled
                               ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                              : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                              : isExpired
+                                ? "bg-slate-500/20 text-slate-300 border border-slate-500/30"
+                                : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                           }`}
                         >
-                          {b.status}
+                          {isExpired ? ETIQUETAS_ESTADO.EXPIRED : b.status}
                         </span>
+                        {esInvitado(b) && <EtiquetaInvitado />}
+                        <EtiquetaSena reserva={b} />
+                        {b.refundDue && (
+                          <span
+                            className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase ${
+                              b.refundDue === "REQUIRED"
+                                ? "bg-red-500/20 text-red-400"
+                                : "bg-amber-500/20 text-amber-400"
+                            }`}
+                          >
+                            {b.refundDue === "REQUIRED"
+                              ? "Reembolso pendiente"
+                              : "Reembolso a criterio"}
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-3 text-xs text-slate-400">
                         <span className="flex items-center gap-1">
@@ -869,6 +1262,30 @@ export const AdminDashboard: React.FC = () => {
                           </span>
                         )}
                       </div>
+                      {esInvitado(b) && (
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-300 mt-1">
+                          <span className="flex items-center gap-1">
+                            <User className="w-3.5 h-3.5 text-slate-500" />
+                            {nombreDelInvitado(b)}
+                          </span>
+                          {b.guestPhone && <span>{b.guestPhone}</span>}
+                          {b.guestEmail && (
+                            <span className="text-slate-500">
+                              {b.guestEmail}
+                            </span>
+                          )}
+                          <span className="text-slate-500">
+                            Turno: {formatearTurnoUTC(b.startTime)}
+                          </span>
+                        </div>
+                      )}
+                      <ListaPagos
+                        pagos={b.payments ?? []}
+                        reembolsando={reembolsando}
+                        onReembolsar={(pago) =>
+                          void handleRefundPayment(b.id, pago)
+                        }
+                      />
                     </div>
 
                     <div className="flex items-center justify-between md:justify-end gap-4">
@@ -876,7 +1293,9 @@ export const AdminDashboard: React.FC = () => {
                         ${Number(b.totalPrice).toLocaleString("es-AR")}
                       </span>
 
-                      {!isCancelled && (
+                      <BotonWhatsApp reserva={b} />
+
+                      {!isCancelled && !isExpired && (
                         <button
                           onClick={() => handleCancelBooking(b.id)}
                           className="px-2.5 py-1.5 bg-red-500/10 hover:bg-red-500 text-red-400 hover:text-white border border-red-500/30 text-xs font-semibold rounded-lg transition flex items-center gap-1"
