@@ -11,7 +11,7 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
   - `specs-base` hecho (su carpeta sigue en `openspec/changes/specs-base/`, sin archivar).
   - `deuda-auditoria` archivado en `openspec/changes/archive/2026-11-18-deuda-auditoria/`.
   - `reserva-invitado` (N.º 3) hecho y archivado en `openspec/changes/archive/2026-11-19-reserva-invitado/`: 65 de 65 tareas, `verify-report.md` con la resolución de hallazgos y `archive-report.md`.
-  - No hay cambio activo. El siguiente de la hoja de ruta es `multi-tenant-negocios` (N.º 4).
+  - No hay cambio activo. El siguiente de la hoja de ruta es `calidad-ci-backend` (N.º 4), agregado el 2026-11-24 como red de seguridad antes de `multi-tenant-negocios` (N.º 5).
 - **Bases de datos:** desarrollo en el contenedor `sports_booking_postgres` (puerto 5433), con las migraciones de `reserva-invitado`. Base descartable para pruebas en el contenedor `reservas_prueba` (puerto 5434), ya con semilla; ver `docs/operacion/variables-entorno.md`.
 - **Tests del backend:** contra la base descartable, `npm test` da 470 de 470 (32 archivos). `npx tsc --noEmit` y `npm run build` sin errores. Frontend: `tsc`, lint y build sin errores.
 - **Mercado Pago:** credenciales de prueba y webhook (evento "Pagos (legacy)") cargados en `backend/.env`; `BACKEND_URL` apunta a un túnel rápido de cloudflared, cuya URL cambia en cada arranque. Si el webhook no llega, revisar que `BACKEND_URL` coincida con la URL actual del túnel y reiniciar el backend. Sin sesión de comprador, se paga con la tarjeta de prueba `APRO`.
@@ -20,12 +20,12 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Próximo paso
 
-1. Commitear a mano `reserva-invitado` con los mensajes sugeridos en la sesión del 2026-11-19 y hacer la integración diaria en `main` (con `npm test` contra la base descartable).
-2. Decidir sobre las specs vigentes: quitar o no la marca `[OBJETIVO]` de los requisitos ya implementados (24 líneas), y revisar el título de PAG-015 ("reactivar" en lugar de "reconfirmar").
-3. Empezar `multi-tenant-negocios` con `/gentle-sdd-new`. Llevar los riesgos multi-tenant de `verify-report.md` (S5): operaciones por id sin pertenencia, tope por teléfono global y prefijo `549` fijo.
+1. Integrar `desarrollo` en `main` (pendiente desde `be9eda5`), con `npm test` contra la base descartable.
+2. Empezar `calidad-ci-backend` (N.º 4) con `/gentle-sdd-new`. Las marcas `[OBJETIVO]` ya se quitaron de las specs vigentes, y el título de PAG-015 se mantiene con "reactivar" (2026-11-24).
+3. Después, `multi-tenant-negocios` (N.º 5). Llevar los riesgos multi-tenant de `verify-report.md` (S5): operaciones por id sin pertenencia, tope por teléfono global y prefijo `549` fijo.
 4. Pendientes registrados de `reserva-invitado`: sondeo cada 20 s y cuenta regresiva con el reloj del navegador (W3, W4), `auto_return` con `https` en el despliegue (W5), `POST /bookings/admin/create` sin lista blanca, y el panel que no avisa cuando vence la sesión del administrador.
 5. Actualizar la regla de la integración diaria en `/cerrar-sesion`: con base descartable y semilla, `npm test` debe pasar completo.
-6. Rotar a mano `JWT_SECRET` (`docs/operacion/variables-entorno.md`). Pendiente en `calidad-ci`: separar las pruebas que usan la base y agregar pruebas del frontend.
+6. Rotar a mano `JWT_SECRET` (`docs/operacion/variables-entorno.md`). Separar las pruebas que usan la base pasa a `calidad-ci-backend` (N.º 4); las pruebas del frontend quedan en `calidad-ci` (N.º 10).
 
 ## Configuración vigente
 

@@ -331,7 +331,7 @@ Al pulsar "Cancelar" en el historial, el panel DEBE pedir confirmación con "¿S
 - Cuando se acepta la cancelación
 - Entonces se muestra "No se pudo cancelar el turno." y la reserva sigue sin cancelar en pantalla
 
-### ADM-015: Configuración del porcentaje de seña [OBJETIVO]
+### ADM-015: Configuración del porcentaje de seña
 
 El sistema DEBE permitir a un `ADMIN` consultar y modificar el `depositPercent` del complejo (porcentaje del precio del turno que se cobra como seña, valor por defecto 30) mediante una operación autenticada de solo `ADMIN` (401 sin token, 403 para `USER`). DEBE aceptar solo enteros de 1 a 100 y DEBE responder 400 con la lista `errors` ante cualquier otro valor (cero, negativo, mayor que 100, decimal, no numérico o ausente), sin modificar el complejo. Con 100 se cobra online el precio completo. El nuevo valor afecta solo a las reservas creadas después (PAG-022). DEBE responder 404 si el complejo no existe.
 
@@ -360,7 +360,7 @@ El sistema DEBE permitir a un `ADMIN` consultar y modificar el `depositPercent` 
 - Cuando intenta modificar el porcentaje
 - Entonces responde 403 y el valor no cambia
 
-### ADM-016: Reservas de invitado en el panel [OBJETIVO]
+### ADM-016: Reservas de invitado en el panel
 
 El panel `AdminDashboard` DEBE mostrar, en la "Grilla del Día" y en "Todas las Reservas", las reservas de invitado con una marca de invitado, el nombre y el apellido del invitado (en lugar del usuario), su teléfono, el estado de la seña (`depositStatus`: pendiente, pagada o reembolsada) y el monto de la seña. DEBE ofrecer un botón de contacto que abra un enlace `https://wa.me/<guestPhone>?text=<mensaje>`, con el teléfono normalizado de solo dígitos y un mensaje armado y codificado en URL que incluya al menos el nombre del invitado, la cancha, y la fecha y la hora del turno en UTC. NO DEBE usar la API de WhatsApp Business (DP-13). Las reservas con cuenta se muestran como hasta ahora (ADM-012 y ADM-013). Una reserva `PENDING` vencida o `EXPIRED` NO DEBE aparecer en la grilla (RES-013). En "Todas las Reservas" una reserva `EXPIRED` DEBE mostrarse con el estado "Vencida" y sin el botón "Cancelar" (ADM-013).
 
@@ -389,7 +389,7 @@ El panel `AdminDashboard` DEBE mostrar, en la "Grilla del Día" y en "Todas las 
 - Cuando se muestra el historial
 - Entonces figura como "Vencida", sin botón "Cancelar" y no aparece en la grilla del día
 
-### ADM-017: Reembolso pendiente y reembolso manual en el panel [OBJETIVO]
+### ADM-017: Reembolso pendiente y reembolso manual en el panel
 
 El panel DEBE mostrar, en "Todas las Reservas", para cada reserva con pagos pendientes de reembolso, la lista de esos pagos (los que tienen motivo de reembolso y no tienen `refundedAt`, PAG-026) con su monto y la etiqueta de su motivo: `AMOUNT_MISMATCH` "monto no coincide", `SLOT_TAKEN` "pago sin turno", `PAID_AFTER_CANCEL` "pagó después de cancelar", `DUPLICATE_PAYMENT` "pago duplicado" y `OWNER_DISCRETION` "a criterio del canchero" (DP-11). Los motivos distintos de `OWNER_DISCRETION` se presentan como "Reembolso obligatorio" (`refundDue` `REQUIRED`, PAG-023) y `OWNER_DISCRETION` como "Seña sin reembolsar" (`AT_DISCRETION`). DEBE ofrecer un botón "Reembolsar" por cada pago de la lista. Al pulsarlo DEBE pedir confirmación y, si se acepta, invocar el reembolso de ese pago (PAG-024) y quitarlo de la lista de pendientes cuando el servidor responde con éxito, sin afectar a los demás pagos de la reserva. Si falla, DEBE mostrar el aviso de error y mantener el pago en la lista. NO DEBE ofrecer el botón en pagos sin motivo de reembolso ni en pagos ya reembolsados.
 
@@ -446,7 +446,7 @@ Motivo: una reserva puede tener varios pagos a reembolsar con motivos distintos 
 - Cuando se muestra el panel
 - Entonces no se ofrece ningún botón "Reembolsar"
 
-### ADM-018: Ajuste del porcentaje de seña en el panel [OBJETIVO]
+### ADM-018: Ajuste del porcentaje de seña en el panel
 
 El panel DEBE mostrar el `depositPercent` vigente y permitir al administrador modificarlo mediante ADM-015, validando en pantalla que sea un entero de 1 a 100 antes de enviarlo. Ante un error del servidor DEBE mostrar el `detail` o `message` recibido y conservar el valor anterior.
 

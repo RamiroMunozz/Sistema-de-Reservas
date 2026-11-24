@@ -470,7 +470,7 @@ La página `BookingsPage` DEBE, al pulsar "Pagar con Mercado Pago", crear primer
 
 `MyBookingsPage` no contiene lógica de pago; solo declara el campo `paymentMethod` en su tipo.
 
-### PAG-020: Preferencia de seña de la reserva de invitado [OBJETIVO]
+### PAG-020: Preferencia de seña de la reserva de invitado
 
 El sistema DEBE crear, al crearse una reserva de invitado (RES-023), una preferencia de Mercado Pago con un único ítem de cantidad 1, `unit_price` igual al `depositAmount` de la reserva (nunca un valor del cliente), `currency_id` `ARS`, título "Seña - <nombre de la cancha>" y `external_reference` igual al `id` de la reserva. DEBE fijar la expiración de la preferencia en el `expiresAt` de la reserva, de modo que no pueda pagarse después. DEBE fijar `back_urls.success`, `failure` y `pending` en `<FRONTEND_URL>/reserva/<token>` y `notification_url` como en PAG-006. Si la reserva tiene `guestEmail`, DEBE enviarlo como `payer.email`; si no lo tiene, NO DEBE enviar `payer.email`. Las variables requeridas y el error 503 siguen PAG-007.
 
@@ -494,7 +494,7 @@ El sistema DEBE crear, al crearse una reserva de invitado (RES-023), una prefere
 - Cuando se crea la preferencia
 - Entonces la preferencia no incluye `payer.email`
 
-### PAG-021: Reintento de pago de la seña por token [OBJETIVO]
+### PAG-021: Reintento de pago de la seña por token
 
 El sistema DEBE permitir, sin autenticación y con el token de la reserva, obtener un nuevo `initPoint` de la seña (PAG-020) mientras la reserva de invitado está `PENDING` y vigente y todavía no tiene un pago válido (PAG-026), de modo que el invitado pueda reintentar con otro medio de pago tras un pago rechazado, abandonado o de monto incorrecto. Un pago previo con motivo `AMOUNT_MISMATCH` NO DEBE bloquear el reintento. DEBE responder 409 si la reserva ya tiene un pago válido, o si no está `PENDING` vigente (confirmada, cancelada, vencida o completada), y 404 genérico (RES-028) si el token no corresponde a ninguna reserva. Si la reserva está `CANCELLED`, el 409 DEBE llevar un mensaje que indique que la reserva fue cancelada y que, para pagar, hay que hacer una reserva nueva ("Esta reserva fue cancelada y no se puede pagar. Realiza una reserva nueva."): una reserva cancelada nunca se vuelve a pagar. La nueva preferencia vence junto con la reserva, NO DEBE extender `expiresAt` y DEBE guardar su id en la reserva reemplazando el anterior (PAG-025). Si la reserva cambió (se canceló, venció o recibió un pago válido) entre la lectura y el reemplazo del link, DEBE responder 409 con "La reserva cambió mientras se generaba el pago. Intenta de nuevo." y NO DEBE entregar el link nuevo.
 
@@ -546,7 +546,7 @@ Motivo: quien cancela sin pagar y quiere pagar hace una reserva nueva (regla ún
 - Cuando se solicita un nuevo link de pago
 - Entonces responde 404 con el mensaje genérico de RES-028
 
-### PAG-022: Cálculo de la seña [OBJETIVO]
+### PAG-022: Cálculo de la seña
 
 El sistema DEBE calcular el `depositAmount` de una reserva de invitado como `totalPrice` multiplicado por `depositPercent` del complejo de la cancha y dividido por 100, redondeado a 2 decimales (mitad hacia arriba), y DEBE persistirlo al crear la reserva. Un cambio posterior de `depositPercent` NO DEBE modificar el `depositAmount` de las reservas ya creadas. Con `depositPercent` igual a 100 la seña es igual al `totalPrice`. Las reservas con cuenta NO DEBEN tener `depositAmount`.
 
@@ -570,7 +570,7 @@ El sistema DEBE calcular el `depositAmount` de una reserva de invitado como `tot
 - Cuando se consulta la reserva
 - Entonces `depositAmount` sigue en 300
 
-### PAG-023: Estado de la seña y reembolso pendiente de la reserva [OBJETIVO]
+### PAG-023: Estado de la seña y reembolso pendiente de la reserva
 
 El sistema DEBE derivar de los pagos registrados de la reserva (PAG-026), sin campos propios en la reserva, dos valores. `depositStatus`: `PAID` si existe un pago válido (`isValid`) sin reembolso; en otro caso `REFUNDED` si existe un pago válido y todos los pagos válidos fueron reembolsados; en otro caso `PENDING`. Un pago con motivo `AMOUNT_MISMATCH` NO cuenta como seña pagada. Las reservas sin `depositAmount` (con cuenta) DEBEN informar `depositStatus` nulo. `refundDue`: `REQUIRED` si existe algún pago sin reembolso con motivo de reembolso distinto de `OWNER_DISCRETION`; en otro caso `AT_DISCRETION` si los únicos pagos sin reembolso con motivo son `OWNER_DISCRETION` (el canchero decide, DP-11); en otro caso `null` (nada por reembolsar). Al pasar una reserva a `CANCELLED` por cualquier vía, DEBE registrar `depositPaidAtCancel`: verdadero si en ese momento tenía un pago válido aceptado (PAG-026), falso si no. Las reservas anteriores a este cambio NO tienen pagos registrados, porque el esquema anterior nunca guardó el id de pago de Mercado Pago y no hay nada que migrar: su `refundDue` es `null` y su `depositPaidAtCancel` no se usa para derivar nada.
 
@@ -632,7 +632,7 @@ Motivo: una reserva cancelada sin pago ya no se puede pagar ni reactivar; si el 
 - Cuando se informa su estado
 - Entonces `refundDue` es nulo
 
-### PAG-024: Reembolso manual de un pago [OBJETIVO]
+### PAG-024: Reembolso manual de un pago
 
 El sistema DEBE permitir a un `ADMIN` reembolsar un pago registrado con `POST /api/v1/payments/admin/payments/:paymentId/refund` (`:paymentId` es el `id` del `BookingPayment`, NO el id de Mercado Pago; 401 sin token, 403 para `USER`, 400 si no es un UUID). La operación DEBE reembolsar en Mercado Pago el pago cuyo `mpPaymentId` es el del `BookingPayment`, por su `amount`, y solo si Mercado Pago lo acepta registrar `refundedAt` con el instante actual, y responder 200 con el pago actualizado. DEBE responder 404 si el pago no existe y 409, sin llamar a Mercado Pago, si el pago no tiene motivo de reembolso (un pago válido aceptado de una reserva activa no se reembolsa por esta vía) o si ya fue reembolsado (`refundedAt` no nulo): repetir el reembolso de un pago ya reembolsado responde 409 y no genera un segundo reembolso. Si Mercado Pago falla, DEBE responder un error de servidor (5xx) sin detalle interno y dejar `refundedAt` nulo, de modo que pueda reintentarse. Aplica a los cinco motivos (`AMOUNT_MISMATCH`, `SLOT_TAKEN`, `PAID_AFTER_CANCEL`, `DUPLICATE_PAYMENT`, `OWNER_DISCRETION`) y a cualquier estado de la reserva. El reembolso NO se ejecuta de forma automática en ningún caso (DP-11).
 
@@ -684,7 +684,7 @@ Motivo: una reserva puede tener varios pagos a reembolsar por motivos distintos;
 - Cuando el `ADMIN` solicita el reembolso
 - Entonces responde 404
 
-### PAG-025: Invalidación del link de pago al cancelar o reemplazar la preferencia [OBJETIVO]
+### PAG-025: Invalidación del link de pago al cancelar o reemplazar la preferencia
 
 El sistema DEBE guardar en la reserva el id de la preferencia de Mercado Pago vigente (`mpPreferenceId`) cada vez que crea una preferencia, ya sea la de una reserva con cuenta (`POST /payments/create-preference`) o la de una reserva de invitado (PAG-020 y PAG-021). Cuando la reserva ya tenía una preferencia guardada, la nueva la reemplaza: el sistema DEBE guardar el id nuevo y vencer la anterior con la misma invalidación de mejor esfuerzo, tanto en la vía con cuenta como en el reintento por token (PAG-021); si Mercado Pago falla al vencer la anterior, igual se entrega la preferencia nueva y el error se registra. Al pasar una reserva a `CANCELLED` por cualquier vía (la ruta del jugador, RES-011; el token del invitado, RES-029; el cambio de estado del administrador, RES-015; o cualquier otra), DEBE actualizar esa preferencia en Mercado Pago para que expire en ese momento, de modo que el link ya no pueda pagarse. Es de mejor esfuerzo: si Mercado Pago falla, la cancelación DEBE confirmarse igual (200), el error DEBE registrarse y la reserva NO DEBE quedar sin cancelar. Si la reserva no tiene preferencia guardada, la cancelación NO DEBE llamar a Mercado Pago. Un pago aprobado que llegue igual (por ejemplo, con la preferencia ya abierta en el navegador) se registra según PAG-012 y PAG-026. La compensación por falla de Mercado Pago al crear la reserva (RES-032) no invalida nada, porque no llegó a guardarse ninguna preferencia.
 
@@ -728,7 +728,7 @@ El sistema DEBE guardar en la reserva el id de la preferencia de Mercado Pago vi
 - Cuando se cancela
 - Entonces responde 200 y no se llama a Mercado Pago
 
-### PAG-026: Registro de los pagos aprobados [OBJETIVO]
+### PAG-026: Registro de los pagos aprobados
 
 El sistema DEBE registrar cada pago aprobado que Mercado Pago informa por el webhook para una reserva existente como un pago de la reserva (`BookingPayment`) con: su `mpPaymentId` (único en todo el sistema, base de la idempotencia), su `amount` (`transaction_amount`), `isValid` (verdadero si el monto es igual al esperado: `depositAmount` si la reserva lo tiene y, si no, `totalPrice`). Un pago aprobado sin `transaction_amount` NO DEBE confirmar la reserva ni crear fila (la columna `amount` es obligatoria): DEBE registrarse una advertencia en el log con el id del pago para revisarlo a mano. Mercado Pago informa el monto en todo pago aprobado, así que es un caso excepcional, su `refundReason` (nulo, o uno de `AMOUNT_MISMATCH`, `SLOT_TAKEN`, `PAID_AFTER_CANCEL`, `DUPLICATE_PAYMENT`, `OWNER_DISCRETION`) su `refundedAt` (nulo hasta que se reembolsa) y su `createdAt`. NINGÚN pago aprobado de una reserva existente DEBE quedar solo en el log. El pago aceptado de una reserva es su pago válido sin motivo de reembolso (el que la confirmó o respalda). Un pago ya reembolsado (`refundedAt` no nulo) NO cuenta como pago válido sin reembolso: un pago válido nuevo posterior a un reembolso se acepta como tal (PAG-012). Al cancelar una reserva con un pago aceptado, ese pago DEBE pasar a motivo `OWNER_DISCRETION` (el reembolso lo decide el canchero, DP-11) y `depositPaidAtCancel` queda verdadero. Un pago aprobado cuya `external_reference` no corresponde a ninguna reserva de este sistema no es de este sistema: se rige por PAG-011 y NO se registra (solo advertencia).
 

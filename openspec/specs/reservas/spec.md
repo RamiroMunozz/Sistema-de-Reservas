@@ -550,7 +550,7 @@ Motivo: la agenda y los listados incluyen reservas de invitado.
 - Cuando se muestra la grilla
 - Entonces la celda se renderiza con los datos del invitado y sin errores
 
-### RES-023: Creación de reserva de invitado [OBJETIVO]
+### RES-023: Creación de reserva de invitado
 
 El sistema DEBE permitir, sin autenticación, crear una reserva con `POST /api/v1/public/bookings` y cuerpo `courtId`, `startTime`, `endTime`, `guestFirstName`, `guestLastName`, `guestPhone` y `guestEmail` (opcional). DEBE aplicar `validarTurnoReservable` (RES-004 y RES-005) y el no solapamiento (RES-007), crear la reserva sin usuario (`userId` nulo) con estado `PENDING`, `totalPrice` igual al `pricePerSlot` de la cancha, `depositAmount` calculado según PAG-022 y `expiresAt` igual al instante de creación más 15 minutos, y DEBE responder 201 con `{ token, initPoint }`. El `courtId` y las fechas siguen las reglas de RES-002 y RES-019 (UTC). El `initPoint` es el de la preferencia de seña (PAG-020).
 
@@ -574,7 +574,7 @@ El sistema DEBE permitir, sin autenticación, crear una reserva con `POST /api/v
 - Cuando llama a `POST /api/v1/public/bookings` con datos válidos
 - Entonces no responde 401 y procesa el pedido
 
-### RES-024: Datos del invitado [OBJETIVO]
+### RES-024: Datos del invitado
 
 El sistema DEBE exigir `guestFirstName` y `guestLastName` no vacíos tras recortar espacios y de hasta 100 caracteres, y `guestPhone` con formato internacional: tras quitar espacios, guiones, paréntesis y un `+` inicial, solo dígitos y entre 8 y 15 de ellos. DEBE aceptar `guestEmail` solo si es un correo válido y tratarlo como opcional. DEBE persistir `guestPhone` normalizado (solo dígitos). Ante un dato inválido o ausente DEBE responder 400 con la lista `errors` (`field` y `message`) y NO DEBE crear la reserva.
 
@@ -598,7 +598,7 @@ El sistema DEBE exigir `guestFirstName` y `guestLastName` no vacíos tras recort
 - Cuando se crea la reserva
 - Entonces responde 201 y la reserva se persiste sin correo
 
-### RES-025: Token de acceso privado [OBJETIVO]
+### RES-025: Token de acceso privado
 
 El sistema DEBE generar para cada reserva de invitado un token aleatorio de 32 bytes codificado en base64url (43 caracteres), DEBE devolverlo una sola vez en la respuesta de creación (RES-023) y DEBE persistir únicamente su hash SHA-256 (`accessTokenHash`, único). NO DEBE persistir el token en claro ni devolverlo en ninguna otra respuesta.
 
@@ -617,7 +617,7 @@ El sistema DEBE generar para cada reserva de invitado un token aleatorio de 32 b
 - Cuando se crean
 - Entonces sus tokens y sus hashes son distintos
 
-### RES-026: Vencimiento de las reservas PENDING [OBJETIVO]
+### RES-026: Vencimiento de las reservas PENDING
 
 El sistema DEBE pasar a `EXPIRED` toda reserva `PENDING` con `expiresAt` menor o igual al instante actual, de modo que el turno quede libre (RES-035). DEBE ejecutar ese cambio para la cancha involucrada dentro del bloqueo de cancha (RES-008) y antes de validar el solapamiento de cualquier creación de reserva en esa cancha. El vencimiento NO DEBE producir `CANCELLED`. Una reserva con `expiresAt` nulo NO DEBE vencer nunca, y una reserva que ya no está `PENDING` NO DEBE vencer aunque tenga `expiresAt`.
 
@@ -641,7 +641,7 @@ El sistema DEBE pasar a `EXPIRED` toda reserva `PENDING` con `expiresAt` menor o
 - Cuando otro pedido reserva el mismo turno
 - Entonces responde 409
 
-### RES-027: Barrido periódico de reservas vencidas [OBJETIVO]
+### RES-027: Barrido periódico de reservas vencidas
 
 El servidor DEBE ejecutar, cada 60 segundos, el paso a `EXPIRED` de todas las reservas `PENDING` vencidas de cualquier cancha (RES-026), para que los turnos se liberen aunque nadie intente reservarlos. Un error en una pasada NO DEBE detener el servidor ni las pasadas siguientes.
 
@@ -655,7 +655,7 @@ El servidor DEBE ejecutar, cada 60 segundos, el paso a `EXPIRED` de todas las re
 - Cuando se ejecuta
 - Entonces se registra el error y el siguiente barrido se ejecuta normalmente
 
-### RES-028: Consulta de la reserva de invitado por token [OBJETIVO]
+### RES-028: Consulta de la reserva de invitado por token
 
 El sistema DEBE devolver con `GET /api/v1/public/bookings/:token` (sin autenticación) la reserva cuyo `accessTokenHash` coincide con el SHA-256 del token, con solo los campos públicos: `status`, `startTime`, `endTime`, `expiresAt`, `totalPrice`, `depositAmount`, `depositStatus` (PAG-023), `guestFirstName`, `refundAtOwnerDiscretion` y `court` con `name` y `sport`. `refundAtOwnerDiscretion` es `true` cuando la reserva está `PENDING` o `CONFIRMED` y su seña está pagada (`depositStatus` `PAID`), es decir, cuando cancelarla dejaría la devolución a criterio del canchero (RES-029); en cualquier otro caso es `false`. NO DEBE exponer el teléfono, el correo, `userId`, los pagos registrados (ni sus ids de Mercado Pago), `accessTokenHash` ni datos de reembolso. Una reserva `PENDING` vencida (aunque el barrido aún no la haya pasado a `EXPIRED`) DEBE informarse con `status` `EXPIRED`. Si el token no corresponde a ninguna reserva o no tiene un formato válido DEBE responder 404 con el mismo mensaje genérico en ambos casos.
 
@@ -684,7 +684,7 @@ El sistema DEBE devolver con `GET /api/v1/public/bookings/:token` (sin autentica
 - Cuando se consulta con su token
 - Entonces `refundAtOwnerDiscretion` es `true`; con una reserva `PENDING` sin pago es `false`
 
-### RES-029: Cancelación de la reserva de invitado por token [OBJETIVO]
+### RES-029: Cancelación de la reserva de invitado por token
 
 El sistema DEBE permitir con `PATCH /api/v1/public/bookings/:token/cancel` (sin autenticación) cancelar la reserva identificada por el token cuando está `PENDING` vigente o `CONFIRMED`, pasándola a `CANCELLED` dentro del bloqueo de cancha y aplicando las transiciones de RES-014, y DEBE responder 200 con los campos públicos de RES-028. No hay límite de tiempo para cancelar una reserva `CONFIRMED`. DEBE responder 409 si la reserva está `CANCELLED`, `EXPIRED` (incluida una `PENDING` vencida aún no barrida) o `COMPLETED`, y 404 genérico (RES-028) si el token no corresponde a ninguna reserva. La cancelación NO DEBE reembolsar la seña: el reembolso lo decide el canchero o dueño (DP-11, PAG-024). Una reserva cancelada NO DEBE reactivarse ni volver a pagarse (PAG-021 y PAG-012): para pagar hay que hacer una reserva nueva. Al cancelar, el sistema DEBE registrar si la seña ya estaba pagada (PAG-023) e invalidar el link de pago vigente en Mercado Pago como mejor esfuerzo; si Mercado Pago falla, la cancelación se confirma igual y el error se registra (PAG-025). La respuesta DEBE incluir `refundAtOwnerDiscretion` igual a `true` cuando la seña estaba pagada al cancelar, para que el cliente informe de forma explícita que la devolución del dinero queda a criterio del canchero.
 
@@ -738,7 +738,7 @@ El sistema DEBE permitir con `PATCH /api/v1/public/bookings/:token/cancel` (sin 
 - Cuando se procesan
 - Entonces una responde 200 y la otra 409, sin deadlocks
 
-### RES-030: Límite de solicitudes por IP en la creación pública [OBJETIVO]
+### RES-030: Límite de solicitudes por IP en la creación pública
 
 El sistema DEBE limitar por dirección IP las solicitudes a `POST /api/v1/public/bookings`, contando todas (las exitosas y las rechazadas) dentro de una ventana de tiempo configurable, y DEBE responder 429 sin crear la reserva cuando una IP supera el máximo configurado. El servidor DEBE tomar la IP del cliente según una configuración explícita de `trust proxy`, de modo que un cliente no pueda eludir el límite con cabeceras falsificadas. Las consultas y cancelaciones por token (RES-028 y RES-029) DEBERÍAN tener un límite propio, más permisivo.
 
@@ -762,7 +762,7 @@ El sistema DEBE limitar por dirección IP las solicitudes a `POST /api/v1/public
 - Cuando cambia la cabecera `X-Forwarded-For` en cada solicitud sin que el proxy configurado la haya escrito
 - Entonces el límite se sigue aplicando a su IP real
 
-### RES-031: Tope de reservas PENDING por teléfono [OBJETIVO]
+### RES-031: Tope de reservas PENDING por teléfono
 
 El sistema DEBE limitar la cantidad de reservas `PENDING` vigentes (no vencidas) asociadas a un mismo `guestPhone` normalizado y DEBE responder 429 con un mensaje propio, sin crear la reserva, cuando el teléfono ya alcanzó el tope. El tope DEBE ser configurable (valor por defecto: 2). Las reservas `PENDING` vencidas, `EXPIRED`, `CONFIRMED`, `CANCELLED` y `COMPLETED` NO DEBEN contar. La comprobación DEBE ejecutarse dentro del bloqueo de cancha o de una forma que no permita superar el tope con pedidos concurrentes.
 
@@ -786,7 +786,7 @@ El sistema DEBE limitar la cantidad de reservas `PENDING` vigentes (no vencidas)
 - Cuando se envía el mismo número como "5491155551234"
 - Entonces responde 429
 
-### RES-032: Compensación ante falla de Mercado Pago en la creación [OBJETIVO]
+### RES-032: Compensación ante falla de Mercado Pago en la creación
 
 El sistema DEBE, si falla la creación de la preferencia de seña después de crear la reserva de invitado (por configuración ausente o por error de Mercado Pago), pasar esa reserva a `CANCELLED` para liberar el turno, y DEBE responder con un error de servidor (5xx) sin devolver `token` ni detalle interno.
 
@@ -800,7 +800,7 @@ El sistema DEBE, si falla la creación de la preferencia de seña después de cr
 - Cuando un invitado crea una reserva válida
 - Entonces responde 503 con el mensaje de PAG-007 y la reserva no deja el turno ocupado
 
-### RES-033: Titular obligatorio de la reserva [OBJETIVO]
+### RES-033: Titular obligatorio de la reserva
 
 La base de datos DEBE rechazar toda reserva que no tenga titular, es decir, sin `userId` y sin `guestPhone`. Una reserva con `userId` NO DEBE requerir datos de invitado, y una reserva de invitado NO DEBE tener `userId`.
 
@@ -814,7 +814,7 @@ La base de datos DEBE rechazar toda reserva que no tenga titular, es decir, sin 
 - Cuando se persiste
 - Entonces tiene `userId` y no tiene datos de invitado
 
-### RES-034: Página de la reserva de invitado (frontend) [OBJETIVO]
+### RES-034: Página de la reserva de invitado (frontend)
 
 El frontend DEBE exponer, sin exigir sesión, la ruta `/reserva/:codigo`, que consulta `GET /public/bookings/:codigo` y muestra el estado de la reserva, la cancha, la fecha y la hora del turno en UTC (`getUTCHours()`, `getUTCMinutes()`), la seña y su estado. Mientras la reserva está `PENDING` vigente DEBE mostrar una cuenta regresiva hasta `expiresAt` y un botón de pago: si la página recibió el `initPoint` de la creación (RES-020), el botón lleva a ese link; si no (por ejemplo, al recargar), usa el reintento (PAG-021). Al llegar desde la creación DEBE destacar que el enlace es la única forma de volver a la reserva; al llegar a cero DEBE mostrar la reserva como vencida y retirar el botón de pago. Una reserva `EXPIRED` DEBE mostrarse como "Vencida", sin botón de pago ni de cancelación. Una reserva `CANCELLED` DEBE mostrarse como "Cancelada", sin botón de pago ni de cancelación, y DEBE ofrecer "Reservar de nuevo", un enlace a la página de reservas, con una indicación de que para pagar hay que hacer una reserva nueva. DEBE ofrecer un botón de cancelación con confirmación mientras la reserva esté `PENDING` o `CONFIRMED`. Cuando `refundAtOwnerDiscretion` es `true`, la confirmación de la cancelación DEBE mostrar, antes de enviar el pedido, una advertencia explícita de que la devolución de la seña queda a criterio del canchero o dueño y no es automática; tras cancelar DEBE volver a mostrar ese aviso si la respuesta trae `refundAtOwnerDiscretion` `true`. Con un código inexistente DEBE mostrar un mensaje de reserva no encontrada. DEBE mostrar el `detail` o `message` de error del servidor.
 
@@ -873,7 +873,7 @@ El frontend DEBE exponer, sin exigir sesión, la ruta `/reserva/:codigo`, que co
 - Cuando la página consulta la reserva
 - Entonces muestra el estado vigente devuelto por el servidor (`CONFIRMED` o, si la notificación aún no llegó, `PENDING`)
 
-### RES-035: Estado EXPIRED [OBJETIVO]
+### RES-035: Estado EXPIRED
 
 El sistema DEBE incorporar el estado de reserva `EXPIRED` (vencida), que se usa únicamente para una reserva `PENDING` cuyo `expiresAt` venció sin que se aprobara el pago (RES-026). `EXPIRED` NO DEBE ocupar el turno: se excluye del solapamiento (RES-007 y RES-009), de la disponibilidad (RES-012 y CAN-006) y de la agenda (RES-013), igual que `CANCELLED`. `EXPIRED` NO DEBE usarse para una cancelación del invitado, del jugador o del canchero (esas producen `CANCELLED`). Ningún pedido de cambio de estado del administrador (RES-015) NI de usuario DEBE poder fijar `EXPIRED`: se rechaza con 400. `EXPIRED` es terminal, con la única excepción de la reactivación por pago aprobado tardío con el turno libre (PAG-012). Glosario: `EXPIRED` = reserva `PENDING` que liberó su turno por no pagarse a tiempo.
 
