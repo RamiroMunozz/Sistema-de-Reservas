@@ -71,3 +71,13 @@ Commit sugerido (3): `docs: documentar los grupos de pruebas, la CI y la nueva i
 - Archivos: `backend/tests/controlClasificacion.test.ts` (nuevo, 52), `backend/tests/clasificacion/archivosConBase.ts` (nuevo, 29), `backend/vitest.config.ts` (+4 -10). Sin commit.
 
 Commit sugerido (1b): `test(backend): detectar pruebas con base fuera del proyecto db`
+
+## UT-5 (2026-11-24)
+
+- Motivo: hallazgos R-1 (el control no recorría subcarpetas) y R-2 (el control no validaba que las rutas de la lista existan).
+- RED T-5.2: `listarArchivosDePrueba` solo del primer nivel: `expected [] to deeply equal [ 'tests/sub/hondo/y.test.ts', 'tests/sub/x.test.ts' ]`. RED T-5.4: `rutasInexistentes` devolviendo `[]`: `expected [] to deeply equal [ 'tests/fantasma.test.ts' ]`. 2 fallidas, 6 pasan.
+- GREEN: `archivosConBase.ts` agrega `listarArchivosDePrueba` (recursiva, rutas `tests/...` con `/`) y `rutasInexistentes` (pura); `controlClasificacion.test.ts` usa un directorio temporal del sistema para el caso anidado y agrega el caso en disco de existencia de la lista. 8 de 8 en verde.
+- Verificación: `test:unit` sin base 27 archivos y 406 pruebas; `tsc --noEmit` código 0; `vitest list` unit 27 y db 6; 32 archivos originales sin cambios; sin `.env` leído ni modificado.
+- Archivos: `backend/tests/clasificacion/archivosConBase.ts` (+24 -0), `backend/tests/controlClasificacion.test.ts` (+47 -11). Sin commit.
+
+Commit sugerido (5): `test(backend): recorrer subcarpetas y validar la lista en el control de clasificación`
