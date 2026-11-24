@@ -11,7 +11,7 @@ Copia en Engram: `sdd/calidad-ci-backend/apply-progress`.
 - UT-4: completa (2026-11-24). Hoja de ruta fila 4 en "hecho" y los 9 criterios de éxito de `proposal.md` marcados con evidencia.
 - `npm test` local completo después de UT-1b: 33 archivos y 474 pruebas en verde (usuario, 2026-11-24).
 
-## Evidencia
+## Evidencia (UT-0 y UT-1, antes de UT-1b; los valores vigentes están en "Estado")
 
 - Node local v26.12.1 (informativo; la ejecución real es la CI con `.nvmrc` en 24).
 - `vitest list`: `db` = 6 archivos, `unit` = 26, sin solapamiento.
