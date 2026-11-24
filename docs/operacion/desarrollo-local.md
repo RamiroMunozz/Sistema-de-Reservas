@@ -8,7 +8,7 @@ Describe el estado actual. Fuentes: `README.md`, `docker-compose.yml`, `backend/
 - PostgreSQL (el `docker-compose.yml` incluye uno: `postgres:15-alpine`).
 - El usuario de la base debe poder crear la extensión `btree_gist` (la requiere la migración `reservas_sin_solapamiento`).
 
-Versión exacta de Node: Pendiente (el repositorio no la fija).
+Versión de Node: 24 (`.nvmrc`). La CI usa ese archivo.
 
 ## Base de datos
 
@@ -53,9 +53,50 @@ Copie `.env.example` como `.env` en la raíz y defina `JWT_SECRET`; sin él Comp
 
 ## Pruebas del backend
 
+Las pruebas están separadas en dos proyectos de Vitest (`backend/vitest.config.ts`):
+
+| Script | Qué corre | Base |
+|---|---|---|
+| `npm run test:unit` | proyecto `unit` | No la necesita |
+| `npm run test:db` | proyecto `db` (`ARCHIVOS_CON_BASE`) | Descartable, con migraciones y semilla |
+| `npm test` | ambos | Descartable, con migraciones y semilla |
+
+`test:unit` se puede correr siempre, sin base:
+
 ```bash
 cd backend
-npm test
+npm run test:unit
 ```
 
-Los tests de concurrencia se omiten salvo que `DATABASE_URL_PRUEBA` esté definida. Apuntan a una base descartable con las migraciones aplicadas y borran datos. Ver el skill `testing-backend`.
+`test:db` y `npm test` borran datos: solo se corren contra la base descartable `reservas_prueba` (puerto `5434`), con las variables definidas en línea para no usar `backend/.env`. Detalle en [variables-entorno.md](variables-entorno.md), "Base descartable para pruebas".
+
+```bash
+# bash, desde backend/
+export DATABASE_URL="postgresql://prueba:prueba@localhost:5434/reservas_prueba"
+export DATABASE_URL_PRUEBA="$DATABASE_URL"
+npx prisma migrate deploy
+npx prisma db seed
+npm test
+unset DATABASE_URL DATABASE_URL_PRUEBA
+```
+
+```powershell
+# PowerShell, desde backend/
+$env:DATABASE_URL = "postgresql://prueba:prueba@localhost:5434/reservas_prueba"
+$env:DATABASE_URL_PRUEBA = $env:DATABASE_URL
+npx prisma migrate deploy
+npx prisma db seed
+npm test
+Remove-Item Env:DATABASE_URL, Env:DATABASE_URL_PRUEBA
+```
+
+Se recarga la semilla antes de cada corrida de `db`. Ver también el skill `testing-backend`.
+
+## Integración continua
+
+`.github/workflows/ci.yml` corre en cada push a `desarrollo` y a mano (`workflow_dispatch`, pestaña Actions). Tiene dos jobs:
+
+- `backend`: `tsc --noEmit`, `test:unit` sin base y, con un servicio `postgres:15`, `migrate deploy`, `db seed` y `test:db`.
+- `frontend`: `npm run lint` y `npm run build`.
+
+Las corridas se ven en la pestaña Actions del repositorio en GitHub.

@@ -238,7 +238,8 @@ Notas de diseño:
 - **Sin secretos del repositorio ni de Mercado Pago:** las pruebas inyectan esas variables con `vi.stubEnv` y el SDK está simulado (exploración, sección 3). No se definen `LIMITE_*` ni `TOPE_PENDIENTES_POR_TELEFONO`: las pruebas de límites dependen de los valores por defecto.
 - **`permissions: contents: read`** y sin `secrets.*`: el workflow no puede escribir en el repositorio.
 - **`concurrency`** cancela la corrida anterior de la misma rama si llega otro push; ahorra minutos y no cambia el resultado.
-- **Versiones de acciones fijadas por versión mayor** (`@v5`). Apply confirma, con Context7 o la página de lanzamientos de cada acción, que `v5` sigue vigente o si hay una mayor posterior estable; si la hay, la usa en ambos jobs. No se fijan por SHA: el repositorio no tiene una política que lo exija y la mayor fijada es la convención pedida.
+- **Actualización de apply (2026-11-24):** las mayores vigentes resultaron `v7` (`actions/checkout` v7.0.1 y `actions/setup-node` v7.1.0); el `ci.yml` entregado usa `@v7` en lugar del `@v5` de los bloques de arriba. El resto del contenido del workflow coincide.
+- **Versiones de acciones fijadas por versión mayor** (`@v5`, reemplazada por `@v7` en apply). Apply confirma, con Context7 o la página de lanzamientos de cada acción, que `v5` sigue vigente o si hay una mayor posterior estable; si la hay, la usa en ambos jobs. No se fijan por SHA: el repositorio no tiene una política que lo exija y la mayor fijada es la convención pedida.
 
 **Alternativas consideradas:**
 

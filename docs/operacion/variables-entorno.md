@@ -16,7 +16,7 @@ Nota: `.env.example` no pudo leerse al redactar este documento; compare esta lis
 | `MERCADOPAGO_ACCESS_TOKEN` | Solo para cobrar | Credencial de Mercado Pago. En el objetivo será por negocio. En desarrollo, el access token de prueba (ver "Credenciales de prueba de Mercado Pago"). |
 | `MERCADOPAGO_WEBHOOK_SECRET` | Solo para cobrar | Clave para validar la firma del webhook. Sin ella el webhook responde 401. Es la clave secreta que Mercado Pago muestra al configurar las notificaciones. |
 | `NODE_ENV` | No | Lo lee `backend/src/core/config/prisma.ts`. |
-| `DATABASE_URL_PRUEBA` | Solo para pruebas de base | Base descartable, **distinta** de `DATABASE_URL`. `npm test` borra reservas: nunca debe apuntar a la base de desarrollo ni a una con datos reales. Sin ella, las pruebas que usan la base se omiten. Ver "Base descartable para pruebas". |
+| `DATABASE_URL_PRUEBA` | Solo para pruebas de base | Base descartable, **distinta** de `DATABASE_URL`. Las pruebas del proyecto `db` (`test:db` y `npm test`) borran reservas: nunca debe apuntar a la base de desarrollo ni a una con datos reales. `test:unit` no la necesita. Ver "Base descartable para pruebas". |
 | `TRUST_PROXY` | No | Saltos de proxy de confianza para obtener la IP real del cliente (límite por IP de la API pública). Sin definir vale `false`; un número indica la cantidad de saltos. Nunca se acepta `true`. Mal configurada anula el límite por IP. |
 | `LIMITE_CREACION_PUBLICA_MAXIMO` | No | Máximo de solicitudes a `POST /api/v1/public/bookings` por IP y ventana. Por defecto `10`. Cuenta todas las solicitudes. |
 | `LIMITE_CREACION_PUBLICA_VENTANA_MS` | No | Ventana, en milisegundos, de los limitadores públicos. Por defecto `900000` (15 minutos). |
@@ -35,15 +35,17 @@ Nota: `.env.example` no pudo leerse al redactar este documento; compare esta lis
 
 ## Base descartable para pruebas
 
-`npm test` borra reservas, por eso las pruebas que usan la base corren solo si `DATABASE_URL_PRUEBA` está definida y deben apuntar a una base **distinta** de la de desarrollo.
+Las pruebas del proyecto `db` (`npm run test:db` y `npm test`) borran reservas y deben apuntar a una base **distinta** de la de desarrollo. Tres de sus archivos tienen un gate (`describe.skipIf`) que depende de `DATABASE_URL_PRUEBA`; los otros tres (`integration.test.ts`, `secretosJwt.test.ts` y el primer `describe` de `rutasAdminReservas.test.ts`) usan la base sin ese gate y fallan sin base. Por eso `test:db` y `npm test` exigen la base descartable. `npm run test:unit` no usa la base y no necesita ninguna de las dos variables.
 
 - Contenedor local de Docker: `reservas_prueba`, en el puerto `5434`.
 - URL: `postgresql://prueba:prueba@localhost:5434/reservas_prueba` (credenciales locales de la base descartable, no secretas).
-- Las pruebas y las migraciones contra esa base se ejecutan con `DATABASE_URL` y `DATABASE_URL_PRUEBA` definidas en línea con esa URL, para que no se use `backend/.env`:
+- Las pruebas y las migraciones contra esa base se ejecutan con `DATABASE_URL` y `DATABASE_URL_PRUEBA` definidas en línea con esa URL, para que no se use `backend/.env`. Antes de las pruebas se aplican las migraciones y se carga la semilla (`npx prisma db seed`), y la semilla se recarga antes de cada corrida de `db`:
 
 ```bash
 cd backend
 DATABASE_URL="postgresql://prueba:prueba@localhost:5434/reservas_prueba" DATABASE_URL_PRUEBA="postgresql://prueba:prueba@localhost:5434/reservas_prueba" npx prisma migrate deploy
+
+DATABASE_URL="postgresql://prueba:prueba@localhost:5434/reservas_prueba" DATABASE_URL_PRUEBA="postgresql://prueba:prueba@localhost:5434/reservas_prueba" npx prisma db seed
 
 DATABASE_URL="postgresql://prueba:prueba@localhost:5434/reservas_prueba" DATABASE_URL_PRUEBA="postgresql://prueba:prueba@localhost:5434/reservas_prueba" npm test
 ```

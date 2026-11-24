@@ -36,7 +36,7 @@ Chained PRs recommended: No
 
 ## Convenciones de ejecución
 
-- **Cómo aplica TDD estricto:** este cambio no agrega comportamiento de producción (no toca `backend/src`, `schema.prisma` ni la base) y no cambia ningún archivo de `backend/tests/`. No hay RED/GREEN posible para configuración, CI ni documentación, y no se inventan pruebas falsas. La "prueba" de la separación es de ejecución: cantidad de archivos por proyecto (`vitest list --filesOnly`: 26 y 6), `test:unit` en verde sin base, suma igual a la línea base (470 pruebas, 32 archivos) y la corrida de la CI. Cada tarea registra el resultado observado; si no se observó, no se declara hecha.
+- **Cómo aplica TDD estricto:** este cambio no agrega comportamiento de producción (no toca `backend/src`, `schema.prisma` ni la base) y no cambia ninguno de los 32 archivos de prueba existentes. La excepción es UT-1b, que agrega una prueba de control con RED y GREEN reales. No hay RED/GREEN posible para configuración, CI ni documentación, y no se inventan pruebas falsas. La "prueba" de la separación es de ejecución: cantidad de archivos por proyecto (`vitest list --filesOnly`: 26 y 6), `test:unit` en verde sin base, suma igual a la línea base (470 pruebas, 32 archivos) y la corrida de la CI. Cada tarea registra el resultado observado; si no se observó, no se declara hecha.
 - Los agentes no commitean ni leen o modifican `.env`. Los comandos que usan la base (migraciones, semilla, `test:db`, `npm test`) los corre el usuario con `!`, con `DATABASE_URL` definida en línea (PowerShell, desde `backend/`) según `design.md`, "Estrategia de verificación". Nunca `npm test` con la `DATABASE_URL` de `backend/.env`.
 - Sin `any`; todo en español; commits convencionales en español, sin atribución a IA. Cada unidad termina con el mensaje de commit sugerido para el usuario.
 - `backend/tests/` no cambia: `git status` debe confirmarlo al final de cada unidad.
@@ -75,6 +75,19 @@ Satisface: D1, D2 y criterios de éxito 1 a 4 del `proposal.md`. Decisiones de d
 
 **Commit sugerido (1):** `test(backend): separar las pruebas en los proyectos unit y db de Vitest`
 
+### UT-1b: Control de la clasificación (agregada el 2026-11-24)
+
+Motivo: hallazgo R3-001 de la revisión de `74e6825`. Una prueba nueva con base protegida con `describe.skipIf(!DATABASE_URL_PRUEBA)` que no se agregue a `ARCHIVOS_CON_BASE` cae en `unit`, donde la CI la omite en silencio, y nunca corre en `db`. El usuario aprobó cerrar el hueco con una prueba unitaria.
+
+- [x] T-1.7 RED: prueba unitaria en `backend/tests/` (proyecto `unit`, sin base) que recorre `backend/tests/*.test.ts` y falla si un archivo que menciona `DATABASE_URL_PRUEBA` no está en `ARCHIVOS_CON_BASE`, con un mensaje que nombre el archivo. Para demostrar el RED sin tocar archivos de prueba existentes, la lógica de detección es una función pura probada también con entradas en memoria (un archivo con gate fuera de la lista debe detectarse).
+  - Resultado RED (2026-11-24): se escribió `backend/tests/controlClasificacion.test.ts` (4 pruebas: 3 con entradas en memoria y 1 que lee los `tests/*.test.ts` reales) antes de existir el módulo. `vitest run --project unit tests/controlClasificacion.test.ts` (con `DATABASE_URL` inalcanzable y sin `DATABASE_URL_PRUEBA`): `FAIL |unit| tests/controlClasificacion.test.ts` — `Error: Cannot find module './clasificacion/archivosConBase'`; `Test Files 1 failed (1)`, `Tests no tests`.
+- [x] T-1.8 GREEN: exponer la lista `ARCHIVOS_CON_BASE` para que la prueba la use sin duplicarla (fuente única) y lograr la prueba en verde. `vitest list`: `unit` pasa a 27 archivos y `db` sigue en 6.
+  - Resultado GREEN (2026-11-24): nuevo módulo `backend/tests/clasificacion/archivosConBase.ts` (no es `*.test.ts`) con `ARCHIVOS_CON_BASE` (fuente única, importada por `vitest.config.ts`) y la función pura `archivosConBaseFueraDeLista`. Primera corrida: 3 de 4 en verde y 1 roja (`tests/controlClasificacion.test.ts` se detectaba a sí mismo por contener la marca literal); se armó la marca por partes (`"DATABASE_URL_" + "PRUEBA"`) en la prueba. Además, `tsc` pidió extensión en el import relativo (TS2835): `./clasificacion/archivosConBase.js` en la prueba y `.ts` en `vitest.config.ts`. Corrida final: `Test Files 1 passed (1)`, `Tests 4 passed (4)`. `vitest list --filesOnly`: `unit` = 27 (incluye `controlClasificacion.test.ts`), `db` = 6.
+- [x] T-1.9 `test:unit` con `DATABASE_URL` inalcanzable en verde, `npx tsc --noEmit` sin errores y `backend/tests/` sin cambios en los 32 archivos existentes.
+  - Resultado (2026-11-24): `npm run test:unit` (`DATABASE_URL` inalcanzable, sin `DATABASE_URL_PRUEBA`): **27 archivos y 402 pruebas** en verde (398 + 4). `npx tsc --noEmit` código 0. `git status --short backend/tests`: solo `?? backend/tests/clasificacion/` y `?? backend/tests/controlClasificacion.test.ts`; ninguno de los 32 archivos existentes modificado. Diff: `vitest.config.ts` 4 adiciones y 10 eliminaciones; archivos nuevos 52 + 29 líneas (total 95 líneas autoradas).
+
+**Commit sugerido (1b):** `test(backend): detectar pruebas con base fuera del proyecto db`
+
 ---
 
 ## UT-2: Node fijado y CI (commit 2, ~95 líneas)
@@ -82,7 +95,7 @@ Satisface: D1, D2 y criterios de éxito 1 a 4 del `proposal.md`. Decisiones de d
 Satisface: D3, D4, D5, D6 y criterios de éxito 5 a 7. Decisiones de diseño 4 y 5. Depende de UT-1 (la CI usa los scripts nuevos).
 
 - [x] T-2.1 Confirmar la versión mayor vigente de `actions/checkout` y `actions/setup-node` (con Context7 o la página de lanzamientos de cada acción). Si hay una mayor estable posterior a `v5`, usarla en ambos jobs. Registrar el resultado. (Pregunta abierta del diseño)
-  - Resultado (2026-11-24): releases/latest de la API de GitHub: `actions/checkout` v7.0.1 y `actions/setup-node` v7.1.0. Se usan `@v7` en ambos jobs (desviación del `@v5` del diseño). Que setup-node v7 siga aceptando `node-version-file`, `cache: npm` y `cache-dependency-path` no se pudo verificar localmente: queda por confirmar en la primera corrida de la CI.
+  - Resultado (2026-11-24): releases/latest de la API de GitHub: `actions/checkout` v7.0.1 y `actions/setup-node` v7.1.0. Se usan `@v7` en ambos jobs (desviación del `@v5` del diseño). Que setup-node v7 acepte `node-version-file`, `cache` y `cache-dependency-path` lo verificó el orquestador en el `action.yml` de la etiqueta `v7` (2026-11-24): los tres parámetros existen. La corrida de la CI (T-2.7) sigue siendo la prueba de ejecución.
 - [x] T-2.2 Crear `.nvmrc` en la raíz con una sola línea: `24`. Confirmar con los `engines` leídos en T-0.1 que 24 está en la intersección `^20.19.0 || ^22.13.0 || >=24`.
   - Resultado (2026-11-24): `.nvmrc` creado con una línea (`24`); 24 está en la intersección `^20.19.0 || ^22.13.0 || >=24` (T-0.1).
 - [x] T-2.3 Crear `.github/workflows/ci.yml` con el contenido de la decisión 4: disparadores `push` a `desarrollo` y `workflow_dispatch`, `permissions: contents: read`, `concurrency`, job `backend` (servicio `postgres:15`, `npm ci`, `prisma generate`, `tsc --noEmit`, `test:unit` con `DATABASE_URL` inalcanzable, `migrate deploy`, `db seed`, `test:db`) y job `frontend` (`npm ci`, `lint`, `build`). Sin `secrets.*` ni variables de Mercado Pago; `JWT_SECRET` ficticio con su comentario.
@@ -94,8 +107,10 @@ Satisface: D3, D4, D5, D6 y criterios de éxito 5 a 7. Decisiones de diseño 4 y
   - Resultado (2026-11-24): Node local v26.12.1 (no 24): corrida informativa. Backend `npx tsc --noEmit` sin errores y `test:unit` con `DATABASE_URL` inalcanzable: 26 archivos y 398 pruebas en verde. `npm ci`, `test:db`, lint y build no se corrieron aquí (ver T-2.4); la ejecución real es la CI.
 - [x] T-2.6 Validar el YAML (sintaxis y claves) por lectura y, si el entorno lo permite, con un validador local. No se ejecuta ni se modifica `backend/.env`.
   - Resultado (2026-11-24): Sin validador de YAML local (no hay `yaml` ni `js-yaml` en `node_modules`; no se descargan paquetes). Validado por lectura: sintaxis, indentación y claves (`on`, `permissions`, `concurrency`, `jobs.*.services`, `steps`) coinciden con el diseño. La validación real la hace Actions al primer push.
-- [ ] T-2.7 El usuario hace push de `desarrollo` (después del commit 2 o del 3) y observa la corrida de Actions: los jobs `backend` y `frontend` en verde, con el mismo total de pruebas que el local (U + D = 470). Alternativa: ejecutar el workflow con `workflow_dispatch` desde la pestaña Actions. Si la CI muestra otro total, se investiga antes de cerrar. Registrar el enlace o resultado de la corrida.
-- [ ] T-2.8 Si 24 falla por una causa atribuible a Node (no a las pruebas), probar `22` con `workflow_dispatch`, fijar la versión que pase y registrar el resultado aquí (decisión 5, paso 5). Si el umbral de 8 s de `concurrenciaReservas.test.ts:230` falla en el runner, se reejecuta una vez y se registra como riesgo conocido, sin tocar la prueba.
+- [x] T-2.7 El usuario hace push de `desarrollo` (después del commit 2 o del 3) y observa la corrida de Actions: los jobs `backend` y `frontend` en verde, con el mismo total de pruebas que el local. La corrida de `74e6825` (sin UT-1b) debe dar U + D = 398 + 72 = 470; desde el commit de UT-1b, 402 + 72 = 474 en 33 archivos. Alternativa: ejecutar el workflow con `workflow_dispatch` desde la pestaña Actions. Si la CI muestra otro total, se investiga antes de cerrar. Registrar el enlace o resultado de la corrida.
+  - Resultado (2026-11-24, usuario): corrida "Update #1" del workflow CI sobre `74e6825` (push a `desarrollo`), con Node 24 y acciones `@v7`. El intento 1 terminó en verde; el usuario la volvió a correr (intento 2, "Re-run all jobs") y también terminó en verde, en 1 min 2 s. Backend (56 s): `test:unit` 26 archivos y 398 pruebas; `test:db` 6 archivos y 72 pruebas; 398 + 72 = 470, igual que en local. Frontend (23 s): lint y build en verde.
+- [x] T-2.8 Si 24 falla por una causa atribuible a Node (no a las pruebas), probar `22` con `workflow_dispatch`, fijar la versión que pase y registrar el resultado aquí (decisión 5, paso 5). Si el umbral de 8 s de `concurrenciaReservas.test.ts:230` falla en el runner, se reejecuta una vez y se registra como riesgo conocido, sin tocar la prueba.
+  - No aplica (2026-11-24): Node 24 pasó en los dos intentos y el umbral de 8 s no falló. `.nvmrc` queda en `24`.
 - [ ] T-2.9 Repetir la corrida con `workflow_dispatch` y confirmar que también termina en verde (criterio de éxito 6).
 
 **Verificación UT-2:** T-2.1 a T-2.9 observados; `git status` sin cambios en `backend/tests/`.
@@ -108,12 +123,18 @@ Satisface: D3, D4, D5, D6 y criterios de éxito 5 a 7. Decisiones de diseño 4 y
 
 Satisface: D7 y criterio de éxito 8. Sección "Documentación" del diseño. Las tareas son independientes entre sí (paralelizables).
 
-- [ ] T-3.1 `.claude/skills/testing-backend/SKILL.md`: describir los proyectos `unit` y `db` y los tres scripts; agregar la sección "Clasificar una prueba nueva" (por defecto `unit`; si usa la base real, agregar a `ARCHIVOS_CON_BASE`; control: `test:unit` con `DATABASE_URL` inalcanzable); ciclo TDD con `test:unit` para iterar y `npm test` contra la base descartable para pruebas de `db`; reemplazar la frase "Sin esa variable, `npm test` omite esas pruebas" por la descripción correcta; mencionar qué corre cada job de la CI.
-- [ ] T-3.2 `docs/operacion/desarrollo-local.md`: "Versión exacta de Node: Pendiente" pasa a "Node 24 (`.nvmrc`)"; sección "Pruebas del backend" con los tres scripts y comandos en PowerShell y bash (base descartable con `migrate deploy` y `db seed`), con enlace a `variables-entorno.md`; sección breve "Integración continua".
-- [ ] T-3.3 `docs/operacion/variables-entorno.md`: corregir la fila de `DATABASE_URL_PRUEBA` y la sección "Base descartable para pruebas" (tres archivos de `db` sin gate; `test:db` y `npm test` exigen la base descartable; `test:unit` no la necesita). Con el visto bueno del usuario del 2026-11-24.
-- [ ] T-3.4 `openspec/config.yaml`: mantener `tdd_scope.command` y `test_command`; agregar en `projects[backend]` `test_unit_command` y `test_db_command`; actualizar `notes` y `rules.verify` según el diseño (`test:unit` sin base, `npm test` contra la base descartable, `tsc --noEmit`, y `lint` y `build` del frontend).
-- [ ] T-3.5 `.claude/commands/cerrar-sesion.md`, paso 5: exigir `npx tsc --noEmit`, `npm run test:unit` en verde y `npm test` completo (32 archivos) contra la base descartable con `migrate deploy` y `db seed`; si la base no responde, la integración se bloquea; nunca usar la `DATABASE_URL` de `backend/.env`; eliminar la tolerancia de "exactamente 5 fallas de conexión" y la línea "rige hasta que `calidad-ci` separe…"; agregar la confirmación del usuario de que la última corrida de la CI en `desarrollo` está en verde.
-- [ ] T-3.6 Relectura cruzada: los scripts, la cantidad de archivos (26 y 6) y los comandos coinciden entre los cinco archivos y con `vitest.config.ts` y `ci.yml`.
+- [x] T-3.1 `.claude/skills/testing-backend/SKILL.md`: describir los proyectos `unit` y `db` y los tres scripts; agregar la sección "Clasificar una prueba nueva" (por defecto `unit`; si usa la base real, agregar a `ARCHIVOS_CON_BASE`; control: `test:unit` con `DATABASE_URL` inalcanzable); ciclo TDD con `test:unit` para iterar y `npm test` contra la base descartable para pruebas de `db`; reemplazar la frase "Sin esa variable, `npm test` omite esas pruebas" por la descripción correcta; mencionar qué corre cada job de la CI.
+  - Resultado (2026-11-24): hecho. Tabla de scripts, secciones "Clasificar una prueba nueva", "Pruebas con base" e "Integración continua"; la frase vieja eliminada.
+- [x] T-3.2 `docs/operacion/desarrollo-local.md`: "Versión exacta de Node: Pendiente" pasa a "Node 24 (`.nvmrc`)"; sección "Pruebas del backend" con los tres scripts y comandos en PowerShell y bash (base descartable con `migrate deploy` y `db seed`), con enlace a `variables-entorno.md`; sección breve "Integración continua".
+  - Resultado (2026-11-24): hecho (Node 24, scripts, bash y PowerShell, enlace e "Integración continua").
+- [x] T-3.3 `docs/operacion/variables-entorno.md`: corregir la fila de `DATABASE_URL_PRUEBA` y la sección "Base descartable para pruebas" (tres archivos de `db` sin gate; `test:db` y `npm test` exigen la base descartable; `test:unit` no la necesita). Con el visto bueno del usuario del 2026-11-24.
+  - Resultado (2026-11-24): hecho. Desviación del diseño: el diseño dice "tres archivos de `db` sin gate", pero `rg skipIf` sobre `backend/tests/` muestra 4 archivos con gate (`concurrenciaReservas`, `liberarAlCrearReservaBase`, `migracionReservaInvitado`, `rutasAdminReservas`) y solo 2 sin gate (`integration` y `secretosJwt`). Los documentos dicen lo observado.
+- [x] T-3.4 `openspec/config.yaml`: mantener `tdd_scope.command` y `test_command`; agregar en `projects[backend]` `test_unit_command` y `test_db_command`; actualizar `notes` y `rules.verify` según el diseño (`test:unit` sin base, `npm test` contra la base descartable, `tsc --noEmit`, y `lint` y `build` del frontend).
+  - Resultado (2026-11-24): hecho; `test_unit_command` y `test_db_command` agregados, `notes` y `rules.verify` actualizados. YAML releído: comillas y sangría coinciden con el resto del archivo.
+- [x] T-3.5 `.claude/commands/cerrar-sesion.md`, paso 5: exigir `npx tsc --noEmit`, `npm run test:unit` en verde y `npm test` completo (32 archivos) contra la base descartable con `migrate deploy` y `db seed`; si la base no responde, la integración se bloquea; nunca usar la `DATABASE_URL` de `backend/.env`; eliminar la tolerancia de "exactamente 5 fallas de conexión" y la línea "rige hasta que `calidad-ci` separe…"; agregar la confirmación del usuario de que la última corrida de la CI en `desarrollo` está en verde.
+  - Resultado (2026-11-24): hecho; tolerancia de "5 fallas" y línea "rige hasta que `calidad-ci`…" eliminadas; agregados `test:unit`, migrate/seed, prohibición de `.env` y confirmación de la CI.
+- [x] T-3.6 Relectura cruzada: los scripts, la cantidad de archivos (26 y 6) y los comandos coinciden entre los cinco archivos y con `vitest.config.ts` y `ci.yml`.
+  - Resultado (2026-11-24): scripts (`test:unit`, `test:db`, `npm test`), jobs de la CI, Node 24, puerto 5434 y la secuencia migrate deploy, db seed y test coinciden entre los cinco archivos, `vitest.config.ts` y `ci.yml`. Los documentos no fijan conteos de pruebas. `rg` sobre los archivos tocados: sin "5 fallas" ni "omite esas pruebas". Diff de UT-3: 94 adiciones y 17 eliminaciones (111 líneas) en 5 archivos. `backend/tests/` sin cambios.
 
 **Verificación UT-3:** relectura; ninguna referencia residual a "se omiten" ni a "5 fallas" (`rg` sobre los archivos tocados).
 
@@ -138,9 +159,9 @@ Satisface: D7 y criterio de éxito 8. Sección "Documentación" del diseño. Las
 
 ## Resumen de verificación final (antes de `sdd-verify`)
 
-- [ ] `vitest list`: 6 (`db`) y 26 (`unit`).
+- [ ] `vitest list`: 6 (`db`) y 27 (`unit`, con la prueba de control de UT-1b).
 - [ ] `test:unit` en verde con `DATABASE_URL` inalcanzable.
-- [ ] `npm test` contra la base descartable: 470 pruebas en 32 archivos.
+- [ ] `npm test` contra la base descartable: 474 pruebas en 33 archivos (470 de la línea base más las 4 de UT-1b).
 - [ ] `npx tsc --noEmit` (backend); `npm run lint` y `npm run build` (frontend).
 - [ ] CI en verde en push y en `workflow_dispatch`.
-- [ ] `backend/tests/` sin cambios.
+- [ ] Los 32 archivos de prueba existentes sin cambios (UT-1b solo agrega `controlClasificacion.test.ts` y `tests/clasificacion/archivosConBase.ts`).

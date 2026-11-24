@@ -22,14 +22,16 @@ tdd_scope:
 projects:
   - path: backend
     stack: "Node, Express 5, TypeScript ESM, Prisma 5, PostgreSQL, Zod"
-    test_command: "npm test"   # vitest run
+    test_command: "npm test"   # vitest run: proyectos unit y db; exige la base descartable
+    test_unit_command: "npm run test:unit"   # proyecto unit; no usa la base
+    test_db_command: "npm run test:db"   # proyecto db; exige la base descartable
     framework: vitest
     layers: { unit: true, integration: true, e2e: false }   # integracion con supertest
     coverage: null
     linter: null
     type_checker: "npx tsc --noEmit"
     formatter: null
-    notes: "Las pruebas de concurrencia requieren una base de datos descartable; se omiten si no existe."
+    notes: "test:unit no usa la base. test:db y npm test requieren la base descartable con migraciones y semilla (migrate deploy y db seed); nunca la DATABASE_URL de backend/.env."
   - path: frontend
     stack: "React 19, Vite, TypeScript, Tailwind 4"
     test_command: null
@@ -56,6 +58,6 @@ rules:
   apply:
     - Backend con pruebas primero cuando sea posible (vitest); sin any; UTC estricto.
   verify:
-    - Ejecutar cd backend && npm test, npx tsc --noEmit (backend) y npm run lint + npm run build (frontend).
+    - Ejecutar cd backend && npm run test:unit (sin base), npm test contra la base descartable, npx tsc --noEmit (backend) y npm run lint + npm run build (frontend).
   archive:
     - Fusionar delta specs en openspec/specs antes de archivar.

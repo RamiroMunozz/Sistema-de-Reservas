@@ -11,10 +11,12 @@ Cerrá la sesión de trabajo del proyecto `sistema-de-reservas`:
 4. Sugerí mensajes de commit en español con formato Conventional Commits, agrupados por unidad de trabajo. No agregues atribución de IA ni `Co-Authored-By`.
 5. Integración diaria en `main`. Requisitos: no quedan cambios sin confirmar, la revisión de Gentle AI pendiente está cerrada y pasan estas verificaciones (cada comando por separado, desde `backend/`):
    - `npx tsc --noEmit`.
-   - `npm test`. Las pruebas que usan la base borran reservas. Antes de correrlo:
-     - Si PostgreSQL responde y `DATABASE_URL` no apunta a una base descartable, no corras `npm test`: detenete y pedile al usuario que apague la base o configure una descartable.
-     - Si PostgreSQL no responde, el resultado solo es aceptable si fallan exactamente 5 pruebas, todas con error de conexión de Prisma (`PrismaClientInitializationError`). Cualquier otra falla, o una cantidad distinta, bloquea la integración.
-     - Esta regla rige hasta que `calidad-ci` separe las pruebas que usan la base.
+   - `npm run test:unit`: debe pasar completo. No usa la base, así que se puede correr siempre.
+   - `npm test` completo (todos los archivos) contra la base descartable `reservas_prueba`. Las pruebas que usan la base borran reservas. Antes de correrlo:
+     - Aplicá `npx prisma migrate deploy` y `npx prisma db seed` sobre esa base, con `DATABASE_URL` y `DATABASE_URL_PRUEBA` definidas en línea con su URL (ver `docs/operacion/variables-entorno.md`, "Base descartable para pruebas").
+     - Nunca corras `npm test` con la `DATABASE_URL` de `backend/.env`.
+     - Si la base descartable no responde, la integración se bloquea: no se acepta ninguna falla.
+   - Si el usuario puede verlo, la última corrida de la CI en `desarrollo` está en verde (pedile que lo confirme en la pestaña Actions de GitHub).
 
    Si se cumplen, proponé la integración. Con confirmación del usuario, ejecutá cada paso por separado y verificá su resultado antes del siguiente:
    1. `git fetch origin`. Si `main` local está adelantado respecto de `origin/main` (quedó de un push fallido en una sesión anterior) y `origin/main` es ancestro de `main`, reintentá `git push origin main` antes de seguir. Si `main` local está atrasado, actualizalo con `git switch main`, `git merge --ff-only origin/main` y `git switch desarrollo`. Después verificá que `origin/main` sea ancestro de `desarrollo` (`git merge-base --is-ancestor origin/main desarrollo`); si no lo es, o si `main` diverge, detenete y reportá.

@@ -1,15 +1,9 @@
 import { configDefaults, defineConfig } from "vitest/config";
 
-// Pruebas que usan la base de datos real (proyecto "db"). Toda prueba nueva va al
-// proyecto "unit" salvo que use la base; en ese caso se agrega a esta lista.
-const ARCHIVOS_CON_BASE = [
-  "tests/concurrenciaReservas.test.ts",
-  "tests/integration.test.ts",
-  "tests/liberarAlCrearReservaBase.test.ts",
-  "tests/migracionReservaInvitado.test.ts",
-  "tests/rutasAdminReservas.test.ts",
-  "tests/secretosJwt.test.ts",
-];
+import { ARCHIVOS_CON_BASE } from "./tests/clasificacion/archivosConBase.ts";
+
+// La lista de pruebas con base (proyecto "db") vive en `tests/clasificacion/archivosConBase.ts`.
+// Toda prueba nueva va al proyecto "unit" salvo que use la base; en ese caso se agrega a esa lista.
 
 export default defineConfig({
   test: {
