@@ -132,12 +132,12 @@ Riesgo frente al presupuesto: bajo.
 
 ## Criterios de éxito
 
-- [ ] `cd backend && npm run test:unit` pasa sin ninguna base disponible y sin `DATABASE_URL_PRUEBA`.
-- [ ] `cd backend && npm run test:db` pasa contra la base descartable con migraciones y semilla.
-- [ ] `cd backend && npm test` corre ambos grupos y suma las mismas 470 pruebas en 32 archivos de la línea base.
-- [ ] Ningún archivo de `backend/tests/` cambia de contenido.
-- [ ] `.nvmrc` existe y la CI usa esa versión.
-- [ ] Un push a `desarrollo` dispara el workflow y los jobs `backend` y `frontend` terminan en verde; `workflow_dispatch` también lo ejecuta.
-- [ ] El workflow no usa secretos de Mercado Pago ni secretos del repositorio.
-- [ ] El skill `testing-backend`, `desarrollo-local.md`, `openspec/config.yaml` y `/cerrar-sesion` describen los tres scripts y la nueva regla de integración diaria.
-- [ ] La fila 4 de la hoja de ruta refleja el estado del cambio.
+- [x] `cd backend && npm run test:unit` pasa sin ninguna base disponible y sin `DATABASE_URL_PRUEBA`. Evidencia: local con `DATABASE_URL` inalcanzable (26 archivos y 398 pruebas; 27 y 402 con UT-1b) y en la CI con el mismo puerto cerrado (T-1.4, T-1.9, T-2.7).
+- [x] `cd backend && npm run test:db` pasa contra la base descartable con migraciones y semilla. Evidencia: local 6 archivos y 72 pruebas (T-1.5) y en la CI tras `migrate deploy` y `db seed` (T-2.7, T-2.9).
+- [x] `cd backend && npm test` corre ambos grupos y suma las mismas pruebas de la línea base: 470 en 32 archivos, más las 4 de la prueba de control de UT-1b (474 en 33). Evidencia: local 470 en 32 antes de UT-1b (T-1.5); local 474 en 33 después de UT-1b (usuario, 2026-11-24, contra la base descartable con semilla); la CI corrió ambos grupos con 402 + 72 = 474.
+- [x] Ningún archivo existente de `backend/tests/` cambia de contenido (criterio ajustado el 2026-11-24 por UT-1b, que agrega archivos nuevos con el visto bueno del usuario). Evidencia: los 32 archivos existentes sin cambios (`git status`, T-1.6 y T-1.9). UT-1b, aprobada por el usuario, solo agrega `controlClasificacion.test.ts` y `tests/clasificacion/archivosConBase.ts`.
+- [x] `.nvmrc` existe y la CI usa esa versión. Evidencia: `.nvmrc` con `24` y `node-version-file: .nvmrc` en los dos jobs; Node 24 pasó en las tres corridas (T-2.2, T-2.8).
+- [x] Un push a `desarrollo` dispara el workflow y los jobs `backend` y `frontend` terminan en verde; `workflow_dispatch` también lo ejecuta. Evidencia: corridas por push sobre `74e6825` y `9a484b7`, y corrida manual 45466100311 (T-2.7, T-2.9).
+- [x] El workflow no usa secretos de Mercado Pago ni secretos del repositorio. Evidencia: `ci.yml` sin `secrets.*`; `JWT_SECRET` ficticio marcado como no secreto (T-2.3).
+- [x] El skill `testing-backend`, `desarrollo-local.md`, `openspec/config.yaml` y `/cerrar-sesion` describen los tres scripts y la nueva regla de integración diaria. Evidencia: UT-3 (T-3.1 a T-3.6), más `variables-entorno.md` por el agregado de alcance del 2026-11-24.
+- [x] La fila 4 de la hoja de ruta refleja el estado del cambio. Evidencia: fila 4 en "hecho" (T-4.1).

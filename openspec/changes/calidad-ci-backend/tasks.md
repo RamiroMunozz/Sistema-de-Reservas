@@ -109,9 +109,11 @@ Satisface: D3, D4, D5, D6 y criterios de éxito 5 a 7. Decisiones de diseño 4 y
   - Resultado (2026-11-24): Sin validador de YAML local (no hay `yaml` ni `js-yaml` en `node_modules`; no se descargan paquetes). Validado por lectura: sintaxis, indentación y claves (`on`, `permissions`, `concurrency`, `jobs.*.services`, `steps`) coinciden con el diseño. La validación real la hace Actions al primer push.
 - [x] T-2.7 El usuario hace push de `desarrollo` (después del commit 2 o del 3) y observa la corrida de Actions: los jobs `backend` y `frontend` en verde, con el mismo total de pruebas que el local. La corrida de `74e6825` (sin UT-1b) debe dar U + D = 398 + 72 = 470; desde el commit de UT-1b, 402 + 72 = 474 en 33 archivos. Alternativa: ejecutar el workflow con `workflow_dispatch` desde la pestaña Actions. Si la CI muestra otro total, se investiga antes de cerrar. Registrar el enlace o resultado de la corrida.
   - Resultado (2026-11-24, usuario): corrida "Update #1" del workflow CI sobre `74e6825` (push a `desarrollo`), con Node 24 y acciones `@v7`. El intento 1 terminó en verde; el usuario la volvió a correr (intento 2, "Re-run all jobs") y también terminó en verde, en 1 min 2 s. Backend (56 s): `test:unit` 26 archivos y 398 pruebas; `test:db` 6 archivos y 72 pruebas; 398 + 72 = 470, igual que en local. Frontend (23 s): lint y build en verde.
+  - Segunda corrida (2026-11-24, usuario): "Update 2 #2" sobre `9a484b7` (push a `desarrollo`, con UT-1b y UT-3), en verde en 1 min 4 s. Backend (1 min 0 s): `test:unit` 27 archivos y 402 pruebas; `test:db` 6 archivos y 72 pruebas; 402 + 72 = 474 en 33 archivos. Frontend (18 s) en verde.
 - [x] T-2.8 Si 24 falla por una causa atribuible a Node (no a las pruebas), probar `22` con `workflow_dispatch`, fijar la versión que pase y registrar el resultado aquí (decisión 5, paso 5). Si el umbral de 8 s de `concurrenciaReservas.test.ts:230` falla en el runner, se reejecuta una vez y se registra como riesgo conocido, sin tocar la prueba.
   - No aplica (2026-11-24): Node 24 pasó en los dos intentos y el umbral de 8 s no falló. `.nvmrc` queda en `24`.
-- [ ] T-2.9 Repetir la corrida con `workflow_dispatch` y confirmar que también termina en verde (criterio de éxito 6).
+- [x] T-2.9 Repetir la corrida con `workflow_dispatch` y confirmar que también termina en verde (criterio de éxito 6).
+  - Resultado (2026-11-24): corrida 45466100311, evento `workflow_dispatch` sobre `9a484b7` (rama `desarrollo`), disparada con `gh workflow run ci.yml --ref desarrollo`. Conclusión `success`: Backend y Frontend en verde; `test:unit` 27 archivos y 402 pruebas, `test:db` 6 archivos y 72 pruebas (474).
 
 **Verificación UT-2:** T-2.1 a T-2.9 observados; `git status` sin cambios en `backend/tests/`.
 
@@ -144,8 +146,10 @@ Satisface: D7 y criterio de éxito 8. Sección "Documentación" del diseño. Las
 
 ## UT-4: Hoja de ruta y artefactos (commit 4)
 
-- [ ] T-4.1 `docs/producto/hoja-de-ruta.md`, fila 4: pasar a "en curso" al empezar apply y a "hecho" cuando UT-2 (CI en verde) y UT-3 estén cerradas. La bitácora la actualiza `/cerrar-sesion`, no esta tarea.
-- [ ] T-4.2 Marcar los criterios de éxito de `proposal.md` con la evidencia de UT-0 a UT-3 y registrar en este archivo los resultados observados (línea base, `U`, `D`, versión de Node y enlace de la corrida de la CI).
+- [x] T-4.1 `docs/producto/hoja-de-ruta.md`, fila 4: pasar a "en curso" al empezar apply y a "hecho" cuando UT-2 (CI en verde) y UT-3 estén cerradas. La bitácora la actualiza `/cerrar-sesion`, no esta tarea.
+  - Resultado (2026-11-24): fila 4 en "hecho", con el objetivo reescrito según lo entregado (proyectos `unit` y `db`, prueba de control y CI con Node 24). No pasó por "en curso" porque apply se hizo en la misma sesión.
+- [x] T-4.2 Marcar los criterios de éxito de `proposal.md` con la evidencia de UT-0 a UT-3 y registrar en este archivo los resultados observados (línea base, `U`, `D`, versión de Node y enlace de la corrida de la CI).
+  - Resultado (2026-11-24): los 9 criterios marcados con su evidencia (el de `npm test` local, 474 en 33, lo confirmó el usuario). Resultados: línea base 470 en 32; `U` = 398 (402 con UT-1b); `D` = 72; Node 24 en la CI (local v26.12.1, informativo); corridas de la CI sobre `74e6825` y `9a484b7` (push) y https://github.com/RamiroMunozz/Sistema-de-Reservas/actions/runs/45466100311 (`workflow_dispatch`). Pendiente informativo: el `npm test` local completo (474 en 33) no se volvió a correr después de UT-1b; la CI cubre ambos grupos.
 
 **Commit sugerido (4):** `docs(openspec): agregar los artefactos de calidad-ci-backend`
 
@@ -159,9 +163,11 @@ Satisface: D7 y criterio de éxito 8. Sección "Documentación" del diseño. Las
 
 ## Resumen de verificación final (antes de `sdd-verify`)
 
-- [ ] `vitest list`: 6 (`db`) y 27 (`unit`, con la prueba de control de UT-1b).
-- [ ] `test:unit` en verde con `DATABASE_URL` inalcanzable.
-- [ ] `npm test` contra la base descartable: 474 pruebas en 33 archivos (470 de la línea base más las 4 de UT-1b).
-- [ ] `npx tsc --noEmit` (backend); `npm run lint` y `npm run build` (frontend).
-- [ ] CI en verde en push y en `workflow_dispatch`.
-- [ ] Los 32 archivos de prueba existentes sin cambios (UT-1b solo agrega `controlClasificacion.test.ts` y `tests/clasificacion/archivosConBase.ts`).
+Ejecutado por el orquestador el 2026-11-24 (Node local v26.12.1), salvo donde se indica:
+
+- [x] `vitest list`: 6 (`db`) y 27 (`unit`, con la prueba de control de UT-1b).
+- [x] `test:unit` en verde con `DATABASE_URL` inalcanzable: 27 archivos y 402 pruebas.
+- [x] `npm test` contra la base descartable: 474 pruebas en 33 archivos (470 de la línea base más las 4 de UT-1b). Corrido por el usuario el 2026-11-24: 33 archivos y 474 pruebas en verde (33,0 s).
+- [x] `npx tsc --noEmit` (backend) sin errores; `npm run lint` y `npm run build` (frontend) en verde.
+- [x] CI en verde en push (`74e6825`, `9a484b7`) y en `workflow_dispatch` (corrida 45466100311).
+- [x] Los 32 archivos de prueba existentes sin cambios: `git diff --stat 6a2e254 -- backend/tests` solo muestra los 2 archivos nuevos de UT-1b (81 líneas agregadas).

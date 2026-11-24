@@ -6,9 +6,10 @@ Copia en Engram: `sdd/calidad-ci-backend/apply-progress`.
 
 - UT-0: T-0.1 y T-0.2 hechas.
 - UT-1: completa. T-1.5 la corrió el usuario el 2026-11-24: `test:db` 6 archivos y 72 pruebas; `npm test` 32 archivos y 470 pruebas (398 + 72 = 470).
-- UT-2: T-2.1 a T-2.6 hechas. T-2.4 se destrabó deteniendo el servidor de Vite (PID 6472): `npm ci`, `lint` y `build` del frontend en verde. T-2.7 a T-2.9 pendientes del usuario (push y Actions).
 - UT-3: completa (T-3.1 a T-3.6, 2026-11-24). Ver sección "UT-3".
-- UT-4: sin empezar.
+- UT-2: completa. T-2.4 se destrabó deteniendo el servidor de Vite (PID 6472). CI en verde por push (`74e6825`, `9a484b7`) y por `workflow_dispatch` (corrida 45466100311): `unit` 27 archivos y 402 pruebas, `db` 6 y 72.
+- UT-4: completa (2026-11-24). Hoja de ruta fila 4 en "hecho" y los 9 criterios de éxito de `proposal.md` marcados con evidencia.
+- `npm test` local completo después de UT-1b: 33 archivos y 474 pruebas en verde (usuario, 2026-11-24).
 
 ## Evidencia
 
