@@ -1,9 +1,13 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
+import { verificarSemillaPermitida } from "./guardaSemilla.js";
 
 const prisma = new PrismaClient();
 
 async function main() {
+  // Antes de cualquier borrado: la semilla no corre en producción.
+  verificarSemillaPermitida(process.env.NODE_ENV);
+
   console.log("🌱 Iniciando la carga de datos iniciales (Seed)...");
 
   // 1. Limpieza de datos en cascada (los pagos primero: su relación con la reserva es Restrict)

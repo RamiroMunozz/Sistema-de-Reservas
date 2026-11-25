@@ -211,7 +211,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Concurrencia de reservas", () => {
       .send({ status: "COMPLETED" });
 
     const respuesta = await request(app).get(
-      `/api/v1/bookings/availability?courtId=${idCancha}&date=2030-01-15`,
+      `/api/v1/negocios/principal/bookings/availability?courtId=${idCancha}&date=2030-01-15`,
     );
 
     expect(respuesta.body).toEqual(["10:00"]);

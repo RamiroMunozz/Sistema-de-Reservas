@@ -46,42 +46,42 @@ El sistema DEBE aceptar `startDate` y `endDate` solo con el formato `YYYY-MM-DD`
 Motivo: una fecha con formato válido pero inexistente (`2026-02-31`) se desbordaba en silencio al mes siguiente y las métricas usaban otro rango sin avisar, y una con mes o día fuera de rango (`2026-13-01`) producía `Invalid Date` (observación 9).
 
 #### Escenario: Formato inválido
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía `startDate=01/08/2026&endDate=2026-08-31`
 - Entonces responde 400 con `errors` que contiene `field` `startDate` y `message` "Formato YYYY-MM-DD"
 
 #### Escenario: Día inexistente del mes
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía `startDate=2026-02-31&endDate=2026-03-31`
 - Entonces responde 400 con `errors` que contiene el campo `startDate`, y no se consulta la base de datos
 
 #### Escenario: Mes inexistente
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía `startDate=2026-08-01&endDate=2026-13-01`
 - Entonces responde 400 con `errors` que contiene el campo `endDate`, y no se consulta la base de datos
 
 #### Escenario: Día mayor que 31
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía `startDate=2026-02-32&endDate=2026-03-31`
 - Entonces responde 400 con `errors` que contiene el campo `startDate`
 
 #### Escenario: 29 de febrero en año no bisiesto
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía `startDate=2026-02-29&endDate=2026-03-31`
 - Entonces responde 400 con `errors` que contiene el campo `startDate`
 
 #### Escenario: 29 de febrero en año bisiesto
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía `startDate=2028-02-29&endDate=2028-03-31`
 - Entonces la validación lo acepta y responde 200 con `period.from` "2028-02-29"
 
 #### Escenario: Período válido con fechas límite del mes
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía `startDate=2026-08-01&endDate=2026-08-31`
 - Entonces responde 200 con `period`, `summary` y `details` (ADM-002)
 
 #### Escenario: Rango invertido
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía `startDate=2026-08-31&endDate=2026-08-01`
 - Entonces la validación lo acepta y el período, que no puede contener reservas, produce un resumen con todos los contadores en cero
 

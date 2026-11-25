@@ -198,16 +198,18 @@ describe("bloquearTelefono y tope por teléfono (RES-031)", () => {
     vi.unstubAllEnvs();
   });
 
-  const ejecutar = async (telefono: string) => {
+  const ID_NEGOCIO = "negocio-1";
+
+  const ejecutar = async (telefono: string, idNegocio = ID_NEGOCIO) => {
     const { conBloqueoDeCancha, bloquearTelefono } = await import(
       "../src/modules/bookings/bloqueoCancha.js"
     );
     return conBloqueoDeCancha("cancha-1", (tx) =>
-      bloquearTelefono(tx, telefono),
+      bloquearTelefono(tx, idNegocio, telefono),
     );
   };
 
-  it("toma pg_advisory_xact_lock(2, hashtext(telefono)) después del bloqueo de cancha", async () => {
+  it("toma pg_advisory_xact_lock(2, hashtext(negocio || ':' || telefono)) después del bloqueo de cancha", async () => {
     await ejecutar("5491155551234");
 
     const bloqueos = eventos.filter((e) => e.includes("pg_advisory_xact_lock"));
@@ -215,8 +217,8 @@ describe("bloquearTelefono y tope por teléfono (RES-031)", () => {
     expect(bloqueos).toHaveLength(2);
     expect(bloqueos[0]).toContain("pg_advisory_xact_lock(hashtext(?))");
     expect(bloqueos[0]).toContain("cancha-1");
-    expect(bloqueos[1]).toContain("pg_advisory_xact_lock(2, hashtext(?))");
-    expect(bloqueos[1]).toContain("5491155551234");
+    expect(bloqueos[1]).toContain("pg_advisory_xact_lock(2, hashtext(? || ':' || ?))");
+    expect(bloqueos[1]).toContain("negocio-1,5491155551234");
   });
 
   it("cuenta las PENDING vigentes del teléfono después de tomar el bloqueo", async () => {
@@ -236,9 +238,21 @@ describe("bloquearTelefono y tope por teléfono (RES-031)", () => {
 
     const { where } = contarPendientes.mock.calls[0][0];
 
+    expect(where.negocioId).toBe(ID_NEGOCIO);
     expect(where.guestPhone).toBe("5491155551234");
     expect(where.status).toBe("PENDING");
     expect(where.expiresAt.gt).toBeInstanceOf(Date);
+  });
+
+  it("el mismo teléfono en otro negocio toma otra clave de bloqueo y cuenta con su propio negocioId", async () => {
+    await ejecutar("5491155551234", "negocio-1");
+    await ejecutar("5491155551234", "negocio-2");
+
+    const claves = eventos.filter((e) => e.includes("pg_advisory_xact_lock(2,"));
+
+    expect(claves).toHaveLength(2);
+    expect(claves[0]).not.toEqual(claves[1]);
+    expect(contarPendientes.mock.calls[1][0].where.negocioId).toBe("negocio-2");
   });
 
   it("con 2 PENDING vigentes (tope por defecto) responde 429 con el mensaje del diseño", async () => {

@@ -5,28 +5,30 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Estado actual
 
-- **Rama activa:** `desarrollo`. `main`, `desarrollo` y sus remotos están en `26b09d3` (integración en `main` hecha por el usuario el 2026-11-24). Sin commitear: esta bitácora. El usuario commitea a mano.
+- **Rama activa:** `desarrollo`, en `19aa893` (UT-1 a UT-4 de `multi-tenant-negocios`, publicados en `origin/desarrollo`). `main` sigue en `26b09d3`. Sin commitear: UT-5 a UT-8, las pruebas manuales y esta bitácora (ver "Próximo paso"). El usuario commitea a mano.
 - **Specs vigentes:** los 5 dominios en `openspec/specs/`, con los requisitos de `reserva-invitado` fusionados (reservas 35, pagos 26, administracion 18, canchas 15).
 - **Cambios SDD:**
   - `specs-base` hecho (su carpeta sigue en `openspec/changes/specs-base/`, sin archivar).
   - `deuda-auditoria` archivado en `openspec/changes/archive/2026-11-18-deuda-auditoria/`.
   - `reserva-invitado` (N.º 3) hecho y archivado en `openspec/changes/archive/2026-11-19-reserva-invitado/`: 65 de 65 tareas, `verify-report.md` con la resolución de hallazgos y `archive-report.md`.
   - `calidad-ci-backend` (N.º 4) hecho y archivado en `openspec/changes/archive/2026-11-24-calidad-ci-backend/`: todas las tareas (UT-0 a UT-5), verificación PASA sin críticos, sin delta specs (archivado a mano: `gentle-ai` exige un `specs/<dominio>/spec.md`).
-  - No hay cambio activo. El siguiente de la hoja de ruta es `multi-tenant-negocios` (N.º 5).
-- **Bases de datos:** desarrollo en el contenedor `sports_booking_postgres` (puerto 5433), con las migraciones de `reserva-invitado`. Base descartable para pruebas en el contenedor `reservas_prueba` (puerto 5434), ya con semilla; ver `docs/operacion/variables-entorno.md`.
-- **Tests del backend:** proyectos de Vitest `unit` (27 archivos, 406 pruebas, sin base: `npm run test:unit`) y `db` (6 archivos, 72 pruebas, base descartable: `npm run test:db`). `npm test` corre ambos: 478 de 478 en 33 archivos contra la base descartable (2026-11-24). La prueba `controlClasificacion.test.ts` exige que toda prueba con `DATABASE_URL_PRUEBA` esté en `backend/tests/clasificacion/archivosConBase.ts`. `npx tsc --noEmit` sin errores. Frontend: lint y build sin errores.
+  - `multi-tenant-negocios` (N.º 5) en curso: todas las tareas de implementación hechas (UT-0 a UT-8, incluidas las pruebas manuales T-2.10 y T-7.6). `sdd-verify` hecho: PASA CON ADVERTENCIAS (0 críticos, 7 advertencias), en `openspec/changes/multi-tenant-negocios/verify-report.md`. T-8.6 queda abierta hasta que la CI pase en verde después del push. La W1 quedó resuelta: NEG-007 se alineó al código, con un nombre de 2 a 150 caracteres.
+- **Bases de datos:** desarrollo en el contenedor `sports_booking_postgres` (puerto 5433): **todavía sin** las migraciones `20261125120000_negocios` (M1) y `20261125120100_roles_negocio` (M2); hay respaldo previo (T-0.3). Base descartable en el contenedor `reservas_prueba` (puerto 5434), con M1 y M2, la semilla nueva y datos de la prueba manual (un segundo complejo "Complejo Norte (prueba manual)"); ver `docs/operacion/variables-entorno.md`, que ahora lista las cuentas de la semilla (dueño, jugador y `plataforma@sportsbooking.com`).
+- **Tests del backend:** `npm test` corre `unit` y `db`: 650 de 650 en 45 archivos contra la base descartable (2026-11-25). `npm run test:unit` solo no necesita base. La prueba `controlClasificacion.test.ts` exige que toda prueba con `DATABASE_URL_PRUEBA` esté en `backend/tests/clasificacion/archivosConBase.ts`. `npx tsc --noEmit` sin errores. Frontend: lint y build sin errores.
 - **CI:** `.github/workflows/ci.yml` en GitHub Actions, en cada push a `desarrollo` y a mano (`workflow_dispatch`), con Node 24 (`.nvmrc`): job `backend` (PostgreSQL 15, `tsc`, `test:unit`, migraciones, semilla y `test:db`) y job `frontend` (lint y build). Última corrida, sobre `26b09d3`: en verde. `gh` tiene sesión iniciada.
 - **Mercado Pago:** credenciales de prueba y webhook (evento "Pagos (legacy)") cargados en `backend/.env`; `BACKEND_URL` apunta a un túnel rápido de cloudflared, cuya URL cambia en cada arranque. Si el webhook no llega, revisar que `BACKEND_URL` coincida con la URL actual del túnel y reiniciar el backend. Sin sesión de comprador, se paga con la tarjeta de prueba `APRO`.
 - **Flujo de trabajo:** solo SDD, con los comandos globales `/gentle-sdd-*` y sus agentes. No se crean comandos ni agentes SDD propios del proyecto.
-- **Código:** sigue siendo single-tenant; multi-tenant es objetivo (ADR 0002).
+- **Código:** multi-tenant (ADR 0002). Negocio como unidad de aislamiento, roles `JUGADOR`, `DUENO` y `SUPER_ADMIN`, pertenencia "ajeno ≡ inexistente", alta de negocio por `SUPER_ADMIN` (`POST /api/v1/plataforma/negocios`) y rutas públicas por slug (`/api/v1/negocios/:slug/...`; las rutas sin slug se retiraron). El frontend sirve `/:slug` y `/` redirige a `/principal`. Falta el Mercado Pago propio por negocio (N.º 6).
 
 ## Próximo paso
 
-1. Integrar en `main` el commit de esta bitácora.
-2. Empezar `multi-tenant-negocios` (N.º 5) con `/gentle-sdd-new`. Llevar los riesgos multi-tenant de `openspec/changes/archive/2026-11-19-reserva-invitado/verify-report.md` (S5): operaciones por id sin pertenencia, tope por teléfono global y prefijo `549` fijo. Toda prueba nueva con base va a `ARCHIVOS_CON_BASE`.
-3. Pendientes registrados de `reserva-invitado`: sondeo cada 20 s y cuenta regresiva con el reloj del navegador (W3, W4), `auto_return` con `https` en el despliegue (W5), `POST /bookings/admin/create` sin lista blanca, y el panel que no avisa cuando vence la sesión del administrador.
-4. Rotar a mano `JWT_SECRET` (`docs/operacion/variables-entorno.md`). Pruebas del frontend en `calidad-ci` (N.º 10). Revisar las vulnerabilidades que informa `npm audit` en el frontend.
-5. Decidir qué hacer con la rama local `respaldo-be522a4` y con `openspec/changes/specs-base/` (hecho, sin archivar).
+1. Commitear UT-5 a UT-8 en `desarrollo`, en commits por unidad. Los mensajes sugeridos están en el resumen de la sesión del 2026-11-25. Después, push y esperar la CI en verde (cierra T-8.6 junto con `verify-report.md`).
+2. Aplicar M1 y M2 a la base de desarrollo (5433) con `npx prisma migrate deploy` y volver a cargar la semilla, o restaurar el respaldo si hace falta.
+3. Archivar `multi-tenant-negocios` con `/gentle-sdd-archive`. Al archivar, ajustar a mano los Propósitos "single-tenant" de las specs vigentes y repetir el `rg` de roles viejos con `diff` (registrado en `tasks.md`).
+4. Integrar en `main` por fast-forward con todo verificado.
+5. Pendientes registrados de `reserva-invitado`: sondeo cada 20 s y cuenta regresiva con el reloj del navegador (W3, W4), `auto_return` con `https` en el despliegue (W5), `POST /bookings/admin/create` sin lista blanca, y el panel que no avisa cuando vence la sesión del administrador.
+6. Rotar a mano `JWT_SECRET` (`docs/operacion/variables-entorno.md`). Pruebas del frontend en `calidad-ci` (N.º 10). Revisar las vulnerabilidades que informa `npm audit` en el frontend.
+7. Decidir qué hacer con la rama local `respaldo-be522a4` y con `openspec/changes/specs-base/` (hecho, sin archivar).
 
 ## Configuración vigente
 
@@ -38,6 +40,37 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 ## Registro de sesiones
 
 La más reciente primero. Se mantienen unas 10 entradas; las más antiguas se resumen en una línea al final.
+
+### 2026-11-25: `multi-tenant-negocios`, de UT-5 a UT-8
+
+- **Objetivo:** terminar todas las tareas de `multi-tenant-negocios`.
+- **Hecho:**
+  - UT-1 a UT-4 ya estaban commiteadas por el usuario (`a59a662` a `19aa893`), aunque esta bitácora todavía no lo reflejaba.
+  - UT-5: slug con formato y slugs reservados, `altaNegocioSchema` (reutiliza `contrasenaSchema` de `auth.dto.ts`), alta atómica de negocio y dueño por `SUPER_ADMIN` y guarda de la semilla contra `NODE_ENV=production`. La revisión multi-tenant agregó topes de longitud al alta (M1).
+  - UT-6: resolutor de negocio por slug (un slug inexistente, inactivo o mal formado da el mismo 404), catálogo, disponibilidad y alta de invitado por slug, y tope por teléfono por negocio (`pg_advisory_xact_lock(2, hashtext(negocio || ':' || telefono))`).
+  - UT-7: frontend `/:slug`, `/` → `/principal`, panel con selector de complejo (solo con más de uno), "Mis reservas" con el negocio. Se retiraron las rutas sin slug (`/courts/*`, `/bookings/availability`, `POST /public/bookings`) y se borró `court.routes.ts`.
+  - UT-8: renombre de roles en las specs vigentes (solo en los requisitos que las deltas no reemplazan), ADR 0002, skills, glosario, `variables-entorno.md`, hoja de ruta, `AGENTS.md`, `CLAUDE.md` y `openspec/config.yaml`.
+  - Pruebas manuales T-2.10 y T-7.6 con chrome-devtools, todas correctas.
+  - Verificación: `npm test` 650 de 650 en 45 archivos, `tsc` sin errores, y lint y build del frontend correctos.
+- **Decisiones:**
+  - Preflight SDD de la sesión: ritmo interactivo, artefactos híbridos y estrategia "preguntar si hay riesgo". El usuario pidió después terminar todas las tareas sin frenar.
+  - T-8.1 renombra los roles solo fuera de los requisitos modificados por las deltas, para no romper la fusión al archivar.
+  - Se deja `resolverNegocioFijo` exportado sin uso (solo lo prueba `resolutorNegocio.test.ts`). Hay que decidir si se quita.
+- **Hallazgos:**
+  - Con `DATABASE_URL` y `DATABASE_URL_PRUEBA` en línea apuntando a `reservas_prueba`, los agentes pudieron correr `test:db` y levantar el backend sin leer `.env` de desarrollo.
+  - No hay ruta de alta de complejo: para probar el selector se insertó un complejo por SQL en la base descartable.
+  - La línea base T-0.2 previa a los cambios no se registró al empezar; se cerró con la corrida completa actual.
+  - Una corrida de `test:unit` en paralelo con `tsc` mostró 2 fallos que no se repitieron. Probablemente es un tiempo de espera bajo carga.
+- **Commits:** ninguno en la sesión. Sugeridos, en orden:
+  1. `feat(negocios): agregar el formato del slug, los slugs reservados y el esquema de alta`
+  2. `feat(negocios): permitir al SUPER_ADMIN crear un negocio con su dueño`
+  3. `fix(semilla): abortar la semilla cuando NODE_ENV es production`
+  4. `feat(negocios): resolver el negocio por slug en el catálogo y la disponibilidad`
+  5. `feat(reservas): crear la reserva de invitado por slug y limitar el tope por teléfono a cada negocio`
+  6. `feat(frontend): servir la página de reservas por slug y redirigir la raíz a principal`
+  7. `feat(frontend): elegir el complejo en el panel y mostrar el negocio en Mis reservas`
+  8. `refactor(negocios): retirar las rutas sin slug del catálogo, la disponibilidad y la reserva de invitado`
+  9. `docs: documentar multi-tenant en specs, ADR, skills, glosario, hoja de ruta y bitácora`
 
 ### 2026-11-24: Specs vigentes y cambio `calidad-ci-backend` completo
 

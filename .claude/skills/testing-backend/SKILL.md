@@ -48,6 +48,17 @@ cd backend
 DATABASE_URL="postgresql://sin_base:sin_base@127.0.0.1:1/sin_base" npm run test:unit
 ```
 
+## Fixtures de dos negocios
+
+Las pruebas de aislamiento (`aislamiento*.test.ts`, `negociosPorSlug.test.ts`) usan `backend/tests/ayudantes/negociosDePrueba.ts`:
+
+- `crearNegocioDePrueba()`: crea un negocio con slug único (`prueba-<id>`), distinto de `principal`. Se crean dos (A y B) y se opera como el dueño de A con ids de B.
+- `firmarToken(secreto, payload)`: firma un token con el secreto de la prueba (nunca el de `.env`).
+- `borrarNegocioDePrueba(idNegocio)`: borra el negocio y todo lo que le pertenece, en orden de dependencia; va en `afterAll`.
+- `tests/ayudantes/tokens.ts` (`payloadDePrueba`): arma el payload según el rol (`JUGADOR` o `DUENO`) para las pruebas sin base.
+
+Cada prueba de aislamiento comprueba que la respuesta con un id ajeno es la misma que con un id inexistente y que el recurso ajeno no cambió.
+
 ## Pruebas con base (proyecto `db`)
 
 Escriben y borran datos reales en la base a la que apunta Prisma (`DATABASE_URL`). Por eso `test:db` y `npm test` se corren solo contra la base descartable `reservas_prueba`, con `DATABASE_URL` y `DATABASE_URL_PRUEBA` definidas en línea con su URL, después de `prisma migrate deploy` y `prisma db seed` (ver `docs/operacion/variables-entorno.md`, "Base descartable para pruebas"). Se recarga la semilla antes de cada corrida.

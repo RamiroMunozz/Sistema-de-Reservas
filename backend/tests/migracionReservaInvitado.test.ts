@@ -257,6 +257,13 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Migraciones de reserva-invitado (base desc
   describe("creación concurrente de reservas de invitado (RES-007, RES-031)", () => {
     const servicio = new ReservaInvitadoService();
     const idsCanchas: string[] = [];
+    let idNegocioPrincipal = "";
+
+    beforeAll(async () => {
+      idNegocioPrincipal = (
+        await prisma.negocio.findUniqueOrThrow({ where: { slug: "principal" }, select: { id: true } })
+      ).id;
+    });
 
     const crearCancha = async (nombre: string): Promise<string> => {
       const id = randomUUID();
@@ -274,7 +281,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Migraciones de reserva-invitado (base desc
       const { inicio, fin } = horario(hora);
       // Otro día que las demás pruebas de esta base.
       const dia = (fecha: Date) => new Date(fecha.getTime() + 35 * 24 * 60 * 60 * 1000);
-      return servicio.crear({
+      return servicio.crear(idNegocioPrincipal, {
         courtId: idCancha,
         startTime: dia(inicio).toISOString(),
         endTime: dia(fin).toISOString(),

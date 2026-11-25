@@ -1,16 +1,18 @@
 import { z } from "zod";
 
+export const contrasenaSchema = z
+  .string()
+  .min(8, "La contraseña debe tener al menos 8 caracteres")
+  .regex(/[A-Z]/, "La contraseña debe tener al menos una letra mayúscula")
+  .regex(/[0-9]/, "La contraseña debe tener al menos un número");
+
 export const registerSchema = z.object({
   email: z
     .string()
     .email("Formato de correo electrónico inválido")
     .toLowerCase()
     .trim(),
-  password: z
-    .string()
-    .min(8, "La contraseña debe tener al menos 8 caracteres")
-    .regex(/[A-Z]/, "La contraseña debe tener al menos una letra mayúscula")
-    .regex(/[0-9]/, "La contraseña debe tener al menos un número"),
+  password: contrasenaSchema,
   firstName: z
     .string()
     .min(2, "El nombre debe tener al menos 2 caracteres")

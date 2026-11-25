@@ -26,18 +26,19 @@ Los complejos deportivos suelen gestionar turnos por teléfono o mensajería, si
 
 ### Estado actual
 
-Instalación de un solo negocio (single-tenant). Existen:
+Instalación multi-tenant: una sola instalación sirve a varios negocios aislados (cambio `multi-tenant-negocios`). Existen:
 
-- Registro e inicio de sesión con JWT; roles `USER` y `ADMIN` (`backend/prisma/schema.prisma`).
+- Registro e inicio de sesión con JWT; roles `JUGADOR`, `DUENO` (con `negocioId` en el token) y `SUPER_ADMIN` (`backend/prisma/schema.prisma`).
+- Negocios con enlace propio (`/<slug>`), alta de negocio y dueño por `SUPER_ADMIN` y aislamiento de los datos entre negocios.
 - Catálogo de canchas, horarios por cancha y consulta de disponibilidad.
 - Reservas con pago en efectivo, transferencia o Mercado Pago.
 - Panel de administración con grilla diaria, carga manual de turnos, métricas y alta de canchas.
 
 ### Objetivo
 
-- Multi-tenant: una instalación, varios negocios aislados, cada uno con sus canchas, clientes y credenciales de Mercado Pago.
-- Acceso del jugador por enlace propio del negocio (`/<slug>`), con la marca del negocio y cuenta de jugador global.
-- Roles: `SUPER_ADMIN`, dueño (una cuenta por negocio) y jugador. Sin empleados por ahora.
+- Credenciales de Mercado Pago propias de cada negocio (`mercadopago-por-negocio`).
+- Marca del negocio en la página pública por slug (`pagina-publica-negocio`); el enlace `/<slug>` y la cuenta de jugador global ya existen.
+- Gestión de negocios por `SUPER_ADMIN` (`panel-super-admin`). Sin empleados por ahora.
 - Política de cobro configurable por negocio: total online, seña (porcentaje) por Mercado Pago o pago en el lugar.
 - Modelo de cobro de la plataforma (suscripción u otro): **pendiente de decisión**.
 

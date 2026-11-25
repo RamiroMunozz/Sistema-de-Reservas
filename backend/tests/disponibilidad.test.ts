@@ -8,7 +8,7 @@ const { buscarCancha, buscarReservas } = vi.hoisted(() => ({
 
 vi.mock("../src/core/config/prisma.js", () => ({
   prisma: {
-    court: { findUnique: buscarCancha },
+    court: { findFirst: buscarCancha },
     booking: { findMany: buscarReservas },
   },
 }));
@@ -51,8 +51,17 @@ describe("Lectura de turnos ocupados con filtros compartidos (RES-007, RES-012, 
   });
 
   describe("disponibilidad de una cancha", () => {
+    it("busca la cancha por id y por el negocio en el mismo where", async () => {
+      await new CourtService().getCourtAvailability(ID_NEGOCIO, ID_CANCHA, FECHA);
+
+      expect(buscarCancha.mock.calls[0]?.[0].where).toEqual({
+        id: ID_CANCHA,
+        complex: { negocioId: ID_NEGOCIO },
+      });
+    });
+
     it("consulta las reservas con filtroOcupaTurno, que ignora EXPIRED y las PENDING vencidas", async () => {
-      await new CourtService().getCourtAvailability(ID_CANCHA, FECHA);
+      await new CourtService().getCourtAvailability(ID_NEGOCIO, ID_CANCHA, FECHA);
 
       const donde = buscarReservas.mock.calls[0]?.[0].where;
       expect(donde).toMatchObject({ courtId: ID_CANCHA, ...filtroOcupaTurno(AHORA) });
@@ -60,7 +69,7 @@ describe("Lectura de turnos ocupados con filtros compartidos (RES-007, RES-012, 
     });
 
     it("libera el turno cuando la base no devuelve la reserva vencida", async () => {
-      const respuesta = await new CourtService().getCourtAvailability(ID_CANCHA, FECHA);
+      const respuesta = await new CourtService().getCourtAvailability(ID_NEGOCIO, ID_CANCHA, FECHA);
 
       expect(respuesta.slots.every((turno) => turno.isAvailable)).toBe(true);
     });
@@ -73,7 +82,7 @@ describe("Lectura de turnos ocupados con filtros compartidos (RES-007, RES-012, 
         },
       ]);
 
-      const respuesta = await new CourtService().getCourtAvailability(ID_CANCHA, FECHA);
+      const respuesta = await new CourtService().getCourtAvailability(ID_NEGOCIO, ID_CANCHA, FECHA);
 
       expect(respuesta.slots.map((turno) => turno.isAvailable)).toEqual([false, true]);
     });

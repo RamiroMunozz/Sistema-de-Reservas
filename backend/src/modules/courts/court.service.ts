@@ -8,9 +8,10 @@ import { filtroOcupaTurno } from "../bookings/filtrosReserva.js";
 import { GetCourtsQueryDTO } from "./court.dto.js";
 
 export class CourtService {
-  async getAllCourts(filters: GetCourtsQueryDTO) {
+  async getAllCourts(idNegocio: string, filters: GetCourtsQueryDTO) {
     const whereClause: Prisma.CourtWhereInput = {
       isActive: true,
+      complex: { negocioId: idNegocio },
     };
 
     if (filters.sport) whereClause.sport = filters.sport;
@@ -37,9 +38,10 @@ export class CourtService {
     });
   }
 
-  async getCourtById(id: string) {
-    const court = await prisma.court.findUnique({
-      where: { id },
+  async getCourtById(idNegocio: string, id: string) {
+    // Una cancha de otro negocio responde igual que una inexistente (NEG-009).
+    const court = await prisma.court.findFirst({
+      where: { id, complex: { negocioId: idNegocio } },
       include: {
         complex: true,
         schedules: {
@@ -57,7 +59,7 @@ export class CourtService {
     return court;
   }
 
-  async getCourtAvailability(courtId: string, dateStr: string) {
+  async getCourtAvailability(idNegocio: string, courtId: string, dateStr: string) {
     const targetDate = new Date(`${dateStr}T00:00:00.000Z`);
     if (isNaN(targetDate.getTime())) {
       throw new UnprocessableEntityError("Fecha inválida");
@@ -66,8 +68,8 @@ export class CourtService {
     const dayOfWeek = targetDate.getUTCDay();
 
     // 1. Obtener la cancha y su horario de atención para ese día
-    const court = await prisma.court.findUnique({
-      where: { id: courtId },
+    const court = await prisma.court.findFirst({
+      where: { id: courtId, complex: { negocioId: idNegocio } },
       include: {
         schedules: {
           where: { dayOfWeek },

@@ -34,6 +34,21 @@ export interface Court {
   complex?: Complex;
 }
 
+/** Complejo del negocio del dueño con sus canchas activas (`GET /admin/complexes`, ADM-009). */
+export interface ComplejoAdmin {
+  id: string;
+  name: string;
+  address: string;
+  depositPercent: number;
+  courts: Court[];
+}
+
+/** Negocio al que pertenece una reserva (NEG-005). */
+export interface NegocioResumen {
+  nombre: string;
+  slug: string;
+}
+
 export interface TimeSlot {
   startTime: string;
   endTime: string;
@@ -69,9 +84,11 @@ export interface Booking {
   depositStatus?: EstadoSena | null;
   payments?: BookingPayment[];
   court?: Court;
+  /** Negocio de la reserva; lo informa `GET /bookings/my-bookings`. */
+  negocio?: NegocioResumen;
 }
 
-/** Datos del invitado para `POST /public/bookings` (RES-020). */
+/** Datos del invitado para `POST /negocios/:slug/bookings` (RES-020). */
 export interface DatosInvitado {
   guestFirstName: string;
   guestLastName: string;
@@ -79,14 +96,14 @@ export interface DatosInvitado {
   guestEmail?: string;
 }
 
-/** Cuerpo de `POST /public/bookings`. */
+/** Cuerpo de `POST /negocios/:slug/bookings`. */
 export interface CrearReservaInvitadoPayload extends DatosInvitado {
   courtId: string;
   startTime: string;
   endTime: string;
 }
 
-/** Respuesta de `POST /public/bookings`. */
+/** Respuesta de `POST /negocios/:slug/bookings`. */
 export interface ReservaInvitadoCreada {
   token: string;
   initPoint: string;

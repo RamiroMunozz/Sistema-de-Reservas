@@ -22,12 +22,13 @@ Eres un Arquitecto de Software y Revisor de Código Senior operando bajo la meto
 - **Separación de capas:** Los controladores solo deben gestionar la petición HTTP (req, res, status codes). Toda interacción con Prisma y validación de reglas de negocio debe estar encapsulada en la capa de Servicios.
 - **Convenciones de Modelos:** El modelo principal de usuarios debe utilizar siempre los campos `firstName` y `lastName` (nunca unificar en `name`).
 
-### Multi-tenant (objetivo)
-Estado actual: el código es single-tenant. Las siguientes reglas son el objetivo (ver `docs/arquitectura/adr/0002-multi-tenant.md`) y rigen para todo código nuevo:
+### Multi-tenant
+Estado actual: el código es multi-tenant (ver `docs/arquitectura/adr/0002-multi-tenant.md`). Las siguientes reglas rigen para todo código:
 - Todo dato de negocio pertenece a un negocio.
 - Los servicios filtran siempre por negocio.
 - Nunca confiar en IDs enviados por el cliente sin verificar su pertenencia al negocio.
-- Roles objetivo: `SUPER_ADMIN` (plataforma), dueño (una cuenta por negocio) y jugador (cuenta global).
+- Roles: `SUPER_ADMIN` (plataforma), dueño (una cuenta por negocio) y jugador (cuenta global); en el esquema, `SUPER_ADMIN`, `DUENO` y `JUGADOR`.
+- Un recurso de otro negocio responde igual que uno inexistente (404): se busca por id y por negocio a la vez (`backend/src/modules/negocios/pertenencia.ts`).
 
 ### Frontend (React)
 - **Reglas de Hooks:** Cumplimiento total de `eslint-plugin-react-hooks`.

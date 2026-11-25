@@ -38,6 +38,13 @@ vi.mock("../src/core/config/prisma.js", () => {
     prisma: {
       booking,
       court: { findFirst: buscarCancha },
+      negocio: {
+        findFirst: async () => ({
+          id: "5c0a1f0e-7d1b-4a3e-9b52-0c2f6a1d8e47",
+          nombre: "Negocio principal",
+          slug: "principal",
+        }),
+      },
       user: { findUnique: buscarUsuario },
       $transaction: (operacion: (transaccion: unknown) => Promise<unknown>) =>
         operacion({
@@ -56,6 +63,7 @@ const { puedeTransicionar, validarTurnoReservable } = await import(
 
 const SECRETO_DE_PRUEBA = "secreto_de_prueba";
 const RUTA_RESERVAS = "/api/v1/bookings";
+const RUTA_DISPONIBILIDAD = "/api/v1/negocios/principal/bookings";
 const ID_USUARIO = randomUUID();
 const ID_CANCHA = randomUUID();
 const ID_RESERVA = randomUUID();
@@ -480,7 +488,7 @@ describe("Validación de reservas", () => {
   describe("consultas por fecha", () => {
     it("responde 400 con una fecha inválida en /availability", async () => {
       const respuesta = await request(app).get(
-        `${RUTA_RESERVAS}/availability?courtId=${ID_CANCHA}&date=2026-13-99`,
+        `${RUTA_DISPONIBILIDAD}/availability?courtId=${ID_CANCHA}&date=2026-13-99`,
       );
 
       expect(respuesta.status).toBe(400);
@@ -488,7 +496,7 @@ describe("Validación de reservas", () => {
 
     it("responde 400 con un courtId inválido en /availability", async () => {
       const respuesta = await request(app).get(
-        `${RUTA_RESERVAS}/availability?courtId=abc&date=2026-12-01`,
+        `${RUTA_DISPONIBILIDAD}/availability?courtId=abc&date=2026-12-01`,
       );
 
       expect(respuesta.status).toBe(400);
@@ -504,7 +512,7 @@ describe("Validación de reservas", () => {
 
     it("acepta una consulta válida en /availability", async () => {
       const respuesta = await request(app).get(
-        `${RUTA_RESERVAS}/availability?courtId=${ID_CANCHA}&date=2026-12-01`,
+        `${RUTA_DISPONIBILIDAD}/availability?courtId=${ID_CANCHA}&date=2026-12-01`,
       );
 
       expect(respuesta.status).toBe(200);

@@ -34,7 +34,7 @@ El sistema DEBE rechazar con 400 los cuerpos donde `bookingId` falte o no sea un
 
 ### PAG-003: Existencia y titularidad de la reserva
 
-El sistema DEBE responder 404 con "Reserva no encontrada" si la reserva no existe, y 403 con "No tienes autorización para pagar esta reserva." si el `userId` de la reserva no coincide con el del token. Esto aplica también al rol `ADMIN`: no hay excepción por rol.
+El sistema DEBE responder 404 con "Reserva no encontrada" si la reserva no existe, y 403 con "No tienes autorización para pagar esta reserva." si el `userId` de la reserva no coincide con el del token. Esto aplica también al rol `DUENO`: no hay excepción por rol.
 
 #### Escenario: Reserva inexistente
 
@@ -396,7 +396,7 @@ Motivo: resuelve la observación 7: el pago cobrado sin turno deja de ser solo u
 
 #### Escenario: Visible para reembolso obligatorio
 - Dada esa reserva
-- Cuando el `ADMIN` consulta el historial
+- Cuando el `DUENO` consulta el historial
 - Entonces la reserva figura con `refundDue` `REQUIRED` y el pago es reembolsable según PAG-024
 
 #### Escenario: Notificación repetida del pago sin turno
@@ -715,7 +715,7 @@ El sistema DEBE guardar en la reserva el id de la preferencia de Mercado Pago vi
 
 #### Escenario: Cancelación del administrador invalida el link
 - Dada una reserva con preferencia guardada
-- Cuando el `ADMIN` la cancela con `PATCH /bookings/admin/:id/status`
+- Cuando el `DUENO` la cancela con `PATCH /bookings/admin/:id/status`
 - Entonces responde 200 y se actualiza la preferencia para que expire en ese momento
 
 #### Escenario: Falla de Mercado Pago al expirar

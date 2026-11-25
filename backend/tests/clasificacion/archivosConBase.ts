@@ -7,11 +7,13 @@ import path from "node:path";
 export const ARCHIVOS_CON_BASE: readonly string[] = [
   "tests/aislamientoAdmin.test.ts",
   "tests/aislamientoReservasPagos.test.ts",
+  "tests/altaNegocio.test.ts",
   "tests/concurrenciaReservas.test.ts",
   "tests/integration.test.ts",
   "tests/liberarAlCrearReservaBase.test.ts",
   "tests/migracionNegocios.test.ts",
   "tests/migracionReservaInvitado.test.ts",
+  "tests/negociosPorSlug.test.ts",
   "tests/rutasAdminReservas.test.ts",
   "tests/secretosJwt.test.ts",
 ];

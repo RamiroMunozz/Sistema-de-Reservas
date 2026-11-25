@@ -68,8 +68,11 @@ export class BookingController {
   getAvailability = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { courtId, date } = consultaDisponibilidadSchema.parse(req.query);
-      // Sin negocio resuelto todavía: el catálogo por slug llega con la entrega 5.
-      const occupied = await bookingService.getOccupiedSlots(courtId, date, null);
+      const occupied = await bookingService.getOccupiedSlots(
+        courtId,
+        date,
+        obtenerIdNegocio(req),
+      );
 
       return res.status(200).json(occupied);
     } catch (error) {

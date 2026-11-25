@@ -1,16 +1,11 @@
 import { Router } from "express";
-import {
-  limitadorConsultaPublica,
-  limitadorCreacionPublica,
-} from "../../core/middlewares/limitadorPublico.js";
+import { limitadorConsultaPublica } from "../../core/middlewares/limitadorPublico.js";
 import { PublicController } from "./public.controller.js";
 
 const router = Router();
 const publicController = new PublicController();
 
-// El limitador va antes de validar: cuenta todas las solicitudes (RES-030).
-router.post("/bookings", limitadorCreacionPublica, publicController.crearReserva);
-
+// La reserva de invitado se crea por slug (`POST /negocios/:slug/bookings`); aquí solo van las rutas por token.
 // Rutas por token (RES-028, RES-029, PAG-021): con su propio limitador de consulta.
 router.get("/bookings/:token", limitadorConsultaPublica, publicController.consultarReserva);
 router.patch(

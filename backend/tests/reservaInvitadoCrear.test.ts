@@ -49,6 +49,10 @@ vi.mock("../src/core/config/prisma.js", () => {
   return {
     prisma: {
       court: { findFirst: buscarCancha },
+      // Resolutor por slug: devuelve el negocio de la cancha simulada.
+      negocio: {
+        findFirst: async () => ({ id: ID_NEGOCIO, nombre: "Negocio principal", slug: "principal" }),
+      },
       booking: { update: guardarPreferencia },
       $transaction: async (
         operacion: (tx: typeof transaccion) => Promise<unknown>,
@@ -73,7 +77,7 @@ vi.stubEnv("LIMITE_CREACION_PUBLICA_MAXIMO", "1000");
 
 const { default: app } = await import("../src/app.js");
 
-const RUTA = "/api/v1/public/bookings";
+const RUTA = "/api/v1/negocios/principal/bookings";
 const ID_CANCHA = randomUUID();
 const ID_NEGOCIO = randomUUID();
 const ID_RESERVA = randomUUID();
@@ -108,7 +112,7 @@ const cancha = (cambios: Record<string, unknown> = {}) => ({
 
 const datosDeCreacion = () => crearReserva.mock.calls[0][0].data;
 
-describe("POST /public/bookings (RES-023 a RES-025, RES-030 a RES-032, PAG-020)", () => {
+describe("POST /negocios/:slug/bookings (RES-023 a RES-025, RES-030 a RES-032, PAG-020)", () => {
   beforeAll(() => {
     vi.stubEnv("FRONTEND_URL", URL_FRONTEND);
     vi.spyOn(console, "error").mockImplementation(() => undefined);

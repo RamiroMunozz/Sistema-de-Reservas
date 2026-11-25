@@ -49,12 +49,16 @@ export interface ReservaInvitadoCreada {
 }
 
 export class ReservaInvitadoService {
-  async crear(datos: CrearReservaInvitadoDTO): Promise<ReservaInvitadoCreada> {
+  async crear(
+    idNegocioSolicitado: string,
+    datos: CrearReservaInvitadoDTO,
+  ): Promise<ReservaInvitadoCreada> {
+    // La cancha debe ser del negocio de la solicitud; ajena o inexistente responde igual.
     const { court, start, end, idNegocio, depositPercent } = await validarTurnoReservable(
       datos.courtId,
       datos.startTime,
       datos.endTime,
-      null,
+      idNegocioSolicitado,
     );
 
     VARIABLES_DE_MERCADO_PAGO.forEach(obtenerVariableMercadoPago);
@@ -66,7 +70,7 @@ export class ReservaInvitadoService {
     const reserva = await conBloqueoDeCancha(court.id, async (transaccion) => {
       // Primera operación: una PENDING vencida deja de ocupar el turno (RES-026).
       await liberarReservasVencidas(transaccion, court.id);
-      await bloquearTelefono(transaccion, datos.guestPhone);
+      await bloquearTelefono(transaccion, idNegocio, datos.guestPhone);
 
       return transaccion.booking.create({
         data: {

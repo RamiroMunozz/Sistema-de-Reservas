@@ -2,7 +2,7 @@
 
 ## Propósito
 
-Describe el comportamiento actual (single-tenant) del dominio de reservas: creación por el jugador y por el administrador, consulta, cancelación, cambio de estado, disponibilidad diaria y garantía de no solapamiento de turnos. Las rutas `/api/v1/bookings/admin/*` se documentan aquí; el dominio `administracion` solo referencia el rol `ADMIN`.
+Describe el comportamiento actual (single-tenant) del dominio de reservas: creación por el jugador y por el administrador, consulta, cancelación, cambio de estado, disponibilidad diaria y garantía de no solapamiento de turnos. Las rutas `/api/v1/bookings/admin/*` se documentan aquí; el dominio `administracion` solo referencia el rol `DUENO`.
 
 ## Requisitos
 
@@ -121,7 +121,7 @@ Motivo: la reserva de invitado no puede ocupar el turno de forma definitiva sin 
 - Entonces la reserva nace `PENDING` con `totalPrice` 1000 y `expiresAt` definido
 
 #### Escenario: Reserva de administrador
-- Dado un `ADMIN` que crea una reserva
+- Dado un `DUENO` que crea una reserva
 - Cuando se persiste
 - Entonces nace `CONFIRMED` con `expiresAt` nulo
 
@@ -245,7 +245,7 @@ Motivo: resuelve la observación 2 (la cancelación no usaba el bloqueo de canch
 
 #### Escenario: Reserva ajena
 - Dada una reserva de otro usuario
-- Cuando la intenta cancelar (incluso con rol `ADMIN` por esta ruta)
+- Cuando la intenta cancelar (incluso con rol `DUENO` por esta ruta)
 - Entonces responde 403 y no se modifica
 
 #### Escenario: Reserva de invitado
@@ -883,7 +883,7 @@ El sistema DEBE incorporar el estado de reserva `EXPIRED` (vencida), que se usa 
 - Entonces queda `CANCELLED` y no `EXPIRED`
 
 #### Escenario: El administrador no puede fijar EXPIRED
-- Dado un `ADMIN` y una reserva `PENDING`
+- Dado un `DUENO` y una reserva `PENDING`
 - Cuando envía `PATCH /bookings/admin/:id/status` con `status: "EXPIRED"`
 - Entonces responde 400 y la reserva no cambia
 

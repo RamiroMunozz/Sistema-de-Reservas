@@ -13,6 +13,13 @@ const { buscarCancha, actualizarCancha, buscarComplejo } = vi.hoisted(() => ({
 vi.mock("../src/core/config/prisma.js", () => ({
   prisma: {
     complex: { findFirst: buscarComplejo },
+    negocio: {
+      findFirst: async () => ({
+        id: "5c0a1f0e-7d1b-4a3e-9b52-0c2f6a1d8e47",
+        nombre: "Negocio principal",
+        slug: "principal",
+      }),
+    },
     court: { findUnique: buscarCancha, findFirst: buscarCancha, update: actualizarCancha },
   },
 }));
@@ -64,11 +71,13 @@ describe("Validación de canchas", () => {
 
   describe("CAN-015: validación del id de cancha", () => {
     it.each([
-      { descripcion: "GET /courts/:id", metodo: "get", ruta: "/api/v1/courts/abc" },
-      {
-        descripcion: "GET /courts/:id/availability",
+      { descripcion: "GET /negocios/:slug/courts/:id",
         metodo: "get",
-        ruta: "/api/v1/courts/abc/availability?date=2026-12-01",
+        ruta: "/api/v1/negocios/principal/courts/abc", },
+      {
+        descripcion: "GET /negocios/:slug/courts/:id/availability",
+        metodo: "get",
+        ruta: "/api/v1/negocios/principal/courts/abc/availability?date=2026-12-01",
       },
       {
         descripcion: "PATCH /admin/courts/:id",
@@ -104,7 +113,7 @@ describe("Validación de canchas", () => {
     });
 
     it("responde 404 ante un UUID válido de una cancha inexistente", async () => {
-      const respuesta = await request(app).get(`/api/v1/courts/${ID_INEXISTENTE}`);
+      const respuesta = await request(app).get(`/api/v1/negocios/principal/courts/${ID_INEXISTENTE}`);
 
       expect(respuesta.status).toBe(404);
       expect(JSON.stringify(respuesta.body)).toContain(
@@ -114,7 +123,7 @@ describe("Validación de canchas", () => {
 
     it("responde 404 en la disponibilidad ante un UUID válido de una cancha inexistente", async () => {
       const respuesta = await request(app).get(
-        `/api/v1/courts/${ID_INEXISTENTE}/availability?date=2026-12-01`,
+        `/api/v1/negocios/principal/courts/${ID_INEXISTENTE}/availability?date=2026-12-01`,
       );
 
       expect(respuesta.status).toBe(404);

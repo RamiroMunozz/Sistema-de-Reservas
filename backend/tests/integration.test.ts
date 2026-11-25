@@ -21,7 +21,7 @@ describe("Suite de Integración - API de Reservas", () => {
     });
     adminToken = adminLoginRes.body.accessToken;
 
-    const courtsRes = await request(app).get("/api/v1/courts");
+    const courtsRes = await request(app).get("/api/v1/negocios/principal/courts");
     courtId = courtsRes.body[0].id;
   });
 
@@ -29,9 +29,9 @@ describe("Suite de Integración - API de Reservas", () => {
     await prisma.$disconnect();
   });
 
-  describe("GET /api/v1/courts", () => {
+  describe("GET /api/v1/negocios/:slug/courts", () => {
     it("debe devolver la lista de canchas con status 200", async () => {
-      const res = await request(app).get("/api/v1/courts");
+      const res = await request(app).get("/api/v1/negocios/principal/courts");
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
       expect(res.body.length).toBeGreaterThan(0);
@@ -39,7 +39,7 @@ describe("Suite de Integración - API de Reservas", () => {
     });
 
     it("debe filtrar correctamente por deporte", async () => {
-      const res = await request(app).get("/api/v1/courts?sport=FUTBOL_5");
+      const res = await request(app).get("/api/v1/negocios/principal/courts?sport=FUTBOL_5");
       expect(res.status).toBe(200);
       expect(res.body.every((c: any) => c.sport === "FUTBOL_5")).toBe(true);
     });

@@ -2,13 +2,14 @@ import express from "express";
 import cors from "cors";
 import helmet from "helmet";
 import { authRoutes } from "./modules/auth/auth.routes.js";
-import { courtRoutes } from "./modules/courts/court.routes.js";
 import bookingRoutes from "./modules/bookings/booking.routes.js";
 import { adminRoutes } from "./modules/admin/admin.routes.js";
 import { leerTrustProxy } from "./core/config/trustProxy.js";
 import { errorHandler } from "./core/middlewares/errorHandler.js";
 import { paymentRoutes } from "./modules/payments/payments.routes.js";
 import { publicRoutes } from "./modules/public/public.routes.js";
+import { negocioRoutes } from "./modules/negocios/negocio.routes.js";
+import { plataformaRoutes } from "./modules/negocios/plataforma.routes.js";
 
 const app = express();
 
@@ -33,11 +34,12 @@ app.get("/health", (_req, res) => {
 
 // Rutas de API v1
 app.use("/api/v1/auth", authRoutes);
-app.use("/api/v1/courts", courtRoutes);
 app.use("/api/v1/bookings", bookingRoutes);
 app.use("/api/v1/admin", adminRoutes);
 app.use("/api/v1/payments", paymentRoutes);
 app.use("/api/v1/public", publicRoutes);
+app.use("/api/v1/plataforma", plataformaRoutes);
+app.use("/api/v1/negocios", negocioRoutes);
 
 // Manejador global de errores
 app.use(errorHandler);

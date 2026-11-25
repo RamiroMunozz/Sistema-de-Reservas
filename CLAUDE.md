@@ -21,4 +21,4 @@ Ejecutá `/ponerse-al-dia` al empezar una sesión: lee memoria, estado SDD, git 
 
 Memoria (Engram): proyecto `sistema-de-reservas`.
 
-Estado actual: el código es single-tenant. El multi-tenant es un objetivo (ADR 0002).
+Estado actual: el código es multi-tenant (ADR 0002, cambio `multi-tenant-negocios`). Falta el Mercado Pago propio por negocio.

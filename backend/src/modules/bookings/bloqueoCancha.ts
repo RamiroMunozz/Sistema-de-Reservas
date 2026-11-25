@@ -29,19 +29,22 @@ export const conBloqueoDeCancha = async <T>(
 };
 
 /**
- * Serializa las reservas de invitado de un mismo teléfono y aplica el tope de
- * reservas PENDING vigentes (RES-031). Debe llamarse dentro de
+ * Serializa las reservas de invitado de un mismo teléfono en un negocio y aplica el tope de
+ * reservas PENDING vigentes de ese negocio (RES-031): el mismo teléfono en otro negocio no comparte
+ * clave de bloqueo ni tope. Debe llamarse dentro de
  * conBloqueoDeCancha: el orden fijo (cancha y luego teléfono) evita deadlocks.
  * El primer entero de la clave (2) separa su espacio del de las canchas.
  */
 export const bloquearTelefono = async (
   transaccion: Prisma.TransactionClient,
+  idNegocio: string,
   telefono: string,
 ): Promise<void> => {
-  await transaccion.$executeRaw`SELECT pg_advisory_xact_lock(2, hashtext(${telefono}))`;
+  await transaccion.$executeRaw`SELECT pg_advisory_xact_lock(2, hashtext(${idNegocio} || ':' || ${telefono}))`;
 
   const pendientes = await transaccion.booking.count({
     where: {
+      negocioId: idNegocio,
       guestPhone: telefono,
       status: BookingStatus.PENDING,
       expiresAt: { gt: new Date() },

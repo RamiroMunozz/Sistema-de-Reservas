@@ -4,8 +4,8 @@ Los términos en español son el lenguaje del dominio. Entre paréntesis figura 
 
 | Término | Estado | Definición |
 |---|---|---|
-| Negocio | Objetivo | Cliente de la plataforma: una organización que alquila canchas. Es la unidad de aislamiento de datos. Aún no existe en el esquema. |
-| Complejo (`Complex`) | Actual | Sede física con nombre, dirección y teléfono; agrupa canchas. En el objetivo pertenecerá a un negocio. |
+| Negocio (`Negocio`) | Actual (`multi-tenant-negocios`) | Cliente de la plataforma: una organización que alquila canchas. Es la unidad de aislamiento de datos. Tiene `nombre`, `slug` único y `activo`; sus complejos, reservas y dueño le pertenecen por `negocioId`. |
+| Complejo (`Complex`) | Actual | Sede física con nombre, dirección y teléfono; agrupa canchas. Pertenece a un negocio (`negocioId`). |
 | Cancha (`Court`) | Actual | Espacio reservable con deporte (`Sport`), superficie (`Surface`), precio por turno (`pricePerSlot`), indicador de techado (`isIndoor`) y de actividad (`isActive`). |
 | Horario de cancha (`CourtSchedule`) | Actual | Franja de atención de una cancha para un día de la semana: apertura, cierre y duración del turno (60 minutos por defecto). Hay uno por cancha y día. |
 | Turno (slot) | Actual | Intervalo reservable de una cancha, derivado del horario de cancha. |
@@ -21,10 +21,11 @@ Los términos en español son el lenguaje del dominio. Entre paréntesis figura 
 | Método de pago | Actual | `CASH` (efectivo), `TRANSFER` (transferencia), `MERCADOPAGO`. |
 | Seña | Objetivo | Porcentaje del precio que se cobra online para confirmar la reserva; el resto se paga en el lugar. En `reserva-invitado` es `Complex.depositPercent` (30 por defecto, de 1 a 100) y se guarda en `depositAmount`. |
 | Política de cobro | Objetivo | Configuración por negocio: total online, seña o pago en el lugar. |
-| Usuario (`User`) | Actual | Cuenta con `firstName`, `lastName`, `email`, `phone` y rol (`Role`: `USER` o `ADMIN`). |
-| Jugador | Objetivo | Persona que reserva. Cuenta global, única para toda la plataforma. Equivale hoy al rol `USER`. |
-| Dueño | Objetivo | Cuenta que administra un único negocio. Equivale hoy, de forma aproximada, al rol `ADMIN`. |
-| Super admin | Objetivo | Operador de la plataforma; da de alta y supervisa negocios. |
-| Slug | Objetivo | Identificador legible del negocio en la URL pública (`tuapp.com/<slug>`). Debe ser único. |
+| Usuario (`User`) | Actual | Cuenta con `firstName`, `lastName`, `email`, `phone` y rol (`Role`: `JUGADOR`, `DUENO` o `SUPER_ADMIN`). |
+| Jugador | Actual (`JUGADOR`) | Persona que reserva. Cuenta global, única para toda la plataforma, sin negocio asociado. Antes del cambio `multi-tenant-negocios` era el rol `USER`. |
+| Dueño | Actual (`DUENO`) | Cuenta que administra un único negocio: su token lleva el `negocioId` y a lo sumo hay un dueño por negocio. Antes del cambio era el rol `ADMIN`. |
+| Super admin (`SUPER_ADMIN`) | Actual (alta) / Objetivo (supervisión) | Operador de la plataforma, sin negocio asociado. Hoy solo da de alta un negocio y su dueño (`POST /api/v1/plataforma/negocios`); la gestión completa llega con `panel-super-admin`. |
+| Slug | Actual | Identificador legible del negocio en la URL pública (`tuapp.com/<slug>`) y en las rutas `/api/v1/negocios/:slug/...`. Es único. El negocio de la semilla usa `principal`. |
+| Pertenencia ("ajeno ≡ inexistente") | Actual | Regla de aislamiento: un recurso de otro negocio responde igual que uno inexistente (404), porque se busca por id y por negocio a la vez. |
 | Webhook | Actual | Notificación que Mercado Pago envía al backend para informar el resultado de un pago (`POST /api/v1/payments/webhook`). |
 | Restricción de no solapamiento | Actual | Restricción `EXCLUDE` de PostgreSQL (`bookings_sin_solapamiento`) que impide dos reservas activas solapadas en una cancha. |

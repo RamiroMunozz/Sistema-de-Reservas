@@ -29,6 +29,7 @@ import type {
   Sport,
   Surface,
   Court,
+  ComplejoAdmin,
   BookingStatus,
   EstadoSena,
   RefundReason,
@@ -234,8 +235,10 @@ export const AdminDashboard: React.FC = () => {
   const [loadingMetrics, setLoadingMetrics] = useState(true);
 
   // Canchas
-  const [courts, setCourts] = useState<Court[]>([]);
+  const [complejos, setComplejos] = useState<ComplejoAdmin[]>([]);
+  // Complejo elegido: el alta de cancha y el porcentaje de seña se aplican a este (ADM-009).
   const [complexId, setComplexId] = useState("");
+  const courts: Court[] = complejos.flatMap((complejo) => complejo.courts);
   const [name, setName] = useState("");
   const [sport, setSport] = useState<Sport>("FUTBOL_5");
   const [surface, setSurface] = useState<Surface>("SINTETICO");
@@ -323,17 +326,19 @@ export const AdminDashboard: React.FC = () => {
       api.get<{ summary: MetricsSummary }>(
         `/admin/metrics?startDate=${startDate}&endDate=${endDate}`,
       ),
-      api.get<Court[]>("/courts"),
+      api.get<ComplejoAdmin[]>("/admin/complexes"),
     ])
-      .then(([metricsRes, courtsRes]) => {
+      .then(([metricsRes, complejosRes]) => {
         if (isMounted) {
+          const complejosCargados = complejosRes.data;
           setMetrics(metricsRes.data.summary);
-          setCourts(courtsRes.data);
-          if (courtsRes.data.length > 0) {
-            setManualCourtId(courtsRes.data[0].id);
-            if (courtsRes.data[0].complexId) {
-              setComplexId(courtsRes.data[0].complexId);
-            }
+          setComplejos(complejosCargados);
+          if (complejosCargados.length > 0) {
+            setComplexId(complejosCargados[0].id);
+          }
+          const primeraCancha = complejosCargados.flatMap((c) => c.courts)[0];
+          if (primeraCancha) {
+            setManualCourtId(primeraCancha.id);
           }
         }
       })
@@ -442,6 +447,14 @@ export const AdminDashboard: React.FC = () => {
       isMounted = false;
     };
   }, [complexId]);
+
+  // Elegir complejo (ADM-009): la seña se recarga para el complejo nuevo
+  const handleSelectComplex = (idComplejo: string) => {
+    setComplexId(idComplejo);
+    setDepositPercent(null);
+    setDepositInput("");
+    setDepositFeedback(null);
+  };
 
   // Guardar el porcentaje de seña (ADM-018): entero de 1 a 100
   const handleSaveDepositPercent = async (e: React.FormEvent) => {
@@ -598,7 +611,13 @@ export const AdminDashboard: React.FC = () => {
         type: "success",
         message: "¡Cancha creada correctamente en el sistema!",
       });
-      setCourts((prev) => [...prev, res.data]);
+      setComplejos((prev) =>
+        prev.map((complejo) =>
+          complejo.id === res.data.complexId
+            ? { ...complejo, courts: [...complejo.courts, res.data] }
+            : complejo,
+        ),
+      );
       setName("");
       setPricePerSlot(25000);
       setIsIndoor(false);
@@ -1000,6 +1019,29 @@ export const AdminDashboard: React.FC = () => {
               Agregá un nuevo espacio al catálogo
             </p>
 
+            {complejos.length > 1 && (
+              <div className="mb-4">
+                <label
+                  htmlFor="selector-complejo"
+                  className="block text-xs font-semibold text-slate-300 uppercase mb-2"
+                >
+                  Complejo
+                </label>
+                <select
+                  id="selector-complejo"
+                  value={complexId}
+                  onChange={(e) => handleSelectComplex(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg py-2.5 px-3 text-white text-sm focus:outline-none focus:border-emerald-500 transition"
+                >
+                  {complejos.map((complejo) => (
+                    <option key={complejo.id} value={complejo.id}>
+                      {complejo.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <form onSubmit={handleCreateCourt} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase mb-2">
@@ -1348,11 +1390,15 @@ export const AdminDashboard: React.FC = () => {
                   onChange={(e) => setManualCourtId(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
                 >
-                  {courts.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name} ({c.sport}) - $
-                      {Number(c.pricePerSlot).toLocaleString("es-AR")}
-                    </option>
+                  {complejos.map((complejo) => (
+                    <optgroup key={complejo.id} label={complejo.name}>
+                      {complejo.courts.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name} ({c.sport}) - $
+                          {Number(c.pricePerSlot).toLocaleString("es-AR")}
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
               </div>

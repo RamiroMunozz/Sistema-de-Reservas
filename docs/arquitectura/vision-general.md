@@ -1,6 +1,6 @@
 # Visión general de la arquitectura
 
-Describe el **estado actual** (single-tenant). El objetivo multi-tenant está en el [ADR 0002](adr/0002-multi-tenant.md).
+Describe el **estado actual** (multi-tenant desde el cambio `multi-tenant-negocios`). Las decisiones y el detalle están en el [ADR 0002](adr/0002-multi-tenant.md).
 
 ## Componentes
 

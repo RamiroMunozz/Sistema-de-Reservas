@@ -9,13 +9,16 @@ const { transaccionIniciada } = vi.hoisted(() => ({
 vi.mock("../src/core/config/prisma.js", () => ({
   prisma: {
     court: { findFirst: vi.fn() },
+    negocio: {
+      findFirst: async () => ({ id: "5c0a1f0e-7d1b-4a3e-9b52-0c2f6a1d8e47", nombre: "Negocio principal", slug: "principal" }),
+    },
     $transaction: transaccionIniciada,
   },
 }));
 
-const RUTA = "/api/v1/public/bookings";
+const RUTA = "/api/v1/negocios/principal/bookings";
 
-describe("POST /public/bookings: límite por IP en la ruta real (RES-030)", () => {
+describe("POST /negocios/:slug/bookings: límite por IP en la ruta real (RES-030)", () => {
   beforeAll(() => {
     vi.stubEnv("LIMITE_CREACION_PUBLICA_MAXIMO", "10");
     vi.spyOn(console, "error").mockImplementation(() => undefined);

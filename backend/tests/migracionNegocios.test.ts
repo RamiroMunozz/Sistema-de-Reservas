@@ -271,7 +271,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Coherencia del negocio en las rutas de cre
       { courtId: idCancha, startTime: inicio(12).toISOString(), endTime: fin(12).toISOString(), paymentMethod: "CASH" },
       idUsuario,
     );
-    await new ReservaInvitadoService().crear({
+    await new ReservaInvitadoService().crear(idNegocio, {
       courtId: idCancha,
       startTime: inicio(14).toISOString(),
       endTime: fin(14).toISOString(),

@@ -52,6 +52,16 @@ DATABASE_URL="postgresql://prueba:prueba@localhost:5434/reservas_prueba" DATABAS
 
 Aquí `DATABASE_URL` y `DATABASE_URL_PRUEBA` coinciden solo porque ambas apuntan a la base descartable. Con la base de desarrollo, `DATABASE_URL_PRUEBA` nunca debe tener su valor.
 
+## Cuentas de la semilla (solo desarrollo)
+
+`npx prisma db seed` borra todas las tablas y carga datos de desarrollo; con `NODE_ENV=production` se aborta (guarda en `backend/prisma/guardaSemilla.ts`). Crea el negocio `principal` (slug `principal`) y estas cuentas, con contraseñas fijas de desarrollo que se cambian antes de cualquier despliegue real:
+
+| Cuenta | Rol | Negocio | Contraseña |
+|---|---|---|---|
+| `admin@sportsbooking.com` | `DUENO` | `principal` | `AdminPass123` |
+| `jugador@example.com` | `JUGADOR` | ninguno | `UserPass123` |
+| `plataforma@sportsbooking.com` | `SUPER_ADMIN` | ninguno | `PlataformaPass123` |
+
 ## Credenciales de prueba de Mercado Pago
 
 Todas se obtienen en `developers.mercadopago.com`. Nunca se versionan ni se copian en la documentación.

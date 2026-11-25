@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import api from "../api/axios";
 import { isAxiosError } from "axios";
+import { Link } from "react-router-dom";
 import { Calendar, Clock, MapPin, AlertCircle, XCircle } from "lucide-react";
+import type { NegocioResumen } from "../types/index.js";
 
 interface Booking {
   id: string;
@@ -10,6 +12,8 @@ interface Booking {
   status: "CONFIRMED" | "CANCELLED" | "PENDING" | "COMPLETED";
   totalPrice: string | number;
   paymentMethod: string;
+  // Negocio de la reserva (NEG-005): la cuenta de jugador es global.
+  negocio: NegocioResumen;
   court: {
     name: string;
     sport: string;
@@ -167,6 +171,13 @@ export const MyBookingsPage: React.FC = () => {
                       {ETIQUETAS_ESTADO[booking.status]}
                     </span>
                   </div>
+
+                  <Link
+                    to={`/${encodeURIComponent(booking.negocio.slug)}`}
+                    className="block text-xs font-semibold text-emerald-400 hover:underline mb-2"
+                  >
+                    {booking.negocio.nombre}
+                  </Link>
 
                   <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400">
                     <span className="flex items-center gap-1">

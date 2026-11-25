@@ -2,7 +2,7 @@
 
 ## Propósito
 
-Describe el comportamiento actual (single-tenant) de la identidad de los usuarios: registro, inicio de sesión con token JWT, verificación del token en rutas protegidas, control de acceso por rol (`USER` y `ADMIN`), límite de intentos y manejo de la sesión en el frontend. Las reglas de cada recurso protegido se documentan en la spec de su dominio.
+Describe el comportamiento actual (single-tenant) de la identidad de los usuarios: registro, inicio de sesión con token JWT, verificación del token en rutas protegidas, control de acceso por rol (`JUGADOR` y `DUENO`), límite de intentos y manejo de la sesión en el frontend. Las reglas de cada recurso protegido se documentan en la spec de su dominio.
 
 ## Requisitos
 

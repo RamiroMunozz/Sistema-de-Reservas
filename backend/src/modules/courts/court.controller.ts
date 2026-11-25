@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import { obtenerIdNegocio } from "../../core/middlewares/negocio.js";
 import { CourtService } from "./court.service.js";
 import {
   getCourtsQuerySchema,
@@ -16,7 +17,10 @@ export class CourtController {
   ): Promise<void> => {
     try {
       const filters = getCourtsQuerySchema.parse(req.query);
-      const courts = await this.courtService.getAllCourts(filters);
+      const courts = await this.courtService.getAllCourts(
+        obtenerIdNegocio(req),
+        filters,
+      );
       res.status(200).json(courts);
     } catch (error) {
       next(error);
@@ -30,7 +34,10 @@ export class CourtController {
   ): Promise<void> => {
     try {
       const { id } = idCanchaSchema.parse(req.params);
-      const court = await this.courtService.getCourtById(id);
+      const court = await this.courtService.getCourtById(
+        obtenerIdNegocio(req),
+        id,
+      );
       res.status(200).json(court);
     } catch (error) {
       next(error);
@@ -46,6 +53,7 @@ export class CourtController {
       const { id } = idCanchaSchema.parse(req.params);
       const { date } = getCourtAvailabilityQuerySchema.parse(req.query);
       const availability = await this.courtService.getCourtAvailability(
+        obtenerIdNegocio(req),
         id,
         date,
       );

@@ -17,7 +17,7 @@ export const App: React.FC = () => {
           <Navbar />
           <main className="flex-1">
             <Routes>
-              <Route path="/" element={<BookingsPage />} />
+              <Route path="/" element={<Navigate to="/principal" replace />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/reserva/:codigo" element={<ReservaInvitadoPage />} />
               <Route
@@ -36,6 +36,8 @@ export const App: React.FC = () => {
                   </ProtectedRoute>
                 }
               />
+              {/* Las rutas fijas tienen prioridad sobre el slug del negocio. */}
+              <Route path="/:slug" element={<BookingsPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

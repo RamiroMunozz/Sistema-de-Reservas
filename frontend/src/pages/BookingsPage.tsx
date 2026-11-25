@@ -9,7 +9,7 @@ import {
   Banknote,
   X,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../context/useAuth";
 import { mensajeDeError } from "../utils/mensajeDeError";
 import type {
@@ -53,6 +53,7 @@ const DIGITOS_TELEFONO_LOCAL = 10;
 export const BookingsPage: React.FC = () => {
   const { isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const { slug = "" } = useParams<{ slug: string }>();
   const [formulario, setFormulario] =
     useState<FormularioInvitado>(FORMULARIO_VACIO);
   const [courts, setCourts] = useState<Court[]>([]);
@@ -61,6 +62,7 @@ export const BookingsPage: React.FC = () => {
     new Date().toISOString().split("T")[0],
   );
   const [loading, setLoading] = useState(true);
+  const [negocioNoEncontrado, setNegocioNoEncontrado] = useState(false);
   // Instante de referencia; se renueva al cargar la disponibilidad.
   const [ahora, setAhora] = useState<number>(() => Date.now());
 
@@ -84,9 +86,12 @@ export const BookingsPage: React.FC = () => {
     const loadData = async () => {
       try {
         setLoading(true);
+        setNegocioNoEncontrado(false);
 
         // 1. Obtener canchas si aún no se cargaron
-        const courtsRes = await api.get<Court[]>("/courts");
+        const courtsRes = await api.get<Court[]>(
+          `/negocios/${encodeURIComponent(slug)}/courts`,
+        );
         const loadedCourts = courtsRes.data;
 
         if (!isMounted) return;
@@ -100,7 +105,7 @@ export const BookingsPage: React.FC = () => {
             loadedCourts.map(async (court) => {
               try {
                 const res = await api.get<string[]>(
-                  `/bookings/availability?courtId=${court.id}&date=${selectedDate}`,
+                  `/negocios/${encodeURIComponent(slug)}/bookings/availability?courtId=${court.id}&date=${selectedDate}`,
                 );
                 availabilityMap[court.id] = res.data;
               } catch {
@@ -115,7 +120,12 @@ export const BookingsPage: React.FC = () => {
           }
         }
       } catch (err) {
-        console.error("Error al cargar datos y disponibilidad:", err);
+        if (isAxiosError(err) && err.response?.status === 404) {
+          // Negocio inexistente o inactivo (NEG-005): se avisa en lugar de mostrar una grilla vacía.
+          if (isMounted) setNegocioNoEncontrado(true);
+        } else {
+          console.error("Error al cargar datos y disponibilidad:", err);
+        }
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -128,7 +138,7 @@ export const BookingsPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [selectedDate, refreshKey]);
+  }, [slug, selectedDate, refreshKey]);
 
   const timeSlots = [
     "08:00",
@@ -247,7 +257,7 @@ export const BookingsPage: React.FC = () => {
       };
 
       const res = await api.post<ReservaInvitadoCreada>(
-        "/public/bookings",
+        `/negocios/${encodeURIComponent(slug)}/bookings`,
         payload,
       );
 
@@ -324,6 +334,22 @@ export const BookingsPage: React.FC = () => {
       setBookingLoading(false);
     }
   };
+
+  if (negocioNoEncontrado) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center">
+          <AlertCircle className="w-8 h-8 text-amber-400 mx-auto mb-3" />
+          <h1 className="text-xl font-bold text-white mb-2">
+            Negocio no encontrado
+          </h1>
+          <p className="text-slate-400 text-sm">
+            No existe un negocio con la dirección «{slug}». Revisá el enlace.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">

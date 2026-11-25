@@ -276,7 +276,7 @@ El sistema DEBE validar que el parámetro `id` sea un UUID antes de consultar la
 - Entonces responde 400 con `errors` que incluye el campo `id`, y no se consulta la base de datos
 
 #### Escenario: Modificación con `id` mal formado
-- Dado un `ADMIN` autenticado y un `id` que no es UUID
+- Dado un `DUENO` autenticado y un `id` que no es UUID
 - Cuando envía `PATCH /api/v1/admin/courts/abc` con `{ "name": "Cancha 1" }`
 - Entonces responde 400 con `errors` que incluye el campo `id`, y no se consulta ni modifica la base de datos
 
@@ -286,7 +286,7 @@ El sistema DEBE validar que el parámetro `id` sea un UUID antes de consultar la
 - Entonces responde 404 con "La cancha solicitada no existe o se encuentra inactiva" (sin cambios respecto de CAN-004)
 
 #### Escenario: Modificación sin rol de administrador con `id` mal formado
-- Dado un usuario con rol `USER` y un `id` que no es UUID
+- Dado un usuario con rol `JUGADOR` y un `id` que no es UUID
 - Cuando envía `PATCH /api/v1/admin/courts/abc`
 - Entonces responde 403 (CAN-011), no 400
 

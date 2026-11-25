@@ -15,7 +15,7 @@ Prisma 5 (`@prisma/client` y `prisma` ^5.22.0), PostgreSQL. Todos los comandos s
 4. Revisar siempre el `migration.sql` generado antes de confirmar.
 5. Los cambios de esquema que alteren el comportamiento van acompañados de una prueba y de la actualización de la spec correspondiente.
 
-Migraciones existentes en `backend/prisma/migrations/`: `20260826202621_init_schema`, `20261031231330_nueva_migracion`, `20261104120000_reservas_sin_solapamiento`.
+Migraciones existentes en `backend/prisma/migrations/`: `20260826202621_init_schema`, `20261031231330_nueva_migracion`, `20261104120000_reservas_sin_solapamiento`, `20261119120000_reserva_invitado`, `20261119120100_sin_solapamiento_excluye_vencidas`, `20261125120000_negocios` y `20261125120100_roles_negocio`.
 
 ## Restricciones SQL manuales
 
@@ -31,6 +31,16 @@ Prisma **no las representa** en `schema.prisma` (hay un comentario sobre el mode
 - Si Prisma propone borrarlas (por desvío entre esquema y base), rechazar esa parte del SQL.
 - Una base nueva necesita que su usuario pueda crear `btree_gist`.
 - Cualquier restricción nueva que Prisma no soporte se agrega en SQL manual y se documenta con un comentario en el modelo.
+
+## Restricciones y trigger de negocios
+
+Las migraciones `20261125120000_negocios` y `20261125120100_roles_negocio` agregan, con SQL manual que Prisma no modela:
+
+- `users_un_dueno_por_negocio`: `EXCLUDE USING btree (negocio_id WITH =) WHERE (negocio_id IS NOT NULL)`. Es una restricción y no un `CREATE UNIQUE INDEX` suelto porque Prisma 5 borra los índices que no modela, pero no las restricciones.
+- Trigger `bookings_negocio_coherente` (función `bookings_validar_negocio`): antes de insertar o de modificar `court_id` o `negocio_id`, exige que la reserva pertenezca al negocio del complejo de su cancha.
+- `users_negocio_segun_rol`: `CHECK ((role = 'DUENO') = (negocio_id IS NOT NULL))`.
+
+Mismas precauciones: no borrarlas al editar los modelos `User` o `Booking`, y rechazar cualquier SQL de Prisma que las elimine. Los roles se renombraron con `ALTER TYPE "Role" RENAME VALUE` (conserva los datos) y `SUPER_ADMIN` se agregó en una migración aparte, porque PostgreSQL no deja usar un valor agregado con `ADD VALUE` en la misma transacción.
 
 ## Detectar una violación de la exclusión
 
