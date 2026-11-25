@@ -5,7 +5,7 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Estado actual
 
-- **Rama activa:** `desarrollo`, en `d1cedc8`, publicada en `origin/desarrollo` con todo `multi-tenant-negocios`. UT-5 a UT-8 quedaron en un solo commit, "Prueba push y resultado CI", que no sigue Conventional Commits y ya está publicado. `main` sigue en `26b09d3`. Sin commitear: el archivo de `multi-tenant-negocios` (incluido el cierre de T-8.6), las specs fusionadas, la hoja de ruta y esta bitácora. El usuario commitea a mano.
+- **Rama activa:** `desarrollo`. `main`, `desarrollo` y sus remotos están en `6a35114` (archivo de `multi-tenant-negocios`, integrado en `main` por el usuario el 2026-11-25), con CI en verde. UT-5 a UT-8 quedaron en un solo commit (`d1cedc8`, "Prueba push y resultado CI"), que no sigue Conventional Commits y ya está publicado. Sin commitear: esta actualización de la bitácora. El usuario commitea a mano.
 - **Specs vigentes:** los 5 dominios en `openspec/specs/`, con los requisitos de `reserva-invitado` fusionados (reservas 35, pagos 26, administracion 18, canchas 15).
 - **Cambios SDD:**
   - `specs-base` hecho (su carpeta sigue en `openspec/changes/specs-base/`, sin archivar).
@@ -24,16 +24,15 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Próximo paso
 
-1. Commitear el archivo (cierre de T-8.6, specs fusionadas, carpeta archivada, hoja de ruta y esta bitácora). Mensaje sugerido: `docs(negocios): archivar multi-tenant-negocios y fusionar las specs vigentes`.
-2. Integrar en `main` por fast-forward y publicar, con la CI en verde.
-3. Empezar `mercadopago-por-negocio` (N.º 6) con `/gentle-sdd-new`. Tener en cuenta las advertencias abiertas del `verify-report.md` archivado:
+1. Commitear esta bitácora.
+2. Empezar `mercadopago-por-negocio` (N.º 6) con `/gentle-sdd-new`. Tener en cuenta las advertencias abiertas del `verify-report.md` archivado:
    - W6: el jugador recibe la fila completa de la reserva.
    - W7: el dueño de un negocio inactivo sigue operando con su token.
    - S3: el `update` de cancha y de seña filtra solo por `id`.
    - S6: el detalle público de la cancha devuelve el complejo completo.
-4. Pendientes registrados de `reserva-invitado`: sondeo cada 20 s y cuenta regresiva con el reloj del navegador (W3, W4), `auto_return` con `https` en el despliegue (W5), `POST /bookings/admin/create` sin lista blanca, y el panel que no avisa cuando vence la sesión del administrador.
-5. Rotar a mano `JWT_SECRET` (`docs/operacion/variables-entorno.md`). Pruebas del frontend en `calidad-ci` (N.º 10). Revisar las vulnerabilidades que informa `npm audit` en el frontend.
-6. Decidir qué hacer con la rama local `respaldo-be522a4` y con `openspec/changes/specs-base/` (hecho, sin archivar).
+3. Pendientes registrados de `reserva-invitado`: sondeo cada 20 s y cuenta regresiva con el reloj del navegador (W3, W4), `auto_return` con `https` en el despliegue (W5), `POST /bookings/admin/create` sin lista blanca, y el panel que no avisa cuando vence la sesión del administrador.
+4. Rotar a mano `JWT_SECRET` (`docs/operacion/variables-entorno.md`). Pruebas del frontend en `calidad-ci` (N.º 10). Revisar las vulnerabilidades que informa `npm audit` en el frontend.
+5. Decidir qué hacer con la rama local `respaldo-be522a4` y con `openspec/changes/specs-base/` (hecho, sin archivar).
 
 ## Configuración vigente
 
