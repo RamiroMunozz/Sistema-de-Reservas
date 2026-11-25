@@ -50,18 +50,13 @@ export interface ReservaInvitadoCreada {
 
 export class ReservaInvitadoService {
   async crear(datos: CrearReservaInvitadoDTO): Promise<ReservaInvitadoCreada> {
-    const { court, start, end } = await validarTurnoReservable(
+    const { court, start, end, idNegocio, depositPercent } = await validarTurnoReservable(
       datos.courtId,
       datos.startTime,
       datos.endTime,
     );
 
     VARIABLES_DE_MERCADO_PAGO.forEach(obtenerVariableMercadoPago);
-
-    const { depositPercent } = await prisma.complex.findUniqueOrThrow({
-      where: { id: court.complexId },
-      select: { depositPercent: true },
-    });
 
     const depositAmount = calcularSena(court.pricePerSlot, depositPercent);
     const token = generarToken();
@@ -75,6 +70,7 @@ export class ReservaInvitadoService {
       return transaccion.booking.create({
         data: {
           courtId: court.id,
+          negocioId: idNegocio,
           startTime: start,
           endTime: end,
           totalPrice: court.pricePerSlot,

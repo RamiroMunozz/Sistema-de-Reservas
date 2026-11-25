@@ -75,7 +75,12 @@ const reservaValida = () => ({
   paymentMethod: "CASH",
 });
 
-const canchaActiva = { id: ID_CANCHA, isActive: true, pricePerSlot: 1000 };
+const canchaActiva = {
+  id: ID_CANCHA,
+  isActive: true,
+  pricePerSlot: 1000,
+  complex: { negocioId: randomUUID() },
+};
 
 describe("Validación de reservas", () => {
   beforeAll(() => {
@@ -173,6 +178,7 @@ describe("Validación de reservas", () => {
 
       expect(respuesta.status).toBe(201);
       expect(crearReserva).toHaveBeenCalledOnce();
+      expect(crearReserva.mock.calls[0][0].data.negocioId).toBe(canchaActiva.complex.negocioId);
     });
 
     it("usa CASH si no se indica el medio de pago", async () => {

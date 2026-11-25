@@ -255,7 +255,7 @@ describe.skipIf(!process.env.DATABASE_URL_PRUEBA)(
       await prisma.$executeRaw`
         INSERT INTO "bookings"
           ("id", "user_id", "guest_first_name", "guest_last_name", "guest_phone", "guest_email",
-           "court_id", "start_time", "end_time", "total_price", "status", "expires_at",
+           "court_id", "negocio_id", "start_time", "end_time", "total_price", "status", "expires_at",
            "deposit_amount", "access_token_hash", "mp_preference_id", "updated_at")
         VALUES
           (${datos.id}::uuid, ${userId}::uuid, ${nombre}, ${nombre}, ${telefono}, ${nombre ? "ana@ejemplo.test" : null},
@@ -297,8 +297,8 @@ describe.skipIf(!process.env.DATABASE_URL_PRUEBA)(
         INSERT INTO "users" ("id", "email", "password_hash", "first_name", "last_name", "updated_at")
         VALUES (${idUsuario}::uuid, ${`vista-admin-${idUsuario}@example.com`}, 'sin_uso', 'Cuenta', 'Prueba', now())`;
       await prisma.$executeRaw`
-        INSERT INTO "complexes" ("id", "name", "address")
-        VALUES (${idComplejo}::uuid, 'Complejo vista admin', 'Sin dirección')`;
+        INSERT INTO "complexes" ("id", "name", "address", "negocio_id")
+        VALUES (${idComplejo}::uuid, 'Complejo vista admin', 'Sin dirección', (SELECT "id" FROM "negocios" WHERE "slug" = 'principal'))`;
       await prisma.$executeRaw`
         INSERT INTO "courts" ("id", "complex_id", "name", "sport", "surface", "price_per_slot")
         VALUES (${idCancha}::uuid, ${idComplejo}::uuid, 'Cancha vista admin', 'PADEL', 'CEMENTO', 1000)`;

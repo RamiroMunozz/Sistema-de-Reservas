@@ -26,6 +26,7 @@ const horario = (horaInicio: number, horaFin: number) => ({
 describe.skipIf(!URL_BASE_DE_PRUEBA)("Concurrencia de reservas", () => {
   let idUsuario: string;
   let idComplejo: string;
+  let idNegocio: string;
   let idCancha: string;
   let idOtraCancha: string;
 
@@ -74,8 +75,11 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Concurrencia de reservas", () => {
     });
     idUsuario = usuario.id;
 
+    const negocio = await prisma.negocio.findUniqueOrThrow({ where: { slug: "principal" } });
+    idNegocio = negocio.id;
+
     const complejo = await prisma.complex.create({
-      data: { name: "Complejo de prueba", address: "Sin dirección" },
+      data: { name: "Complejo de prueba", address: "Sin dirección", negocioId: idNegocio },
     });
     idComplejo = complejo.id;
 
@@ -236,6 +240,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Concurrencia de reservas", () => {
         data: {
           userId: idUsuario,
           courtId: idCancha,
+          negocioId: idNegocio,
           startTime: new Date("2030-01-15T12:00:00.000Z"),
           endTime: new Date("2030-01-15T11:00:00.000Z"),
           totalPrice: 1000,

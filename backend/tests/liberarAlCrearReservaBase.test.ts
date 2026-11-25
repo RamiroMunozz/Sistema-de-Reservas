@@ -30,7 +30,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)(
       await prisma.$executeRaw`
         INSERT INTO "bookings"
           ("id", "guest_first_name", "guest_last_name", "guest_phone",
-           "court_id", "start_time", "end_time", "total_price", "status", "expires_at",
+           "court_id", "negocio_id", "start_time", "end_time", "total_price", "status", "expires_at",
            "deposit_amount", "access_token_hash", "updated_at")
         VALUES
           (${id}::uuid, 'Ana', 'Pérez', '5491155551234',
@@ -53,8 +53,8 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)(
         INSERT INTO "users" ("id", "email", "password_hash", "first_name", "last_name", "updated_at")
         VALUES (${idUsuario}::uuid, ${`liberar-${idUsuario}@example.com`}, 'sin_uso', 'Cuenta', 'Prueba', now())`;
       await prisma.$executeRaw`
-        INSERT INTO "complexes" ("id", "name", "address")
-        VALUES (${idComplejo}::uuid, 'Complejo liberar', 'Sin dirección')`;
+        INSERT INTO "complexes" ("id", "name", "address", "negocio_id")
+        VALUES (${idComplejo}::uuid, 'Complejo liberar', 'Sin dirección', (SELECT "id" FROM "negocios" WHERE "slug" = 'principal'))`;
       await prisma.$executeRaw`
         INSERT INTO "courts" ("id", "complex_id", "name", "sport", "surface", "price_per_slot")
         VALUES (${idCancha}::uuid, ${idComplejo}::uuid, 'Cancha liberar', 'PADEL', 'CEMENTO', 1000)`;

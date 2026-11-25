@@ -58,10 +58,10 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Migraciones de reserva-invitado (base desc
     idsReservas.push(id);
     await prisma.$executeRaw`
       INSERT INTO "bookings"
-        ("id", "user_id", "guest_phone", "court_id", "start_time", "end_time",
+        ("id", "user_id", "guest_phone", "court_id", "negocio_id", "start_time", "end_time",
          "total_price", "status", "updated_at")
       VALUES
-        (${id}::uuid, ${userId}::uuid, ${guestPhone}, ${idCancha}::uuid, ${inicio}, ${fin},
+        (${id}::uuid, ${userId}::uuid, ${guestPhone}, ${idCancha}::uuid, (SELECT "id" FROM "negocios" WHERE "slug" = 'principal'), ${inicio}, ${fin},
          1000, ${datos.estado}::"BookingStatus", now())`;
     return id;
   };
@@ -93,8 +93,8 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Migraciones de reserva-invitado (base desc
       INSERT INTO "users" ("id", "email", "password_hash", "first_name", "last_name", "updated_at")
       VALUES (${idUsuario}::uuid, ${`migracion-${idUsuario}@example.com`}, 'sin_uso', 'Prueba', 'Migracion', now())`;
     await prisma.$executeRaw`
-      INSERT INTO "complexes" ("id", "name", "address")
-      VALUES (${idComplejo}::uuid, 'Complejo de migración', 'Sin dirección')`;
+      INSERT INTO "complexes" ("id", "name", "address", "negocio_id")
+      VALUES (${idComplejo}::uuid, 'Complejo de migración', 'Sin dirección', (SELECT "id" FROM "negocios" WHERE "slug" = 'principal'))`;
     await prisma.$executeRaw`
       INSERT INTO "courts" ("id", "complex_id", "name", "sport", "surface", "price_per_slot")
       VALUES (${idCancha}::uuid, ${idComplejo}::uuid, 'Cancha de migración', 'PADEL', 'CEMENTO', 1000)`;
@@ -428,9 +428,9 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Migraciones de reserva-invitado (base desc
       const { inicio, fin } = horario(9);
       await prisma.$executeRaw`
         INSERT INTO "bookings"
-          ("id", "user_id", "court_id", "start_time", "end_time", "total_price", "status", "updated_at")
+          ("id", "user_id", "court_id", "negocio_id", "start_time", "end_time", "total_price", "status", "updated_at")
         VALUES
-          (${idReserva}::uuid, ${idUsuario}::uuid, ${idCanchaPropia}::uuid, ${inicio}, ${fin},
+          (${idReserva}::uuid, ${idUsuario}::uuid, ${idCanchaPropia}::uuid, (SELECT "id" FROM "negocios" WHERE "slug" = 'principal'), ${inicio}, ${fin},
            1000, 'PENDING'::"BookingStatus", now())`;
       vi.mocked(obtenerPago).mockResolvedValue({
         status: "approved",
@@ -491,11 +491,11 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Migraciones de reserva-invitado (base desc
         VALUES (${idCanchaPropia}::uuid, ${idComplejo}::uuid, 'Cancha cancelación por token', 'PADEL', 'CEMENTO', 1000)`;
       await prisma.$executeRaw`
         INSERT INTO "bookings"
-          ("id", "court_id", "start_time", "end_time", "total_price", "status",
+          ("id", "court_id", "negocio_id", "start_time", "end_time", "total_price", "status",
            "guest_first_name", "guest_last_name", "guest_phone", "deposit_amount",
            "access_token_hash", "updated_at")
         VALUES
-          (${idReserva}::uuid, ${idCanchaPropia}::uuid, ${inicio}, ${fin}, 1000,
+          (${idReserva}::uuid, ${idCanchaPropia}::uuid, (SELECT "id" FROM "negocios" WHERE "slug" = 'principal'), ${inicio}, ${fin}, 1000,
            'CONFIRMED'::"BookingStatus", 'Ana', 'Pérez', '5491100000001', 300.00,
            ${hashearToken(token)}, now())`;
       await insertarPago({ idReserva, idMp: idMp(), esValido: true });

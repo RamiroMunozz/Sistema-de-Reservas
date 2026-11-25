@@ -41,6 +41,7 @@ export type VistaReservaAdmin = Omit<
   | "accessTokenHash"
   | "mpPreferenceId"
   | "depositPaidAtCancel"
+  | "negocioId"
   | "payments"
 > & {
   status: ReservaParaVistaAdmin["status"];

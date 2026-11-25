@@ -57,6 +57,7 @@ export const validarTurnoReservable = async (
 
   const court = await prisma.court.findUnique({
     where: { id: courtId },
+    include: { complex: { select: { negocioId: true, depositPercent: true } } },
   });
 
   if (!court) {
@@ -71,12 +72,18 @@ export const validarTurnoReservable = async (
     throw new AppError("No se puede reservar un turno pasado.");
   }
 
-  return { court, start, end };
+  return {
+    court,
+    start,
+    end,
+    idNegocio: court.complex.negocioId,
+    depositPercent: court.complex.depositPercent,
+  };
 };
 
 export class BookingService {
   async createBooking(data: CreateBookingInput, userId: string) {
-    const { court, start, end } = await validarTurnoReservable(
+    const { court, start, end, idNegocio } = await validarTurnoReservable(
       data.courtId,
       data.startTime,
       data.endTime,
@@ -89,6 +96,7 @@ export class BookingService {
       return transaccion.booking.create({
         data: {
           courtId: data.courtId,
+          negocioId: idNegocio,
           userId: userId,
           startTime: start,
           endTime: end,
@@ -309,7 +317,7 @@ export class BookingService {
     },
     adminUserId: string,
   ) {
-    const { court, start, end } = await validarTurnoReservable(
+    const { court, start, end, idNegocio } = await validarTurnoReservable(
       data.courtId,
       data.startTime,
       data.endTime,
@@ -322,6 +330,7 @@ export class BookingService {
       return transaccion.booking.create({
         data: {
           courtId: data.courtId,
+          negocioId: idNegocio,
           userId: adminUserId,
           startTime: start,
           endTime: end,

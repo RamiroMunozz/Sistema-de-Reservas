@@ -8,7 +8,6 @@ import { hashearToken } from "../src/modules/public/tokenAcceso.js";
 const {
   eventos,
   buscarCancha,
-  buscarComplejo,
   actualizarVarias,
   contarPendientes,
   crearReserva,
@@ -20,7 +19,6 @@ const {
 } = vi.hoisted(() => ({
   eventos: [] as string[],
   buscarCancha: vi.fn(),
-  buscarComplejo: vi.fn(),
   actualizarVarias: vi.fn(),
   contarPendientes: vi.fn(),
   crearReserva: vi.fn(),
@@ -51,7 +49,6 @@ vi.mock("../src/core/config/prisma.js", () => {
   return {
     prisma: {
       court: { findUnique: buscarCancha },
-      complex: { findUniqueOrThrow: buscarComplejo },
       booking: { update: guardarPreferencia },
       $transaction: async (
         operacion: (tx: typeof transaccion) => Promise<unknown>,
@@ -78,6 +75,7 @@ const { default: app } = await import("../src/app.js");
 
 const RUTA = "/api/v1/public/bookings";
 const ID_CANCHA = randomUUID();
+const ID_NEGOCIO = randomUUID();
 const ID_RESERVA = randomUUID();
 const INICIO = "2031-03-10T18:00:00.000Z";
 const FIN = "2031-03-10T19:00:00.000Z";
@@ -94,6 +92,9 @@ const cuerpo = (cambios: Record<string, unknown> = {}) => ({
   ...cambios,
 });
 
+// Complejo de la cancha: el negocio y el porcentaje de seña viajan con ella (T-1.9).
+const complejo = (depositPercent = 30) => ({ negocioId: ID_NEGOCIO, depositPercent });
+
 const cancha = (cambios: Record<string, unknown> = {}) => ({
   id: ID_CANCHA,
   complexId: randomUUID(),
@@ -101,6 +102,7 @@ const cancha = (cambios: Record<string, unknown> = {}) => ({
   sport: "PADEL",
   isActive: true,
   pricePerSlot: new Prisma.Decimal("1000"),
+  complex: complejo(),
   ...cambios,
 });
 
@@ -121,7 +123,6 @@ describe("POST /public/bookings (RES-023 a RES-025, RES-030 a RES-032, PAG-020)"
     eventos.length = 0;
     for (const simulado of [
       buscarCancha,
-      buscarComplejo,
       actualizarVarias,
       contarPendientes,
       crearReserva,
@@ -134,7 +135,6 @@ describe("POST /public/bookings (RES-023 a RES-025, RES-030 a RES-032, PAG-020)"
       simulado.mockReset();
     }
     buscarCancha.mockResolvedValue(cancha());
-    buscarComplejo.mockResolvedValue({ depositPercent: 30 });
     actualizarVarias.mockImplementation(
       async (args: { data: { status: string } }) => {
         eventos.push(
@@ -180,6 +180,7 @@ describe("POST /public/bookings (RES-023 a RES-025, RES-030 a RES-032, PAG-020)"
       expect(datos.status).toBe("PENDING");
       expect(datos.userId).toBeUndefined();
       expect(datos.courtId).toBe(ID_CANCHA);
+      expect(datos.negocioId).toBe(ID_NEGOCIO);
       expect(datos.startTime).toEqual(new Date(INICIO));
       expect(datos.endTime).toEqual(new Date(FIN));
       expect(datos.totalPrice.toFixed(2)).toBe("1000.00");
@@ -226,9 +227,8 @@ describe("POST /public/bookings (RES-023 a RES-025, RES-030 a RES-032, PAG-020)"
 
     it("usa el porcentaje del complejo de la cancha y redondea la mitad hacia arriba", async () => {
       buscarCancha.mockResolvedValue(
-        cancha({ pricePerSlot: new Prisma.Decimal("10.05") }),
+        cancha({ pricePerSlot: new Prisma.Decimal("10.05"), complex: complejo(33) }),
       );
-      buscarComplejo.mockResolvedValue({ depositPercent: 33 });
 
       await request(app).post(RUTA).send(cuerpo());
 
@@ -236,7 +236,7 @@ describe("POST /public/bookings (RES-023 a RES-025, RES-030 a RES-032, PAG-020)"
     });
 
     it("con depositPercent 100 la seña es el precio total", async () => {
-      buscarComplejo.mockResolvedValue({ depositPercent: 100 });
+      buscarCancha.mockResolvedValue(cancha({ complex: complejo(100) }));
 
       await request(app).post(RUTA).send(cuerpo());
 

@@ -13,8 +13,17 @@ async function main() {
   await prisma.court.deleteMany();
   await prisma.complex.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.negocio.deleteMany();
 
-  // 2. Usuarios base (Admin y Cliente)
+  // 2. Negocio principal (el tenant al que pertenecen el complejo y el dueño)
+  const negocio = await prisma.negocio.create({
+    data: {
+      nombre: "Negocio principal",
+      slug: "principal",
+    },
+  });
+
+  // 3. Usuarios base (Admin y Cliente)
   const adminPasswordHash = await bcrypt.hash("AdminPass123", 12);
   const userPasswordHash = await bcrypt.hash("UserPass123", 12);
 
@@ -26,6 +35,7 @@ async function main() {
         firstName: "Admin",
         lastName: "General",
         role: "ADMIN",
+        negocioId: negocio.id,
       },
       {
         email: "jugador@example.com",
@@ -38,16 +48,17 @@ async function main() {
     ],
   });
 
-  // 3. Complejo deportivo
+  // 4. Complejo deportivo
   const complex = await prisma.complex.create({
     data: {
       name: "Complejo Deportivo Central",
       address: "Av. Libertador 1250",
       phone: "+5492604112233",
+      negocioId: negocio.id,
     },
   });
 
-  // 4. Canchas
+  // 5. Canchas
   const court1 = await prisma.court.create({
     data: {
       complexId: complex.id,
@@ -84,7 +95,7 @@ async function main() {
     },
   });
 
-  // 5. Horarios de atención (Lunes a Domingo de 08:00 a 23:00)
+  // 6. Horarios de atención (Lunes a Domingo de 08:00 a 23:00)
   const openTime = new Date("1970-01-01T08:00:00Z");
   const closeTime = new Date("1970-01-01T23:00:00Z");
 

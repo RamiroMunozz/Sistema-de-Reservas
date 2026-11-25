@@ -57,6 +57,8 @@ enum RefundReason {
 // MODELOS
 // ------------------------------------
 
+// La migración 20261125120000_negocios agrega una restricción que Prisma no representa:
+// users_un_dueno_por_negocio (EXCLUDE parcial: a lo sumo un usuario por negocio_id no nulo).
 model User {
   id           String    @id @default(uuid()) @db.Uuid
   email        String    @unique @db.VarChar(255)
@@ -65,12 +67,29 @@ model User {
   lastName     String    @map("last_name") @db.VarChar(100)
   phone        String?   @db.VarChar(30)
   role         Role      @default(USER)
+  negocioId    String?   @map("negocio_id") @db.Uuid
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz()
 
+  negocio      Negocio?  @relation(fields: [negocioId], references: [id], onDelete: Restrict)
   bookings     Booking[]
 
   @@map("users")
+}
+
+// Cada negocio es un tenant: sus complejos, canchas y reservas le pertenecen.
+model Negocio {
+  id        String   @id @default(uuid()) @db.Uuid
+  nombre    String   @db.VarChar(150)
+  slug      String   @unique @db.VarChar(40)
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  complejos Complex[]
+  reservas  Booking[]
+  usuarios  User[]
+
+  @@map("negocios")
 }
 
 // La migración 20261119120000_reserva_invitado agrega una restricción que Prisma no
@@ -81,10 +100,13 @@ model Complex {
   address        String   @db.VarChar(255)
   phone          String?  @db.VarChar(30)
   depositPercent Int      @default(30) @map("deposit_percent")
+  negocioId      String   @map("negocio_id") @db.Uuid
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  courts Court[]
+  negocio Negocio @relation(fields: [negocioId], references: [id], onDelete: Restrict)
+  courts  Court[]
 
+  @@index([negocioId])
   @@map("complexes")
 }
 
@@ -127,10 +149,13 @@ model CourtSchedule {
 //   teléfono de invitado, nunca ambos ni ninguno).
 // - 20261119120100_sin_solapamiento_excluye_vencidas: bookings_sin_solapamiento
 //   (EXCLUDE gist que ignora CANCELLED y EXPIRED).
+// - 20261125120000_negocios: el trigger bookings_negocio_coherente (negocio_id de la reserva
+//   igual al del complejo de su cancha).
 model Booking {
   id                  String        @id @default(uuid()) @db.Uuid
   userId              String?       @map("user_id") @db.Uuid
   courtId             String        @map("court_id") @db.Uuid
+  negocioId           String        @map("negocio_id") @db.Uuid
   startTime           DateTime      @map("start_time") @db.Timestamptz()
   endTime             DateTime      @map("end_time") @db.Timestamptz()
   totalPrice          Decimal       @map("total_price") @db.Decimal(10, 2)
@@ -150,12 +175,14 @@ model Booking {
 
   user     User?            @relation(fields: [userId], references: [id], onDelete: Restrict)
   court    Court            @relation(fields: [courtId], references: [id], onDelete: Restrict)
+  negocio  Negocio          @relation(fields: [negocioId], references: [id], onDelete: Restrict)
   payments BookingPayment[]
 
   @@index([courtId, startTime, endTime])
   @@index([userId, startTime])
   @@index([status, expiresAt])
-  @@index([guestPhone, status])
+  @@index([negocioId, startTime])
+  @@index([negocioId, guestPhone, status])
   @@map("bookings")
 }
 

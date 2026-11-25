@@ -78,6 +78,7 @@ describe("Creación de reservas con cuenta: libera las vencidas bajo el bloqueo 
       id: ID_CANCHA,
       isActive: true,
       pricePerSlot: 1000,
+      complex: { negocioId: randomUUID() },
     });
     liberarVencidas.mockImplementation(async () => {
       eventos.push("liberar");
