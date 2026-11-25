@@ -16,6 +16,7 @@ const { buscarCancha, buscarReserva, crearReserva, actualizarReserva, buscarUsua
 vi.mock("../src/core/config/prisma.js", () => {
   const booking = {
     findUnique: buscarReserva,
+    findFirst: buscarReserva,
     findMany: vi.fn().mockResolvedValue([]),
     create: crearReserva,
     update: actualizarReserva,
@@ -36,7 +37,7 @@ vi.mock("../src/core/config/prisma.js", () => {
   return {
     prisma: {
       booking,
-      court: { findUnique: buscarCancha },
+      court: { findFirst: buscarCancha },
       user: { findUnique: buscarUsuario },
       $transaction: (operacion: (transaccion: unknown) => Promise<unknown>) =>
         operacion({
@@ -182,6 +183,12 @@ describe("Validación de reservas", () => {
       expect(crearReserva.mock.calls[0][0].data.negocioId).toBe(canchaActiva.complex.negocioId);
     });
 
+    it("el jugador reserva en cualquier negocio activo: no filtra por negocio", async () => {
+      await request(app).post(RUTA_RESERVAS).set(conToken()).send(reservaValida());
+
+      expect(buscarCancha.mock.calls[0][0].where.complex).toEqual({ negocio: { activo: true } });
+    });
+
     it("usa CASH si no se indica el medio de pago", async () => {
       const { paymentMethod: _omitido, ...datos } = reservaValida();
 
@@ -290,6 +297,15 @@ describe("Validación de reservas", () => {
       expect(respuesta.status).toBe(201);
       expect(crearReserva).toHaveBeenCalledOnce();
       expect(crearReserva.mock.calls[0][0].data.negocioId).toBe(canchaActiva.complex.negocioId);
+    });
+
+    it("busca la cancha con el negocio del token (una ajena responde como inexistente)", async () => {
+      await request(app)
+        .post(`${RUTA_RESERVAS}/admin/create`)
+        .set(conToken("DUENO"))
+        .send(reservaValida());
+
+      expect(buscarCancha.mock.calls[0][0].where.complex.negocioId).toBe(ID_NEGOCIO_DE_PRUEBA);
     });
   });
 
@@ -576,5 +592,40 @@ describe("Transiciones de estado de una reserva (RES-014, RES-035)", () => {
 
   it("validarTurnoReservable está exportada", () => {
     expect(typeof validarTurnoReservable).toBe("function");
+  });
+});
+
+describe("validarTurnoReservable y el negocio de la cancha (NEG-007, NEG-009)", () => {
+  const inicio = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+  const fin = new Date(inicio.getTime() + 60 * 60 * 1000);
+
+  beforeEach(() => {
+    buscarCancha.mockReset().mockResolvedValue(canchaActiva);
+  });
+
+  it("con un negocio exige que la cancha sea de ese negocio y que esté activo", async () => {
+    await validarTurnoReservable(ID_CANCHA, inicio, fin, ID_NEGOCIO_DE_PRUEBA);
+
+    expect(buscarCancha.mock.calls[0]?.[0].where).toEqual({
+      id: ID_CANCHA,
+      complex: { negocioId: ID_NEGOCIO_DE_PRUEBA, negocio: { activo: true } },
+    });
+  });
+
+  it("con null acepta cualquier negocio, pero exige que esté activo", async () => {
+    await validarTurnoReservable(ID_CANCHA, inicio, fin, null);
+
+    expect(buscarCancha.mock.calls[0]?.[0].where).toEqual({
+      id: ID_CANCHA,
+      complex: { negocio: { activo: true } },
+    });
+  });
+
+  it("una cancha ajena, de un negocio inactivo o inexistente responde lo mismo", async () => {
+    buscarCancha.mockResolvedValue(null);
+
+    await expect(
+      validarTurnoReservable(ID_CANCHA, inicio, fin, ID_NEGOCIO_DE_PRUEBA),
+    ).rejects.toThrow("La cancha no existe.");
   });
 });

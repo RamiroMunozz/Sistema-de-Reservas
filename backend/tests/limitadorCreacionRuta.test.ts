@@ -8,7 +8,7 @@ const { transaccionIniciada } = vi.hoisted(() => ({
 
 vi.mock("../src/core/config/prisma.js", () => ({
   prisma: {
-    court: { findUnique: vi.fn() },
+    court: { findFirst: vi.fn() },
     $transaction: transaccionIniciada,
   },
 }));

@@ -29,7 +29,7 @@ vi.mock("../src/core/config/prisma.js", () => {
 
   return {
     prisma: {
-      court: { findUnique: buscarCancha },
+      court: { findFirst: buscarCancha },
       $transaction: (operacion: (tx: typeof transaccion) => Promise<unknown>) =>
         operacion(transaccion),
     },

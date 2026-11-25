@@ -16,6 +16,7 @@ vi.mock("../src/core/config/prisma.js", () => {
     booking: {
       updateMany: async () => ({ count: 0 }),
       findUnique: leerDentro,
+      findFirst: leerDentro,
       findUniqueOrThrow: leerFinal,
       update: async () => ({}),
     },
@@ -24,7 +25,7 @@ vi.mock("../src/core/config/prisma.js", () => {
 
   return {
     prisma: {
-      booking: { findUnique: buscarCanchaFuera },
+      booking: { findUnique: buscarCanchaFuera, findFirst: buscarCanchaFuera },
       $transaction: (operacion: (tx: typeof transaccion) => Promise<unknown>) =>
         operacion(transaccion),
     },

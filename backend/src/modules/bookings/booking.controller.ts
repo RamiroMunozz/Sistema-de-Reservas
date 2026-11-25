@@ -68,7 +68,8 @@ export class BookingController {
   getAvailability = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { courtId, date } = consultaDisponibilidadSchema.parse(req.query);
-      const occupied = await bookingService.getOccupiedSlots(courtId, date);
+      // Sin negocio resuelto todavía: el catálogo por slug llega con la entrega 5.
+      const occupied = await bookingService.getOccupiedSlots(courtId, date, null);
 
       return res.status(200).json(occupied);
     } catch (error) {
@@ -106,7 +107,11 @@ export class BookingController {
     try {
       const { id } = idReservaSchema.parse(req.params);
       const { status } = actualizarEstadoSchema.parse(req.body);
-      const updated = await bookingService.updateBookingStatus(id, status);
+      const updated = await bookingService.updateBookingStatus(
+        obtenerIdNegocio(req),
+        id,
+        status,
+      );
 
       return res.status(200).json(updated);
     } catch (error) {
@@ -123,7 +128,11 @@ export class BookingController {
       }
 
       const datos = crearReservaAdminSchema.parse(req.body);
-      const booking = await bookingService.createAdminBooking(datos, idAdmin);
+      const booking = await bookingService.createAdminBooking(
+        obtenerIdNegocio(req),
+        datos,
+        idAdmin,
+      );
 
       return res.status(201).json(booking);
     } catch (error) {

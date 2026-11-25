@@ -54,6 +54,7 @@ export class ReservaInvitadoService {
       datos.courtId,
       datos.startTime,
       datos.endTime,
+      null,
     );
 
     VARIABLES_DE_MERCADO_PAGO.forEach(obtenerVariableMercadoPago);

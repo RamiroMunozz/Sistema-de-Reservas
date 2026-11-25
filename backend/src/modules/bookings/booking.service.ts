@@ -8,6 +8,7 @@ import {
 } from "../../core/errors/AppError.js";
 import { conBloqueoDeCancha } from "./bloqueoCancha.js";
 import { cancelarEnTransaccion } from "./cancelacionReserva.js";
+import { buscarReservaPropia } from "../negocios/pertenencia.js";
 import { filtroOcupaTurno } from "./filtrosReserva.js";
 import { invalidarLinkDePago } from "./linkDePago.js";
 import { liberarReservasVencidas } from "./vencimiento.js";
@@ -43,20 +44,33 @@ export const puedeTransicionar = (
 
 /**
  * Valida horario, existencia y disponibilidad de la cancha y que el turno
- * no haya pasado. Devuelve la cancha y las fechas ya convertidas.
+ * no haya pasado. Devuelve la cancha, las fechas ya convertidas, el negocio del
+ * complejo de la cancha (la reserva lo hereda; nunca viene del cliente) y el
+ * porcentaje de seña de ese complejo.
+ *
+ * `idNegocio` obligatorio, aunque admite `null`, para que cada llamada decida su alcance: con un
+ * negocio, la cancha debe ser de ese negocio; con `null` (reserva del jugador), de cualquier
+ * negocio activo. Una cancha ajena o de un negocio inactivo responde igual que una inexistente.
  */
 export const validarTurnoReservable = async (
   courtId: string,
   startTime: string | Date,
   endTime: string | Date,
+  idNegocio: string | null,
 ) => {
   const start = new Date(startTime);
   const end = new Date(endTime);
 
   validarHorario(start, end);
 
-  const court = await prisma.court.findUnique({
-    where: { id: courtId },
+  const court = await prisma.court.findFirst({
+    where: {
+      id: courtId,
+      complex: {
+        ...(idNegocio === null ? {} : { negocioId: idNegocio }),
+        negocio: { activo: true },
+      },
+    },
     include: { complex: { select: { negocioId: true, depositPercent: true } } },
   });
 
@@ -83,10 +97,12 @@ export const validarTurnoReservable = async (
 
 export class BookingService {
   async createBooking(data: CreateBookingInput, userId: string) {
+    // null: el jugador reserva en cualquier negocio activo (cuenta global, D8).
     const { court, start, end, idNegocio } = await validarTurnoReservable(
       data.courtId,
       data.startTime,
       data.endTime,
+      null,
     );
 
     return conBloqueoDeCancha(data.courtId, async (transaccion) => {
@@ -116,6 +132,7 @@ export class BookingService {
       where: { userId },
       include: {
         court: true,
+        negocio: { select: { nombre: true, slug: true } },
       },
       orderBy: {
         startTime: "desc",
@@ -189,13 +206,15 @@ export class BookingService {
     return cancelada;
   }
 
-  async getOccupiedSlots(courtId: string, dateStr: string) {
+  // idNegocio null: sin filtro de negocio (rutas que todavía no resuelven el negocio).
+  async getOccupiedSlots(courtId: string, dateStr: string, idNegocio: string | null) {
     const startOfDay = new Date(`${dateStr}T00:00:00.000Z`);
     const endOfDay = new Date(`${dateStr}T23:59:59.999Z`);
 
     const bookings = await prisma.booking.findMany({
       where: {
         courtId,
+        ...(idNegocio === null ? {} : { negocioId: idNegocio }),
         ...filtroOcupaTurno(new Date()),
         startTime: {
           gte: startOfDay,
@@ -251,17 +270,9 @@ export class BookingService {
     return reservas.map((reserva) => armarVistaAdmin(reserva, ahora));
   }
 
-  async updateBookingStatus(bookingId: string, status: BookingStatus) {
-    const existente = await prisma.booking.findUnique({
-      where: { id: bookingId },
-      select: { courtId: true },
-    });
-
-    if (!existente) {
-      throw new NotFoundError("Reserva no encontrada.");
-    }
-
-    const { courtId } = existente;
+  async updateBookingStatus(idNegocio: string, bookingId: string, status: BookingStatus) {
+    // Una reserva de otro negocio responde igual que una inexistente (NEG-007).
+    const { courtId } = await buscarReservaPropia(idNegocio, bookingId);
 
     const { actualizada, idPreferencia } = await conBloqueoDeCancha(
       courtId,
@@ -269,8 +280,8 @@ export class BookingService {
         // Una PENDING vencida pasa a EXPIRED antes de validar la transición (RES-015).
         await liberarReservasVencidas(transaccion, courtId);
 
-        const reserva = await transaccion.booking.findUnique({
-          where: { id: bookingId },
+        const reserva = await transaccion.booking.findFirst({
+          where: { id: bookingId, negocioId: idNegocio },
           select: { status: true, mpPreferenceId: true },
         });
 
@@ -311,6 +322,7 @@ export class BookingService {
   }
 
   async createAdminBooking(
+    idNegocioDueno: string,
     data: {
       courtId: string;
       startTime: string;
@@ -319,10 +331,12 @@ export class BookingService {
     },
     adminUserId: string,
   ) {
+    // La cancha debe ser del negocio del dueño: una ajena responde "La cancha no existe.".
     const { court, start, end, idNegocio } = await validarTurnoReservable(
       data.courtId,
       data.startTime,
       data.endTime,
+      idNegocioDueno,
     );
 
     return conBloqueoDeCancha(data.courtId, async (transaccion) => {

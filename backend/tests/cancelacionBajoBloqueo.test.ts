@@ -30,6 +30,7 @@ vi.mock("../src/core/config/prisma.js", () => {
     booking: {
       updateMany: liberarVencidas,
       findUnique: leerDentro,
+      findFirst: leerDentro,
       findUniqueOrThrow: leerFinal,
       update: actualizarReserva,
     },
@@ -38,7 +39,7 @@ vi.mock("../src/core/config/prisma.js", () => {
 
   return {
     prisma: {
-      booking: { findUnique: buscarCanchaFuera },
+      booking: { findUnique: buscarCanchaFuera, findFirst: buscarCanchaFuera },
       $transaction: async (
         operacion: (tx: typeof transaccion) => Promise<unknown>,
       ) => {
@@ -243,6 +244,26 @@ describe("Cancelación y cambio de estado bajo el bloqueo de la cancha", () => {
         "invalidar",
       ]);
       expect(expirarPreferencia).toHaveBeenCalledWith("preferencia-1");
+    });
+
+    it("busca la reserva con el negocio del token, fuera y dentro del bloqueo (NEG-007)", async () => {
+      await pedirEstado("CANCELLED");
+
+      expect(buscarCanchaFuera).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: ID_RESERVA, negocioId: ID_NEGOCIO_DE_PRUEBA } }),
+      );
+      expect(leerDentro).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: ID_RESERVA, negocioId: ID_NEGOCIO_DE_PRUEBA } }),
+      );
+    });
+
+    it("una reserva de otro negocio responde 404 y no abre el bloqueo", async () => {
+      buscarCanchaFuera.mockResolvedValue(null);
+
+      const respuesta = await pedirEstado("CANCELLED");
+
+      expect(respuesta.status).toBe(404);
+      expect(eventos).toEqual([]);
     });
 
     it("con CANCELLED no revierte la cancelación si falla Mercado Pago", async () => {

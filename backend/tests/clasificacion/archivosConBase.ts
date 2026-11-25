@@ -6,6 +6,7 @@ import path from "node:path";
 // proyecto "unit" salvo que use la base; en ese caso se agrega a esta lista.
 export const ARCHIVOS_CON_BASE: readonly string[] = [
   "tests/aislamientoAdmin.test.ts",
+  "tests/aislamientoReservasPagos.test.ts",
   "tests/concurrenciaReservas.test.ts",
   "tests/integration.test.ts",
   "tests/liberarAlCrearReservaBase.test.ts",

@@ -48,7 +48,7 @@ vi.mock("../src/core/config/prisma.js", () => {
 
   return {
     prisma: {
-      court: { findUnique: buscarCancha },
+      court: { findFirst: buscarCancha },
       booking: { update: guardarPreferencia },
       $transaction: async (
         operacion: (tx: typeof transaccion) => Promise<unknown>,

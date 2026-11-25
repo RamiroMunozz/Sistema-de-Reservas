@@ -267,6 +267,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Coherencia del negocio en las rutas de cre
       idUsuario,
     );
     const deAdmin = await servicio.createAdminBooking(
+      idNegocio,
       { courtId: idCancha, startTime: inicio(12).toISOString(), endTime: fin(12).toISOString(), paymentMethod: "CASH" },
       idUsuario,
     );

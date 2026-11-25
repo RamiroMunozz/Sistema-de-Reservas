@@ -81,12 +81,27 @@ describe("Lectura de turnos ocupados con filtros compartidos (RES-007, RES-012, 
 
   describe("turnos ocupados y agenda del administrador", () => {
     it("getOccupiedSlots usa filtroOcupaTurno", async () => {
-      await new BookingService().getOccupiedSlots(ID_CANCHA, FECHA);
+      await new BookingService().getOccupiedSlots(ID_CANCHA, FECHA, null);
 
       expect(buscarReservas.mock.calls[0]?.[0].where).toMatchObject({
         courtId: ID_CANCHA,
         ...filtroOcupaTurno(AHORA),
       });
+    });
+
+    it("getOccupiedSlots filtra por negocioId cuando recibe el negocio", async () => {
+      await new BookingService().getOccupiedSlots(ID_CANCHA, FECHA, ID_NEGOCIO);
+
+      expect(buscarReservas.mock.calls[0]?.[0].where).toMatchObject({
+        courtId: ID_CANCHA,
+        negocioId: ID_NEGOCIO,
+      });
+    });
+
+    it("getOccupiedSlots no agrega negocioId cuando el negocio es null", async () => {
+      await new BookingService().getOccupiedSlots(ID_CANCHA, FECHA, null);
+
+      expect(buscarReservas.mock.calls[0]?.[0].where).not.toHaveProperty("negocioId");
     });
 
     it("la agenda del día no muestra como ocupadas las vencidas (usa filtroOcupaTurno)", async () => {
