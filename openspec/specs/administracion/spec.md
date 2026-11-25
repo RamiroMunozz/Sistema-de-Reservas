@@ -2,21 +2,29 @@
 
 ## Propósito
 
-Describe el comportamiento vigente del área de administración: la protección de las rutas `/api/v1/admin`, las métricas de reservas (`GET /admin/metrics`), el listado completo de reservas para el administrador (`GET /bookings/admin/all`) y el panel `AdminDashboard` del frontend. El alta y la modificación de canchas, la operación de reservas y la autenticación se documentan en `canchas`, `reservas` y `autenticacion`, y aquí solo se referencian. Estado actual: single-tenant.
+Describe el comportamiento vigente del área de administración: la protección de las rutas `/api/v1/admin`, las métricas de reservas (`GET /admin/metrics`), el listado completo de reservas para el administrador (`GET /bookings/admin/all`) y el panel `AdminDashboard` del frontend. El alta y la modificación de canchas, la operación de reservas y la autenticación se documentan en `canchas`, `reservas` y `autenticacion`, y aquí solo se referencian. Estado actual: multi-tenant; cada dueño administra solo los datos de su negocio (ADM-019).
 
 ## Requisitos
 
 ### ADM-001: Protección del router de administración
 
-El sistema DEBE exigir token válido y rol `ADMIN` en todas las rutas bajo `/api/v1/admin` (`POST /courts`, `PATCH /courts/:id` y `GET /metrics`), respondiendo 401 sin token válido y 403 con "No tienes los permisos necesarios para realizar esta acción" a un usuario con otro rol. La verificación del token y del rol se rige por `autenticacion` (AUT-008 y AUT-009); las rutas de canchas, por `canchas` (CAN-009 a CAN-011).
+El sistema DEBE exigir token válido y rol `DUENO` en todas las rutas bajo `/api/v1/admin` (`POST /courts`, `PATCH /courts/:id` y `GET /metrics`), respondiendo 401 sin token válido y 403 con "No tienes los permisos necesarios para realizar esta acción" a un usuario con otro rol (`JUGADOR` o `SUPER_ADMIN`). Todas las operaciones de estas rutas DEBEN actuar sobre el negocio del dueño (NEG-010). La verificación del token y del rol se rige por `autenticacion` (AUT-008 y AUT-009); las rutas de canchas, por `canchas` (CAN-009 a CAN-011).
 
-#### Escenario: Usuario sin rol de administrador
-- Dado un token con rol `USER`
+Motivo: roles nuevos y aislamiento por negocio.
+(Previously: exigía el rol `ADMIN` y las rutas actuaban sobre todo el sistema.)
+
+#### Escenario: Usuario sin rol de dueño
+- Dado un token con rol `JUGADOR`
 - Cuando llama a `GET /api/v1/admin/metrics`
 - Entonces responde 403 con `detail` "No tienes los permisos necesarios para realizar esta acción"
 
-#### Escenario: Administrador
-- Dado un token con rol `ADMIN`
+#### Escenario: SUPER_ADMIN
+- Dado un token con rol `SUPER_ADMIN`
+- Cuando llama a `GET /api/v1/admin/metrics`
+- Entonces responde 403 con el mismo `detail`
+
+#### Escenario: Dueño
+- Dado un token con rol `DUENO`
 - Cuando llama a `GET /api/v1/admin/metrics` con fechas válidas
 - Entonces responde 200 con un cuerpo que incluye `summary`
 
@@ -27,17 +35,30 @@ El sistema DEBE exigir token válido y rol `ADMIN` en todas las rutas bajo `/api
 
 ### ADM-002: Consulta de métricas
 
-El sistema DEBE devolver con `GET /api/v1/admin/metrics` (solo `ADMIN`) un resumen y un detalle de las reservas del período indicado por los parámetros de consulta `startDate` y `endDate`, ambos obligatorios, respondiendo 200.
+El sistema DEBE devolver con `GET /api/v1/admin/metrics` (solo `DUENO`) un resumen y un detalle de las reservas del período indicado por los parámetros de consulta `startDate` y `endDate`, ambos obligatorios, respondiendo 200. El resumen (`summary`), el detalle (`details`) y la recaudación DEBEN calcularse únicamente con las reservas del negocio del dueño; las reservas de otros negocios NO DEBEN contarse, figurar ni sumar.
+
+Motivo: aislamiento por negocio (S5).
+(Previously: las métricas abarcaban todas las reservas del sistema.)
 
 #### Escenario: Consulta con período válido
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía `startDate=2026-08-01&endDate=2026-08-31`
 - Entonces responde 200 con `period`, `summary` y `details`
 
 #### Escenario: Falta un parámetro
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía solo `startDate`
 - Entonces responde 400 con `errors` que indica el campo `endDate`
+
+#### Escenario: Solo reservas del negocio propio
+- Dados los negocios A y B, con 2 reservas `CONFIRMED` en A y 3 en B creadas en el período
+- Cuando el dueño de A consulta las métricas del período
+- Entonces `totalBookings` y `confirmedCount` son 2, `details` solo contiene reservas de A y `totalRevenueARS` suma solo lo cobrado en A
+
+#### Escenario: Negocio sin reservas
+- Dado un dueño cuyo negocio no tiene reservas en el período, mientras otro negocio sí las tiene
+- Cuando consulta las métricas
+- Entonces `summary` tiene los cuatro valores en 0 y `details` es una lista vacía
 
 ### ADM-003: Validación de las fechas de métricas
 
@@ -205,35 +226,40 @@ El sistema DEBE devolver en `details` una entrada por cada reserva del período,
 - Cuando se consultan las métricas
 - Entonces `details` incluye ambas
 
-### ADM-008: Listado completo de reservas del administrador
+### ADM-008: Listado completo de reservas del dueño
 
-El sistema DEBE devolver con `GET /api/v1/bookings/admin/all` (solo `ADMIN`) todas las reservas de cualquier estado (incluidas las `EXPIRED`, necesarias para gestionar su reembolso), de usuario o de invitado, ordenadas por `startTime` descendente (la más reciente primero), cada una con su cancha completa, su usuario limitado a `id`, `firstName`, `lastName` y `email` (o `null` si es una reserva de invitado) y, para las de invitado, `guestFirstName`, `guestLastName`, `guestPhone`, `guestEmail`, `depositAmount`, `depositStatus` y `refundDue` (PAG-023) y la lista de sus pagos registrados, cada uno con su `id`, `amount`, `isValid`, `refundReason` y `refundedAt` (PAG-026); las reservas con cuenta también incluyen `refundDue` y sus pagos. NO DEBE exponer la contraseña del usuario, el hash del token de acceso ni el token. Una reserva `PENDING` vencida que el barrido aún no pasó a `EXPIRED` DEBE listarse con estado `EXPIRED`. La ruta pertenece al módulo de reservas y el control de acceso se rige por `reservas` (RES-017).
+El sistema DEBE devolver con `GET /api/v1/bookings/admin/all` (solo `DUENO`) todas las reservas del negocio del dueño, de cualquier estado (incluidas las `EXPIRED`, necesarias para gestionar su reembolso), de usuario o de invitado, ordenadas por `startTime` descendente (la más reciente primero), cada una con su cancha completa, su usuario limitado a `id`, `firstName`, `lastName` y `email` (o `null` si es una reserva de invitado) y, para las de invitado, `guestFirstName`, `guestLastName`, `guestPhone`, `guestEmail`, `depositAmount`, `depositStatus` y `refundDue` (PAG-023) y la lista de sus pagos registrados, cada uno con su `id`, `amount`, `isValid`, `refundReason` y `refundedAt` (PAG-026); las reservas con cuenta también incluyen `refundDue` y sus pagos. NO DEBE incluir reservas de otros negocios. NO DEBE exponer la contraseña del usuario, el hash del token de acceso ni el token. Una reserva `PENDING` vencida que el barrido aún no pasó a `EXPIRED` DEBE listarse con estado `EXPIRED`. La ruta pertenece al módulo de reservas y el control de acceso se rige por `reservas` (RES-017).
 
-Motivo: el listado debe admitir reservas sin usuario y mostrar los datos que necesita el panel (ADM-016 y ADM-017).
-(Previously: devolvía siempre el usuario y no incluía datos de invitado, de la seña ni de los pagos con su motivo de reembolso.)
+Motivo: aislamiento por negocio (S5, ADM-008 sin filtro).
+(Previously: devolvía todas las reservas del sistema.)
 
 #### Escenario: Listado ordenado
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando llama a `GET /api/v1/bookings/admin/all`
 - Entonces responde 200 con una lista cuyos `startTime` están en orden descendente, cada reserva con `court.name` y, si tiene cuenta, `user.email`, y sin `user.password`
 
 #### Escenario: Reserva de invitado en el listado
-- Dado un `ADMIN` y una reserva de invitado confirmada
+- Dado un `DUENO` y una reserva de invitado confirmada de su negocio
 - Cuando llama a `GET /api/v1/bookings/admin/all`
 - Entonces la reserva figura con `user` nulo, los datos del invitado y `depositStatus`, y sin `accessTokenHash`
 
 #### Escenario: Reserva pendiente vencida
-- Dado un `ADMIN` y una reserva de invitado `PENDING` con `expiresAt` en el pasado que sigue `PENDING` en la base
+- Dado un `DUENO` y una reserva de invitado `PENDING` con `expiresAt` en el pasado que sigue `PENDING` en la base
 - Cuando llama a `GET /api/v1/bookings/admin/all`
 - Entonces la reserva figura con estado `EXPIRED`
 
 #### Escenario: Reserva EXPIRED con pago
-- Dado un `ADMIN` y una reserva `EXPIRED` con un pago con motivo `SLOT_TAKEN` y sin `refundedAt`
+- Dado un `DUENO` y una reserva `EXPIRED` con un pago con motivo `SLOT_TAKEN` y sin `refundedAt`
 - Cuando llama a `GET /api/v1/bookings/admin/all`
 - Entonces la reserva figura con `refundDue` `REQUIRED` y ese pago en su lista de pagos con su `refundReason`
 
-#### Escenario: Usuario sin rol de administrador
-- Dado un token con rol `USER`
+#### Escenario: Reservas de otro negocio
+- Dados los negocios A y B con reservas cada uno
+- Cuando el dueño de A llama a `GET /api/v1/bookings/admin/all`
+- Entonces la lista contiene solo reservas de A y ninguna de B
+
+#### Escenario: Usuario sin rol de dueño
+- Dado un token con rol `JUGADOR` o `SUPER_ADMIN`
 - Cuando llama a `GET /api/v1/bookings/admin/all`
 - Entonces responde 403 con "No tienes los permisos necesarios para realizar esta acción"
 
@@ -244,10 +270,13 @@ Motivo: el listado debe admitir reservas sin usuario y mostrar los datos que nec
 
 ### ADM-009: Acceso al panel en el frontend
 
-El frontend DEBE exponer el panel en la ruta `/admin` envuelta en `ProtectedRoute` con `requiredRole="ADMIN"`: mientras carga la sesión muestra un indicador de carga, sin sesión redirige a `/login` conservando la ubicación de origen, y con una sesión cuyo rol no es `ADMIN` (comparado sin distinguir mayúsculas) redirige a `/`. La `Navbar` DEBE mostrar el enlace "Panel Canchero" a `/admin` solo si el rol del usuario es `ADMIN`. Esta protección es de interfaz; la protección efectiva es la de ADM-001.
+El frontend DEBE exponer el panel en la ruta `/admin` envuelta en `ProtectedRoute` con `requiredRole="DUENO"`: mientras carga la sesión muestra un indicador de carga, sin sesión redirige a `/login` conservando la ubicación de origen, y con una sesión cuyo rol no es `DUENO` (comparado sin distinguir mayúsculas) redirige a `/`. La `Navbar` DEBE mostrar el enlace "Panel Canchero" a `/admin` solo si el rol del usuario es `DUENO`. Esta protección es de interfaz; la protección efectiva es la de ADM-001.
 
-#### Escenario: Usuario sin rol de administrador
-- Dado un usuario autenticado con rol `USER`
+Motivo: el rol requerido pasa de `ADMIN` a `DUENO` (AUT-015).
+(Previously: el rol requerido era `ADMIN`.)
+
+#### Escenario: Usuario sin rol de dueño
+- Dado un usuario autenticado con rol `JUGADOR` o `SUPER_ADMIN`
 - Cuando navega a `/admin`
 - Entonces se lo redirige a `/` y no ve el enlace "Panel Canchero"
 
@@ -255,6 +284,11 @@ El frontend DEBE exponer el panel en la ruta `/admin` envuelta en `ProtectedRout
 - Dado un visitante sin sesión
 - Cuando navega a `/admin`
 - Entonces se lo redirige a `/login`
+
+#### Escenario: Dueño
+- Dado un usuario con rol `DUENO`
+- Cuando navega a `/admin`
+- Entonces ve el panel y el enlace "Panel Canchero" en la `Navbar`
 
 ### ADM-010: Estructura del panel de administración
 
@@ -333,32 +367,50 @@ Al pulsar "Cancelar" en el historial, el panel DEBE pedir confirmación con "¿S
 
 ### ADM-015: Configuración del porcentaje de seña
 
-El sistema DEBE permitir a un `ADMIN` consultar y modificar el `depositPercent` del complejo (porcentaje del precio del turno que se cobra como seña, valor por defecto 30) mediante una operación autenticada de solo `ADMIN` (401 sin token, 403 para `USER`). DEBE aceptar solo enteros de 1 a 100 y DEBE responder 400 con la lista `errors` ante cualquier otro valor (cero, negativo, mayor que 100, decimal, no numérico o ausente), sin modificar el complejo. Con 100 se cobra online el precio completo. El nuevo valor afecta solo a las reservas creadas después (PAG-022). DEBE responder 404 si el complejo no existe.
+El sistema DEBE permitir a un `DUENO` consultar y modificar el `depositPercent` de un complejo de su negocio (porcentaje del precio del turno que se cobra como seña, valor por defecto 30) mediante una operación autenticada de solo `DUENO` (401 sin token, 403 para `JUGADOR` y `SUPER_ADMIN`). DEBE aceptar solo enteros de 1 a 100 y DEBE responder 400 con la lista `errors` ante cualquier otro valor (cero, negativo, mayor que 100, decimal, no numérico o ausente), sin modificar el complejo. Con 100 se cobra online el precio completo. El nuevo valor afecta solo a las reservas creadas después (PAG-022). DEBE responder 404 si el complejo no existe o pertenece a otro negocio, con la misma respuesta en ambos casos (NEG-010), sin consultar ni modificar el complejo ajeno.
+
+Motivo: la operación por id de complejo no verificaba a quién pertenece (S5).
+(Previously: operaba sobre cualquier complejo por id y exigía `ADMIN`.)
 
 #### Escenario: Modificación válida
-- Dado un `ADMIN` autenticado y un complejo con `depositPercent` 30
+- Dado un `DUENO` autenticado y un complejo de su negocio con `depositPercent` 30
 - Cuando lo cambia a 50
 - Entonces responde 200 con `depositPercent` 50 y las nuevas reservas de invitado calculan la seña con 50
 
 #### Escenario: Valor fuera de rango
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía `depositPercent` 0, 101 o -5
 - Entonces responde 400 con `errors` que indica `depositPercent` y el valor no cambia
 
 #### Escenario: Valor no entero
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía `depositPercent` 33.5 o "abc"
 - Entonces responde 400 y el valor no cambia
 
 #### Escenario: Límites inclusivos
-- Dado un `ADMIN` autenticado
+- Dado un `DUENO` autenticado
 - Cuando envía `depositPercent` 1 y luego 100
 - Entonces ambos se aceptan
 
 #### Escenario: Sin permisos
-- Dado un token con rol `USER`
+- Dado un token con rol `JUGADOR`
 - Cuando intenta modificar el porcentaje
 - Entonces responde 403 y el valor no cambia
+
+#### Escenario: Complejo de otro negocio al modificar
+- Dados los negocios A y B y un complejo de B con `depositPercent` 30
+- Cuando el dueño de A intenta modificar el porcentaje de ese complejo
+- Entonces responde 404, igual que para un complejo inexistente, y el valor de B no cambia
+
+#### Escenario: Complejo de otro negocio al consultar
+- Dado un complejo de B
+- Cuando el dueño de A consulta su porcentaje
+- Entonces responde 404, igual que para un complejo inexistente, y no se revela el valor
+
+#### Escenario: Complejo inexistente
+- Dado un id de complejo que no existe
+- Cuando un `DUENO` consulta o modifica su porcentaje
+- Entonces responde 404
 
 ### ADM-016: Reservas de invitado en el panel
 
@@ -459,6 +511,20 @@ El panel DEBE mostrar el `depositPercent` vigente y permitir al administrador mo
 - Dado un administrador
 - Cuando ingresa 0 o 150
 - Entonces el panel no envía el pedido y muestra un aviso de rango válido
+
+### ADM-019: Panel limitado al negocio del dueño
+
+El panel `AdminDashboard` DEBE mostrar únicamente datos del negocio del dueño autenticado: las canchas de la pestaña "Canchas" y de la grilla, las reservas de la grilla y del historial y las tarjetas de métricas. NO DEBE ofrecer un selector de negocio ni mostrar datos de otros negocios. El alta de una cancha desde el panel DEBE usar un complejo del propio negocio.
+
+#### Escenario: Dos negocios
+- Dados los negocios A y B, cada uno con canchas y reservas
+- Cuando el dueño de A abre el panel
+- Entonces ve solo las canchas, reservas y métricas de A
+
+#### Escenario: Alta de cancha desde el panel
+- Dado el dueño de A en la pestaña "Canchas"
+- Cuando da de alta una cancha
+- Entonces la cancha queda en un complejo de A
 
 ## Fuera de alcance
 
