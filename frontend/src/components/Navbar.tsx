@@ -12,7 +12,7 @@ export const Navbar: React.FC = () => {
     navigate("/login");
   };
 
-  const isAdmin = user?.role?.toUpperCase() === "ADMIN";
+  const isDueno = user?.role === "DUENO";
 
   return (
     <nav className="bg-slate-900 border-b border-slate-800">
@@ -45,7 +45,7 @@ export const Navbar: React.FC = () => {
               </Link>
             )}
 
-            {isAdmin && (
+            {isDueno && (
               <Link
                 to="/admin"
                 className="flex items-center gap-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 px-3 py-2 rounded-lg text-sm font-semibold transition"

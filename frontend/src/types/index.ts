@@ -111,11 +111,13 @@ export interface VistaPublicaReserva {
   court: { name: string; sport: string };
 }
 
+export type Rol = "SUPER_ADMIN" | "DUENO" | "JUGADOR";
+
 export interface User {
   id: string;
   email: string;
   name?: string;
   fullName?: string;
-  role: "ADMIN" | "USER" | string;
+  role: Rol;
   phone?: string;
 }

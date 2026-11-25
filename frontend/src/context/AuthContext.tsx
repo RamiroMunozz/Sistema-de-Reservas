@@ -1,6 +1,8 @@
 import React, { useState } from "react";
-import type { User } from "../types/index";
+import type { Rol, User } from "../types/index";
 import { AuthContext } from "./authContextDef";
+
+const ROLES_VALIDOS: readonly Rol[] = ["SUPER_ADMIN", "DUENO", "JUGADOR"];
 
 function getInitialAuthState(): { token: string | null; user: User | null } {
   try {
@@ -8,10 +10,16 @@ function getInitialAuthState(): { token: string | null; user: User | null } {
     const storedUser = localStorage.getItem("user");
 
     if (storedToken && storedUser) {
-      return {
-        token: storedToken,
-        user: JSON.parse(storedUser) as User,
-      };
+      const user = JSON.parse(storedUser) as User;
+
+      // Una sesión guardada con un rol desconocido (por ejemplo USER o ADMIN, de antes de los
+      // negocios) se descarta: su token ya no es válido en el servidor.
+      if (ROLES_VALIDOS.includes(user.role)) {
+        return { token: storedToken, user };
+      }
+
+      localStorage.removeItem("token");
+      localStorage.removeItem("user");
     }
   } catch (error) {
     console.error("Error al restaurar la sesión:", error);

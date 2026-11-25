@@ -1,10 +1,11 @@
 import React from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/useAuth";
+import type { Rol } from "../types/index";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
-  requiredRole?: "ADMIN" | "USER";
+  requiredRole?: Rol;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
@@ -26,7 +27,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requiredRole && user.role?.toUpperCase() !== requiredRole.toUpperCase()) {
+  if (requiredRole && user.role !== requiredRole) {
     return <Navigate to="/" replace />;
   }
 
