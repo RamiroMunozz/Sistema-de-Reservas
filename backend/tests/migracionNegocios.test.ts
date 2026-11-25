@@ -18,7 +18,7 @@ vi.mock("../src/core/integraciones/mercadoPago.js", () => ({
   reembolsarPago: vi.fn(),
 }));
 
-// Solo corre contra una base descartable con M1 (20261125120000_negocios) aplicada:
+// Solo corre contra una base descartable con M1 y M2 (20261125120000_negocios y 20261125120100_roles_negocio) aplicadas:
 // escribe y borra filas. Usa SQL directo para no depender de los tipos del cliente.
 const URL_BASE_DE_PRUEBA = process.env.DATABASE_URL_PRUEBA;
 
@@ -26,7 +26,7 @@ interface FilaNulable {
   is_nullable: string;
 }
 
-describe.skipIf(!URL_BASE_DE_PRUEBA)("Migración M1 de negocios (base descartable)", () => {
+describe.skipIf(!URL_BASE_DE_PRUEBA)("Migraciones M1 y M2 de negocios y roles (base descartable)", () => {
   const idsNegocios: string[] = [];
   const idsComplejos: string[] = [];
   const idsCanchas: string[] = [];
@@ -70,10 +70,10 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Migración M1 de negocios (base descartabl
          1000, 'CONFIRMED'::"BookingStatus", now())`;
   };
 
-  // Por defecto un usuario con negocio es ADMIN (el dueño) y uno sin negocio es USER.
+  // Por defecto un usuario con negocio es DUENO y uno sin negocio es JUGADOR (users_negocio_segun_rol).
   const insertarUsuario = async (
     idNegocio: string | null,
-    rol: string = idNegocio ? "ADMIN" : "USER",
+    rol: string = idNegocio ? "DUENO" : "JUGADOR",
   ): Promise<void> => {
     const id = randomUUID();
     idsUsuarios.push(id);
@@ -172,6 +172,40 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Migración M1 de negocios (base descartabl
     await expect(insertarUsuario(null)).resolves.toBeUndefined();
   });
 
+  it("users_negocio_segun_rol acepta un DUENO con negocio, y un JUGADOR y un SUPER_ADMIN sin negocio", async () => {
+    const idNegocio = await crearNegocio();
+
+    await expect(insertarUsuario(idNegocio, "DUENO")).resolves.toBeUndefined();
+    await expect(insertarUsuario(null, "JUGADOR")).resolves.toBeUndefined();
+    await expect(insertarUsuario(null, "SUPER_ADMIN")).resolves.toBeUndefined();
+  });
+
+  it("users_negocio_segun_rol rechaza un DUENO sin negocio", async () => {
+    const error: unknown = await insertarUsuario(null, "DUENO").catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(Error);
+    expect((error as Error).message).toContain("users_negocio_segun_rol");
+  });
+
+  it.each([["JUGADOR"], ["SUPER_ADMIN"]])(
+    "users_negocio_segun_rol rechaza un %s con negocio",
+    async (rol) => {
+      const idNegocio = await crearNegocio();
+
+      const error: unknown = await insertarUsuario(idNegocio, rol).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain("users_negocio_segun_rol");
+    },
+  );
+
+  it("el rol por defecto de un usuario nuevo es JUGADOR", async () => {
+    const filas = await prisma.$queryRaw<{ column_default: string }[]>`
+      SELECT "column_default" FROM information_schema.columns
+      WHERE table_name = 'users' AND column_name = 'role'`;
+
+    expect(filas[0]?.column_default).toContain("JUGADOR");
+  });
 });
 
 // T-1.10: las tres rutas de creación fijan el negocio del complejo de la cancha. Se usa un negocio

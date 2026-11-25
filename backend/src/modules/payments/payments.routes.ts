@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../../core/middlewares/auth.js";
-import { requireRole } from "../../core/middlewares/role.middleware.js";
+import { soloDueno } from "../../core/middlewares/negocio.js";
 import { PaymentController } from "./payment.controller.js";
 
 const router = Router();
@@ -13,11 +13,10 @@ router.post(
   paymentController.createPreference,
 );
 
-// Reembolso manual de un pago registrado (solo ADMIN, PAG-024)
+// Reembolso manual de un pago registrado (solo DUENO, PAG-024)
 router.post(
   "/admin/payments/:paymentId/refund",
-  authenticate,
-  requireRole(["ADMIN"]),
+  soloDueno,
   paymentController.refundPayment,
 );
 

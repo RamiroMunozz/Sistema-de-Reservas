@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { ID_NEGOCIO_DE_PRUEBA, type RolDePrueba, payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { buscarCancha, buscarReserva, crearReserva, actualizarReserva, buscarUsuario } =
@@ -58,8 +59,8 @@ const ID_USUARIO = randomUUID();
 const ID_CANCHA = randomUUID();
 const ID_RESERVA = randomUUID();
 
-const conToken = (rol: "USER" | "ADMIN" = "USER", userId = ID_USUARIO) => ({
-  Authorization: `Bearer ${jwt.sign({ userId, role: rol }, SECRETO_DE_PRUEBA)}`,
+const conToken = (rol: RolDePrueba = "JUGADOR", userId = ID_USUARIO) => ({
+  Authorization: `Bearer ${jwt.sign(payloadDePrueba(rol, userId), SECRETO_DE_PRUEBA)}`,
 });
 
 const enDias = (dias: number, hora: number) => {
@@ -213,7 +214,7 @@ describe("Validación de reservas", () => {
     it("responde 400 si el inicio no es anterior al fin", async () => {
       const respuesta = await request(app)
         .post(`${RUTA_RESERVAS}/admin/create`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({
           ...reservaValida(),
           startTime: enDias(10, 11),
@@ -232,7 +233,7 @@ describe("Validación de reservas", () => {
 
       const respuesta = await request(app)
         .post(`${RUTA_RESERVAS}/admin/create`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send(datos);
 
       expect(respuesta.status).toBe(400);
@@ -242,7 +243,7 @@ describe("Validación de reservas", () => {
     it("responde 400 si el turno ya pasó", async () => {
       const respuesta = await request(app)
         .post(`${RUTA_RESERVAS}/admin/create`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({
           ...reservaValida(),
           startTime: enDias(-1, 10),
@@ -259,7 +260,7 @@ describe("Validación de reservas", () => {
 
       const respuesta = await request(app)
         .post(`${RUTA_RESERVAS}/admin/create`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send(reservaValida());
 
       expect(respuesta.status).toBe(400);
@@ -272,7 +273,7 @@ describe("Validación de reservas", () => {
 
       const respuesta = await request(app)
         .post(`${RUTA_RESERVAS}/admin/create`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send(reservaValida());
 
       expect(respuesta.status).toBe(400);
@@ -283,11 +284,12 @@ describe("Validación de reservas", () => {
     it("crea la reserva con datos válidos", async () => {
       const respuesta = await request(app)
         .post(`${RUTA_RESERVAS}/admin/create`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send(reservaValida());
 
       expect(respuesta.status).toBe(201);
       expect(crearReserva).toHaveBeenCalledOnce();
+      expect(crearReserva.mock.calls[0][0].data.negocioId).toBe(canchaActiva.complex.negocioId);
     });
   });
 
@@ -295,7 +297,7 @@ describe("Validación de reservas", () => {
     it("responde 400 si se pide el estado EXPIRED: solo lo produce el vencimiento (RES-035)", async () => {
       const respuesta = await request(app)
         .patch(`${RUTA_RESERVAS}/admin/${ID_RESERVA}/status`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({ status: "EXPIRED" });
 
       expect(respuesta.status).toBe(400);
@@ -310,7 +312,7 @@ describe("Validación de reservas", () => {
 
         const respuesta = await request(app)
           .patch(`${RUTA_RESERVAS}/admin/${ID_RESERVA}/status`)
-          .set(conToken("ADMIN"))
+          .set(conToken("DUENO"))
           .send({ status: nuevo });
 
         expect(respuesta.status).toBe(409);
@@ -322,7 +324,7 @@ describe("Validación de reservas", () => {
     it("responde 400 con un estado desconocido", async () => {
       const respuesta = await request(app)
         .patch(`${RUTA_RESERVAS}/admin/${ID_RESERVA}/status`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({ status: "BORRADA" });
 
       expect(respuesta.status).toBe(400);
@@ -332,7 +334,7 @@ describe("Validación de reservas", () => {
     it("responde 400 con un ID que no es UUID", async () => {
       const respuesta = await request(app)
         .patch(`${RUTA_RESERVAS}/admin/abc/status`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({ status: "CONFIRMED" });
 
       expect(respuesta.status).toBe(400);
@@ -344,7 +346,7 @@ describe("Validación de reservas", () => {
 
       const respuesta = await request(app)
         .patch(`${RUTA_RESERVAS}/admin/${ID_RESERVA}/status`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({ status: "CANCELLED" });
 
       expect(respuesta.status).toBe(404);
@@ -362,7 +364,7 @@ describe("Validación de reservas", () => {
 
       const respuesta = await request(app)
         .patch(`${RUTA_RESERVAS}/admin/${ID_RESERVA}/status`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({ status: nuevo });
 
       expect(respuesta.status).toBe(200);
@@ -382,7 +384,7 @@ describe("Validación de reservas", () => {
 
       const respuesta = await request(app)
         .patch(`${RUTA_RESERVAS}/admin/${ID_RESERVA}/status`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({ status: nuevo });
 
       expect(respuesta.status).toBe(409);
@@ -479,7 +481,7 @@ describe("Validación de reservas", () => {
     it("responde 400 con una fecha inválida en /admin/daily", async () => {
       const respuesta = await request(app)
         .get(`${RUTA_RESERVAS}/admin/daily?date=hoy`)
-        .set(conToken("ADMIN"));
+        .set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(400);
     });

@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -41,7 +42,7 @@ const ID_DUENO = randomUUID();
 const ID_RESERVA = randomUUID();
 
 const conToken = (userId: string) => ({
-  Authorization: `Bearer ${jwt.sign({ userId, role: "USER" }, SECRETO_DE_PRUEBA)}`,
+  Authorization: `Bearer ${jwt.sign(payloadDePrueba("JUGADOR", userId), SECRETO_DE_PRUEBA)}`,
 });
 
 const reserva = (status: string, mpPreferenceId: string | null = null) => ({

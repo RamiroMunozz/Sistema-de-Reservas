@@ -23,9 +23,11 @@ async function main() {
     },
   });
 
-  // 3. Usuarios base (Admin y Cliente)
+  // 3. Usuarios base (dueño, jugador y SUPER_ADMIN de la plataforma)
   const adminPasswordHash = await bcrypt.hash("AdminPass123", 12);
   const userPasswordHash = await bcrypt.hash("UserPass123", 12);
+  // Contraseña fija de desarrollo del SUPER_ADMIN: se cambia antes de cualquier despliegue real.
+  const plataformaPasswordHash = await bcrypt.hash("PlataformaPass123", 12);
 
   await prisma.user.createMany({
     data: [
@@ -34,7 +36,7 @@ async function main() {
         passwordHash: adminPasswordHash,
         firstName: "Admin",
         lastName: "General",
-        role: "ADMIN",
+        role: "DUENO",
         negocioId: negocio.id,
       },
       {
@@ -43,7 +45,14 @@ async function main() {
         firstName: "Lucas",
         lastName: "Gómez",
         phone: "+5492604998877",
-        role: "USER",
+        role: "JUGADOR",
+      },
+      {
+        email: "plataforma@sportsbooking.com",
+        passwordHash: plataformaPasswordHash,
+        firstName: "Plataforma",
+        lastName: "Administración",
+        role: "SUPER_ADMIN",
       },
     ],
   });

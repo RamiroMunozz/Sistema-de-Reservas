@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { type RolDePrueba, payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { buscarCanchaFuera, leerDentro, leerFinal } = vi.hoisted(() => ({
@@ -47,8 +48,8 @@ const ID_RESERVA = randomUUID();
 const HASH = "a".repeat(64);
 const PREFERENCIA = "preferencia-interna";
 
-const conToken = (rol: "USER" | "ADMIN") => ({
-  Authorization: `Bearer ${jwt.sign({ userId: ID_USUARIO, role: rol }, SECRETO_DE_PRUEBA)}`,
+const conToken = (rol: RolDePrueba) => ({
+  Authorization: `Bearer ${jwt.sign(payloadDePrueba(rol, ID_USUARIO), SECRETO_DE_PRUEBA)}`,
 });
 
 const fecha = (iso: string) => new Date(iso);
@@ -108,7 +109,7 @@ describe("Respuestas con lista blanca de campos (RES-025, ADM-008)", () => {
 
       const respuesta = await request(app)
         .patch(`/api/v1/bookings/admin/${ID_RESERVA}/status`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({ status: "CANCELLED" });
 
       expect(respuesta.status).toBe(200);
@@ -136,7 +137,7 @@ describe("Respuestas con lista blanca de campos (RES-025, ADM-008)", () => {
 
       await request(app)
         .patch(`/api/v1/bookings/admin/${ID_RESERVA}/status`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({ status: "CANCELLED" });
 
       const consulta = leerFinal.mock.calls[0][0];
@@ -154,7 +155,7 @@ describe("Respuestas con lista blanca de campos (RES-025, ADM-008)", () => {
 
       const respuesta = await request(app)
         .patch(`/api/v1/bookings/${ID_RESERVA}/cancel`)
-        .set(conToken("USER"));
+        .set(conToken("JUGADOR"));
 
       expect(respuesta.status).toBe(200);
       expect(respuesta.body).not.toHaveProperty("accessTokenHash");

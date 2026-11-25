@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { ID_NEGOCIO_DE_PRUEBA, type RolDePrueba, payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { buscarComplejo, actualizarComplejo } = vi.hoisted(() => ({
@@ -18,8 +19,8 @@ const SECRETO_DE_PRUEBA = "secreto_de_prueba";
 const ID_COMPLEJO = randomUUID();
 const MENSAJE_PROHIBIDO = "No tienes los permisos necesarios para realizar esta acción";
 
-const conToken = (rol: "USER" | "ADMIN") => ({
-  Authorization: `Bearer ${jwt.sign({ userId: randomUUID(), role: rol }, SECRETO_DE_PRUEBA)}`,
+const conToken = (rol: RolDePrueba) => ({
+  Authorization: `Bearer ${jwt.sign(payloadDePrueba(rol, randomUUID()), SECRETO_DE_PRUEBA)}`,
 });
 
 const ruta = (id: string = ID_COMPLEJO) =>
@@ -60,17 +61,17 @@ describe("Porcentaje de seña del complejo (ADM-015)", () => {
       expect(actualizarComplejo).not.toHaveBeenCalled();
     });
 
-    it("GET con USER recibe 403", async () => {
-      const respuesta = await request(app).get(ruta()).set(conToken("USER"));
+    it("GET con JUGADOR recibe 403", async () => {
+      const respuesta = await request(app).get(ruta()).set(conToken("JUGADOR"));
 
       expect(respuesta.status).toBe(403);
       expect(respuesta.body.detail).toBe(MENSAJE_PROHIBIDO);
     });
 
-    it("PATCH con USER recibe 403 y no escribe", async () => {
+    it("PATCH con JUGADOR recibe 403 y no escribe", async () => {
       const respuesta = await request(app)
         .patch(ruta())
-        .set(conToken("USER"))
+        .set(conToken("JUGADOR"))
         .send({ depositPercent: 50 });
 
       expect(respuesta.status).toBe(403);
@@ -80,8 +81,8 @@ describe("Porcentaje de seña del complejo (ADM-015)", () => {
   });
 
   describe("GET", () => {
-    it("un ADMIN recibe 200 con id y depositPercent", async () => {
-      const respuesta = await request(app).get(ruta()).set(conToken("ADMIN"));
+    it("un DUENO recibe 200 con id y depositPercent", async () => {
+      const respuesta = await request(app).get(ruta()).set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(200);
       expect(respuesta.body).toEqual({ id: ID_COMPLEJO, depositPercent: 30 });
@@ -91,7 +92,7 @@ describe("Porcentaje de seña del complejo (ADM-015)", () => {
     });
 
     it("un id que no es UUID recibe 400 sin consultar la base", async () => {
-      const respuesta = await request(app).get(ruta("no-es-uuid")).set(conToken("ADMIN"));
+      const respuesta = await request(app).get(ruta("no-es-uuid")).set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(400);
       expect(buscarComplejo).not.toHaveBeenCalled();
@@ -100,7 +101,7 @@ describe("Porcentaje de seña del complejo (ADM-015)", () => {
     it("un complejo inexistente recibe 404", async () => {
       buscarComplejo.mockResolvedValue(null);
 
-      const respuesta = await request(app).get(ruta()).set(conToken("ADMIN"));
+      const respuesta = await request(app).get(ruta()).set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(404);
     });
@@ -108,11 +109,11 @@ describe("Porcentaje de seña del complejo (ADM-015)", () => {
 
   describe("PATCH", () => {
     it.each([1, 40, 50, 100])(
-      "un ADMIN guarda %i y recibe 200 con el valor nuevo",
+      "un DUENO guarda %i y recibe 200 con el valor nuevo",
       async (valor) => {
         const respuesta = await request(app)
           .patch(ruta())
-          .set(conToken("ADMIN"))
+          .set(conToken("DUENO"))
           .send({ depositPercent: valor });
 
         expect(respuesta.status).toBe(200);
@@ -137,7 +138,7 @@ describe("Porcentaje de seña del complejo (ADM-015)", () => {
     ])("rechaza con 400 y la lista errors un valor %s, sin escribir", async (_nombre, valor) => {
       const respuesta = await request(app)
         .patch(ruta())
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({ depositPercent: valor });
 
       expect(respuesta.status).toBe(400);
@@ -150,7 +151,7 @@ describe("Porcentaje de seña del complejo (ADM-015)", () => {
     it("rechaza con 400 un cuerpo sin depositPercent", async () => {
       const respuesta = await request(app)
         .patch(ruta())
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({});
 
       expect(respuesta.status).toBe(400);
@@ -163,7 +164,7 @@ describe("Porcentaje de seña del complejo (ADM-015)", () => {
     it("un id que no es UUID recibe 400 y no escribe", async () => {
       const respuesta = await request(app)
         .patch(ruta("no-es-uuid"))
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({ depositPercent: 50 });
 
       expect(respuesta.status).toBe(400);
@@ -175,7 +176,7 @@ describe("Porcentaje de seña del complejo (ADM-015)", () => {
 
       const respuesta = await request(app)
         .patch(ruta())
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({ depositPercent: 50 });
 
       expect(respuesta.status).toBe(404);

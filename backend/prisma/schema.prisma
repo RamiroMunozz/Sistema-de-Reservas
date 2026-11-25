@@ -13,8 +13,9 @@ datasource db {
 // ------------------------------------
 
 enum Role {
-  USER
-  ADMIN
+  JUGADOR
+  DUENO
+  SUPER_ADMIN
 }
 
 enum Sport {
@@ -58,7 +59,8 @@ enum RefundReason {
 // ------------------------------------
 
 // La migración 20261125120000_negocios agrega una restricción que Prisma no representa:
-// users_un_dueno_por_negocio (EXCLUDE parcial: a lo sumo un usuario por negocio_id no nulo).
+// users_un_dueno_por_negocio (EXCLUDE parcial: a lo sumo un usuario por negocio_id no nulo) y
+// users_negocio_segun_rol (CHECK: solo el DUENO tiene negocio, migración 20261125120100_roles_negocio).
 model User {
   id           String    @id @default(uuid()) @db.Uuid
   email        String    @unique @db.VarChar(255)
@@ -66,7 +68,7 @@ model User {
   firstName    String    @map("first_name") @db.VarChar(100)
   lastName     String    @map("last_name") @db.VarChar(100)
   phone        String?   @db.VarChar(30)
-  role         Role      @default(USER)
+  role         Role      @default(JUGADOR)
   negocioId    String?   @map("negocio_id") @db.Uuid
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz()

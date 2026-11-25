@@ -1,5 +1,6 @@
 import { prisma } from "../../core/config/prisma.js";
 import {
+  armarPayloadJwt,
   hashPassword,
   comparePassword,
   generateAccessToken,
@@ -29,6 +30,7 @@ export class AuthService {
         firstName: dto.firstName,
         lastName: dto.lastName,
         phone: dto.phone,
+        role: "JUGADOR",
       },
       select: {
         id: true,
@@ -36,16 +38,15 @@ export class AuthService {
         firstName: true,
         lastName: true,
         role: true,
+        negocioId: true,
         createdAt: true,
       },
     });
 
-    const accessToken = generateAccessToken({
-      userId: user.id,
-      role: user.role,
-    });
+    const accessToken = generateAccessToken(armarPayloadJwt(user));
+    const { negocioId: _negocioId, ...usuarioPublico } = user;
 
-    return { user, accessToken };
+    return { user: usuarioPublico, accessToken };
   }
 
   async login(dto: LoginDTO) {
@@ -66,10 +67,7 @@ export class AuthService {
       throw new UnauthorizedError("Credenciales inválidas");
     }
 
-    const accessToken = generateAccessToken({
-      userId: user.id,
-      role: user.role,
-    });
+    const accessToken = generateAccessToken(armarPayloadJwt(user));
 
     return {
       user: {

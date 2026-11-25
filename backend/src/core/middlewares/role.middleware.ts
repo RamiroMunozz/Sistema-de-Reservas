@@ -1,7 +1,8 @@
 import { Request, Response, NextFunction } from "express";
+import type { Rol } from "../config/security.js";
 import { ForbiddenError, UnauthorizedError } from "../errors/AppError.js";
 
-export const requireRole = (allowedRoles: string[]) => {
+export const requireRole = (allowedRoles: readonly Rol[]) => {
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {
       return next(new UnauthorizedError("Usuario no autenticado"));

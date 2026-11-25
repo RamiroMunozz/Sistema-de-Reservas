@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { ID_NEGOCIO_DE_PRUEBA, type RolDePrueba, payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -66,8 +67,8 @@ const ID_RESERVA = randomUUID();
 const RUTA_CANCELAR = `/api/v1/bookings/${ID_RESERVA}/cancel`;
 const RUTA_ESTADO = `/api/v1/bookings/admin/${ID_RESERVA}/status`;
 
-const conToken = (rol: "USER" | "ADMIN") => ({
-  Authorization: `Bearer ${jwt.sign({ userId: ID_USUARIO, role: rol }, SECRETO_DE_PRUEBA)}`,
+const conToken = (rol: RolDePrueba) => ({
+  Authorization: `Bearer ${jwt.sign(payloadDePrueba(rol, ID_USUARIO), SECRETO_DE_PRUEBA)}`,
 });
 
 const reserva = (
@@ -143,7 +144,7 @@ describe("Cancelación y cambio de estado bajo el bloqueo de la cancha", () => {
     it("libera las vencidas primero, cancela bajo el bloqueo e invalida el link después del commit", async () => {
       const respuesta = await request(app)
         .patch(RUTA_CANCELAR)
-        .set(conToken("USER"));
+        .set(conToken("JUGADOR"));
 
       expect(respuesta.status).toBe(200);
       expect(eventos).toEqual([
@@ -165,7 +166,7 @@ describe("Cancelación y cambio de estado bajo el bloqueo de la cancha", () => {
 
       const respuesta = await request(app)
         .patch(RUTA_CANCELAR)
-        .set(conToken("USER"));
+        .set(conToken("JUGADOR"));
 
       expect(respuesta.status).toBe(409);
       expect(eventos).toEqual(["liberar", "leer"]);
@@ -178,7 +179,7 @@ describe("Cancelación y cambio de estado bajo el bloqueo de la cancha", () => {
 
       const respuesta = await request(app)
         .patch(RUTA_CANCELAR)
-        .set(conToken("USER"));
+        .set(conToken("JUGADOR"));
 
       expect(respuesta.status).toBe(200);
       expect(eventos).toContain("commit");
@@ -193,7 +194,7 @@ describe("Cancelación y cambio de estado bajo el bloqueo de la cancha", () => {
 
       const respuesta = await request(app)
         .patch(RUTA_CANCELAR)
-        .set(conToken("USER"));
+        .set(conToken("JUGADOR"));
 
       expect(respuesta.status).toBe(200);
       expect(expirarPreferencia).not.toHaveBeenCalled();
@@ -207,7 +208,7 @@ describe("Cancelación y cambio de estado bajo el bloqueo de la cancha", () => {
 
       const respuesta = await request(app)
         .patch(RUTA_CANCELAR)
-        .set(conToken("USER"));
+        .set(conToken("JUGADOR"));
 
       expect(respuesta.status).toBe(403);
       expect(actualizarReserva).not.toHaveBeenCalled();
@@ -219,7 +220,7 @@ describe("Cancelación y cambio de estado bajo el bloqueo de la cancha", () => {
 
       const respuesta = await request(app)
         .patch(RUTA_CANCELAR)
-        .set(conToken("USER"));
+        .set(conToken("JUGADOR"));
 
       expect(respuesta.status).toBe(404);
       expect(eventos).toEqual([]);
@@ -228,7 +229,7 @@ describe("Cancelación y cambio de estado bajo el bloqueo de la cancha", () => {
 
   describe("PATCH /bookings/admin/:id/status (RES-015)", () => {
     const pedirEstado = (status: string) =>
-      request(app).patch(RUTA_ESTADO).set(conToken("ADMIN")).send({ status });
+      request(app).patch(RUTA_ESTADO).set(conToken("DUENO")).send({ status });
 
     it("con CANCELLED libera las vencidas primero, cancela e invalida el link después del commit", async () => {
       const respuesta = await pedirEstado("CANCELLED");

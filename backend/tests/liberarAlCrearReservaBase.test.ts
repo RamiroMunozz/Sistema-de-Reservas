@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
-import jwt from "jsonwebtoken";
 import request from "supertest";
+import { type RolDePrueba, payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import app from "../src/app.js";
 import { prisma } from "../src/core/config/prisma.js";
+import { firmarToken } from "./ayudantes/negociosDePrueba.js";
 
 // Solo corre contra una base descartable: escribe y borra reservas.
 const URL_BASE_DE_PRUEBA = process.env.DATABASE_URL_PRUEBA;
@@ -19,8 +20,11 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)(
     const inicio = new Date("2030-03-20T10:00:00.000Z");
     const fin = new Date("2030-03-20T11:00:00.000Z");
 
-    const conToken = (rol: "USER" | "ADMIN") => ({
-      Authorization: `Bearer ${jwt.sign({ userId: idUsuario, role: rol }, SECRETO_DE_PRUEBA)}`,
+    let idNegocio: string;
+
+    // El dueño pertenece al negocio de los fixtures (`principal`): la cancha es suya.
+    const conToken = (rol: RolDePrueba) => ({
+      Authorization: `Bearer ${firmarToken(SECRETO_DE_PRUEBA, payloadDePrueba(rol, idUsuario, idNegocio))}`,
     });
 
     const insertarVencida = async (id: string) => {
@@ -34,7 +38,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)(
            "deposit_amount", "access_token_hash", "updated_at")
         VALUES
           (${id}::uuid, 'Ana', 'Pérez', '5491155551234',
-           ${idCancha}::uuid, ${inicio}, ${fin}, 1000, 'PENDING'::"BookingStatus", ${vencio},
+           ${idCancha}::uuid, (SELECT "id" FROM "negocios" WHERE "slug" = 'principal'), ${inicio}, ${fin}, 1000, 'PENDING'::"BookingStatus", ${vencio},
            300, ${hash}, now())`;
     };
 
@@ -49,6 +53,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)(
     beforeAll(async () => {
       vi.stubEnv("JWT_SECRET", SECRETO_DE_PRUEBA);
 
+      idNegocio = (await prisma.negocio.findUniqueOrThrow({ where: { slug: "principal" } })).id;
       await prisma.$executeRaw`
         INSERT INTO "users" ("id", "email", "password_hash", "first_name", "last_name", "updated_at")
         VALUES (${idUsuario}::uuid, ${`liberar-${idUsuario}@example.com`}, 'sin_uso', 'Cuenta', 'Prueba', now())`;
@@ -78,7 +83,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)(
 
       const respuesta = await request(app)
         .post("/api/v1/bookings")
-        .set(conToken("USER"))
+        .set(conToken("JUGADOR"))
         .send({
           courtId: idCancha,
           startTime: inicio.toISOString(),
@@ -95,7 +100,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)(
 
       const respuesta = await request(app)
         .post("/api/v1/bookings/admin/create")
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({
           courtId: idCancha,
           startTime: inicio.toISOString(),

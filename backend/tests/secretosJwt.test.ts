@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import app from "../src/app.js";
 import {
@@ -12,7 +13,7 @@ import {
 const SECRETO_DE_PRUEBA = "secreto_de_prueba";
 const RUTA_PROTEGIDA = "/api/v1/bookings/my-bookings";
 
-const cargaUtil = () => ({ userId: randomUUID(), role: "USER" as const });
+const cargaUtil = () => (payloadDePrueba("JUGADOR", randomUUID()));
 
 describe("Secretos JWT", () => {
   afterEach(() => {

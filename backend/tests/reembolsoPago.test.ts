@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { ID_NEGOCIO_DE_PRUEBA, type RolDePrueba, payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -45,8 +46,8 @@ const FORMATO_CLAVE = new RegExp(
   `^reembolso-${ID_PAGO}-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`,
 );
 
-const conToken = (rol: "USER" | "ADMIN") => ({
-  Authorization: `Bearer ${jwt.sign({ userId: randomUUID(), role: rol }, SECRETO_DE_PRUEBA)}`,
+const conToken = (rol: RolDePrueba) => ({
+  Authorization: `Bearer ${jwt.sign(payloadDePrueba(rol, randomUUID()), SECRETO_DE_PRUEBA)}`,
 });
 
 const ruta = (id: string = ID_PAGO) => `/api/v1/payments/admin/payments/${id}/refund`;
@@ -116,8 +117,8 @@ describe("Reembolso manual por pago (PAG-024)", () => {
       expect(buscarPago).not.toHaveBeenCalled();
     });
 
-    it("con rol USER responde 403 y no consulta nada", async () => {
-      const respuesta = await request(app).post(ruta()).set(conToken("USER"));
+    it("con rol JUGADOR responde 403 y no consulta nada", async () => {
+      const respuesta = await request(app).post(ruta()).set(conToken("JUGADOR"));
 
       expect(respuesta.status).toBe(403);
       expect(respuesta.body.detail).toBe(MENSAJE_PROHIBIDO);
@@ -128,7 +129,7 @@ describe("Reembolso manual por pago (PAG-024)", () => {
     it("un paymentId que no es UUID responde 400 sin consultar la base", async () => {
       const respuesta = await request(app)
         .post(ruta("190426013932"))
-        .set(conToken("ADMIN"));
+        .set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(400);
       expect(buscarPago).not.toHaveBeenCalled();
@@ -138,15 +139,15 @@ describe("Reembolso manual por pago (PAG-024)", () => {
     it("un pago inexistente responde 404 sin llamar a Mercado Pago", async () => {
       buscarPago.mockResolvedValue(null);
 
-      const respuesta = await request(app).post(ruta()).set(conToken("ADMIN"));
+      const respuesta = await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(404);
       expect(obtenerPago).not.toHaveBeenCalled();
       expect(reembolsarPago).not.toHaveBeenCalled();
     });
 
-    it("el paymentId es el id de BookingPayment, no el de Mercado Pago", async () => {
-      await request(app).post(ruta()).set(conToken("ADMIN"));
+    it("el paymentId es el id de BookingPayment (no el de Mercado Pago) y se busca con el negocio del token", async () => {
+      await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(buscarPago).toHaveBeenCalledWith(
         expect.objectContaining({ where: { id: ID_PAGO } }),
@@ -158,7 +159,7 @@ describe("Reembolso manual por pago (PAG-024)", () => {
     it("un pago válido sin motivo de una reserva activa", async () => {
       buscarPago.mockResolvedValue(pagoRegistrado({ refundReason: null }));
 
-      const respuesta = await request(app).post(ruta()).set(conToken("ADMIN"));
+      const respuesta = await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(409);
       expect(obtenerPago).not.toHaveBeenCalled();
@@ -171,7 +172,7 @@ describe("Reembolso manual por pago (PAG-024)", () => {
         pagoRegistrado({ refundedAt: new Date("2031-03-10T20:00:00.000Z") }),
       );
 
-      const respuesta = await request(app).post(ruta()).set(conToken("ADMIN"));
+      const respuesta = await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(409);
       expect(obtenerPago).not.toHaveBeenCalled();
@@ -192,7 +193,7 @@ describe("Reembolso manual por pago (PAG-024)", () => {
         pagoRegistrado({ refundReason: motivo, isValid: motivo === "OWNER_DISCRETION" }),
       );
 
-      const respuesta = await request(app).post(ruta()).set(conToken("ADMIN"));
+      const respuesta = await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(200);
       expect(reembolsarPago).toHaveBeenCalledTimes(1);
@@ -202,7 +203,7 @@ describe("Reembolso manual por pago (PAG-024)", () => {
     it("fija refundedAt con un where que exige refundedAt nulo", async () => {
       const antes = Date.now();
 
-      await request(app).post(ruta()).set(conToken("ADMIN"));
+      await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(marcarReembolsado).toHaveBeenCalledTimes(1);
       const argumentos = marcarReembolsado.mock.calls[0][0] as {
@@ -225,13 +226,13 @@ describe("Reembolso manual por pago (PAG-024)", () => {
         return { count: 1 };
       });
 
-      await request(app).post(ruta()).set(conToken("ADMIN"));
+      await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(orden).toEqual(["mercado-pago", "registro"]);
     });
 
     it("responde 200 con la reserva en vista de administrador y sus pagos", async () => {
-      const respuesta = await request(app).post(ruta()).set(conToken("ADMIN"));
+      const respuesta = await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(200);
       expect(respuesta.body).toMatchObject({
@@ -262,7 +263,7 @@ describe("Reembolso manual por pago (PAG-024)", () => {
     it("si otro pedido ya registró el reembolso, no lo pisa y responde 200", async () => {
       marcarReembolsado.mockResolvedValue({ count: 0 });
 
-      const respuesta = await request(app).post(ruta()).set(conToken("ADMIN"));
+      const respuesta = await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(200);
       expect(marcarReembolsado).toHaveBeenCalledTimes(1);
@@ -271,7 +272,7 @@ describe("Reembolso manual por pago (PAG-024)", () => {
 
   describe("clave de idempotencia por intento (T-0.3, comprobación 5)", () => {
     it("tiene la forma reembolso-<bookingPaymentId>-<uuid>", async () => {
-      await request(app).post(ruta()).set(conToken("ADMIN"));
+      await request(app).post(ruta()).set(conToken("DUENO"));
 
       const clave = reembolsarPago.mock.calls[0][1] as string;
       expect(clave).toMatch(FORMATO_CLAVE);
@@ -280,8 +281,8 @@ describe("Reembolso manual por pago (PAG-024)", () => {
     it("dos intentos usan claves distintas", async () => {
       reembolsarPago.mockRejectedValueOnce(new Error("400 de Mercado Pago"));
 
-      const fallido = await request(app).post(ruta()).set(conToken("ADMIN"));
-      const reintento = await request(app).post(ruta()).set(conToken("ADMIN"));
+      const fallido = await request(app).post(ruta()).set(conToken("DUENO"));
+      const reintento = await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(fallido.status).toBe(502);
       expect(reintento.status).toBe(200);
@@ -298,7 +299,7 @@ describe("Reembolso manual por pago (PAG-024)", () => {
     it("no llama a reembolsarPago y solo fija refundedAt", async () => {
       obtenerPago.mockResolvedValue({ id: ID_MP, status: "refunded" });
 
-      const respuesta = await request(app).post(ruta()).set(conToken("ADMIN"));
+      const respuesta = await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(200);
       expect(obtenerPago).toHaveBeenCalledWith(ID_MP);
@@ -317,7 +318,7 @@ describe("Reembolso manual por pago (PAG-024)", () => {
         return { id: 1 };
       });
 
-      await request(app).post(ruta()).set(conToken("ADMIN"));
+      await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(orden).toEqual(["consulta", "reembolso"]);
     });
@@ -329,7 +330,7 @@ describe("Reembolso manual por pago (PAG-024)", () => {
         new Error("Refund requested amount is greater than amount paid (token APP_USR-123)"),
       );
 
-      const respuesta = await request(app).post(ruta()).set(conToken("ADMIN"));
+      const respuesta = await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(502);
       expect(respuesta.body.detail).toBe(MENSAJE_FALLA);
@@ -340,7 +341,7 @@ describe("Reembolso manual por pago (PAG-024)", () => {
     it("si falla la consulta previa del pago, responde 502 y no reembolsa", async () => {
       obtenerPago.mockRejectedValue(new Error("timeout interno"));
 
-      const respuesta = await request(app).post(ruta()).set(conToken("ADMIN"));
+      const respuesta = await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(502);
       expect(respuesta.body.detail).toBe(MENSAJE_FALLA);

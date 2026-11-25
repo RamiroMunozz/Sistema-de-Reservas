@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { type RolDePrueba, payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { eventos, buscarCancha, liberarVencidas, crearReserva } = vi.hoisted(
@@ -41,8 +42,8 @@ const SECRETO_DE_PRUEBA = "secreto_de_prueba";
 const ID_USUARIO = randomUUID();
 const ID_CANCHA = randomUUID();
 
-const conToken = (rol: "USER" | "ADMIN") => ({
-  Authorization: `Bearer ${jwt.sign({ userId: ID_USUARIO, role: rol }, SECRETO_DE_PRUEBA)}`,
+const conToken = (rol: RolDePrueba) => ({
+  Authorization: `Bearer ${jwt.sign(payloadDePrueba(rol, ID_USUARIO), SECRETO_DE_PRUEBA)}`,
 });
 
 const enDias = (dias: number, hora: number) => {
@@ -93,7 +94,7 @@ describe("Creación de reservas con cuenta: libera las vencidas bajo el bloqueo 
   it("POST /bookings: bloquea la cancha, libera las vencidas y recién entonces crea", async () => {
     const respuesta = await request(app)
       .post("/api/v1/bookings")
-      .set(conToken("USER"))
+      .set(conToken("JUGADOR"))
       .send(cuerpo());
 
     expect(respuesta.status).toBe(201);
@@ -104,7 +105,7 @@ describe("Creación de reservas con cuenta: libera las vencidas bajo el bloqueo 
   it("POST /bookings/admin/create: bloquea la cancha, libera las vencidas y recién entonces crea", async () => {
     const respuesta = await request(app)
       .post("/api/v1/bookings/admin/create")
-      .set(conToken("ADMIN"))
+      .set(conToken("DUENO"))
       .send(cuerpo());
 
     expect(respuesta.status).toBe(201);

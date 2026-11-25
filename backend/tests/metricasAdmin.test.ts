@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import { Prisma } from "@prisma/client";
 import request from "supertest";
+import { ID_NEGOCIO_DE_PRUEBA, payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { filtroNoVencida } from "../src/modules/bookings/filtrosReserva.js";
 
@@ -22,7 +23,7 @@ const RUTA_METRICAS = "/api/v1/admin/metrics";
 
 const tokenAdmin = {
   Authorization: `Bearer ${jwt.sign(
-    { userId: randomUUID(), role: "ADMIN" },
+    payloadDePrueba("DUENO", randomUUID()),
     SECRETO_DE_PRUEBA,
   )}`,
 };

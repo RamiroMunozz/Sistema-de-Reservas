@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { ID_NEGOCIO_DE_PRUEBA, type RolDePrueba, payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { buscarCancha, actualizarCancha } = vi.hoisted(() => ({
@@ -20,9 +21,9 @@ const SECRETO_DE_PRUEBA = "secreto_de_prueba";
 const ID_CANCHA = randomUUID();
 const ID_INEXISTENTE = randomUUID();
 
-const conToken = (rol: "USER" | "ADMIN") => ({
+const conToken = (rol: RolDePrueba) => ({
   Authorization: `Bearer ${jwt.sign(
-    { userId: randomUUID(), role: rol },
+    payloadDePrueba(rol, randomUUID()),
     SECRETO_DE_PRUEBA,
   )}`,
 });
@@ -76,7 +77,7 @@ describe("Validación de canchas", () => {
       async ({ metodo, ruta }) => {
         const solicitud =
           metodo === "patch"
-            ? request(app).patch(ruta).set(conToken("ADMIN")).send({ name: "Cancha 1" })
+            ? request(app).patch(ruta).set(conToken("DUENO")).send({ name: "Cancha 1" })
             : request(app).get(ruta);
 
         const respuesta = await solicitud;
@@ -90,10 +91,10 @@ describe("Validación de canchas", () => {
       },
     );
 
-    it("responde 403 (no 400) a un USER en PATCH con id mal formado", async () => {
+    it("responde 403 (no 400) a un JUGADOR en PATCH con id mal formado", async () => {
       const respuesta = await request(app)
         .patch("/api/v1/admin/courts/abc")
-        .set(conToken("USER"))
+        .set(conToken("JUGADOR"))
         .send({ name: "Cancha 1" });
 
       expect(respuesta.status).toBe(403);
@@ -122,7 +123,7 @@ describe("Validación de canchas", () => {
     const modificar = (cuerpo: Record<string, unknown>) =>
       request(app)
         .patch(`/api/v1/admin/courts/${ID_CANCHA}`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send(cuerpo);
 
     beforeEach(() => {
@@ -191,7 +192,7 @@ describe("Validación de canchas", () => {
 
       const respuesta = await request(app)
         .patch(`/api/v1/admin/courts/${ID_INEXISTENTE}`)
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({ name: "Cancha Central" });
 
       expect(respuesta.status).toBe(404);

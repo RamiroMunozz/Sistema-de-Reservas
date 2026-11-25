@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { type RolDePrueba, payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import app from "../src/app.js";
 import { prisma } from "../src/core/config/prisma.js";
@@ -8,10 +9,10 @@ import { prisma } from "../src/core/config/prisma.js";
 const SECRETO_DE_PRUEBA = "secreto_de_prueba";
 const FECHA_SIN_RESERVAS = "2000-01-01";
 
-const firmarToken = (rol: "USER" | "ADMIN"): string =>
-  jwt.sign({ userId: randomUUID(), role: rol }, SECRETO_DE_PRUEBA);
+const firmarToken = (rol: RolDePrueba): string =>
+  jwt.sign(payloadDePrueba(rol, randomUUID()), SECRETO_DE_PRUEBA);
 
-const conToken = (rol: "USER" | "ADMIN") => ({
+const conToken = (rol: RolDePrueba) => ({
   Authorization: `Bearer ${firmarToken(rol)}`,
 });
 
@@ -24,14 +25,14 @@ describe("Rutas admin de reservas", () => {
     vi.unstubAllEnvs();
   });
 
-  describe("usuario sin rol ADMIN", () => {
+  describe("usuario sin rol DUENO", () => {
     const mensajeProhibido =
       "No tienes los permisos necesarios para realizar esta acción";
 
     it("recibe 403 en GET /admin/daily", async () => {
       const respuesta = await request(app)
         .get(`/api/v1/bookings/admin/daily?date=${FECHA_SIN_RESERVAS}`)
-        .set(conToken("USER"));
+        .set(conToken("JUGADOR"));
 
       expect(respuesta.status).toBe(403);
       expect(respuesta.body.detail).toBe(mensajeProhibido);
@@ -40,7 +41,7 @@ describe("Rutas admin de reservas", () => {
     it("recibe 403 en PATCH /admin/:id/status", async () => {
       const respuesta = await request(app)
         .patch(`/api/v1/bookings/admin/${randomUUID()}/status`)
-        .set(conToken("USER"))
+        .set(conToken("JUGADOR"))
         .send({ status: "CANCELLED" });
 
       expect(respuesta.status).toBe(403);
@@ -50,7 +51,7 @@ describe("Rutas admin de reservas", () => {
     it("recibe 403 en GET /admin/all", async () => {
       const respuesta = await request(app)
         .get("/api/v1/bookings/admin/all")
-        .set(conToken("USER"));
+        .set(conToken("JUGADOR"));
 
       expect(respuesta.status).toBe(403);
       expect(respuesta.body.detail).toBe(mensajeProhibido);
@@ -59,7 +60,7 @@ describe("Rutas admin de reservas", () => {
     it("recibe 403 en POST /admin/create", async () => {
       const respuesta = await request(app)
         .post("/api/v1/bookings/admin/create")
-        .set(conToken("USER"))
+        .set(conToken("JUGADOR"))
         .send({
           courtId: randomUUID(),
           startTime: "2000-01-01T10:00:00.000Z",
@@ -87,10 +88,10 @@ describe("Rutas admin de reservas", () => {
       expect(respuesta.status).toBe(401);
     });
 
-    it("un ADMIN lista todas las reservas en GET /admin/all, de la más reciente a la más antigua", async () => {
+    it("un DUENO lista todas las reservas en GET /admin/all, de la más reciente a la más antigua", async () => {
       const respuesta = await request(app)
         .get("/api/v1/bookings/admin/all")
-        .set(conToken("ADMIN"));
+        .set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(200);
       expect(Array.isArray(respuesta.body)).toBe(true);
@@ -133,19 +134,19 @@ describe("Rutas admin de reservas", () => {
       expect(respuesta.status).toBe(401);
     });
 
-    it("un ADMIN accede a GET /admin/daily", async () => {
+    it("un DUENO accede a GET /admin/daily", async () => {
       const respuesta = await request(app)
         .get(`/api/v1/bookings/admin/daily?date=${FECHA_SIN_RESERVAS}`)
-        .set(conToken("ADMIN"));
+        .set(conToken("DUENO"));
 
       expect(respuesta.status).toBe(200);
       expect(respuesta.body).toEqual([]);
     });
 
-    it("un ADMIN recibe 400 si la cancha no existe en POST /admin/create", async () => {
+    it("un DUENO recibe 400 si la cancha no existe en POST /admin/create", async () => {
       const respuesta = await request(app)
         .post("/api/v1/bookings/admin/create")
-        .set(conToken("ADMIN"))
+        .set(conToken("DUENO"))
         .send({
           courtId: randomUUID(),
           startTime: "2000-01-01T10:00:00.000Z",
@@ -160,7 +161,7 @@ describe("Rutas admin de reservas", () => {
     it("un usuario consulta sus propias reservas en GET /my-bookings", async () => {
       const respuesta = await request(app)
         .get("/api/v1/bookings/my-bookings")
-        .set(conToken("USER"));
+        .set(conToken("JUGADOR"));
 
       expect(respuesta.status).toBe(200);
       expect(respuesta.body).toEqual([]);
@@ -169,7 +170,7 @@ describe("Rutas admin de reservas", () => {
     it("un usuario recibe 400 si la cancha no existe en POST /", async () => {
       const respuesta = await request(app)
         .post("/api/v1/bookings")
-        .set(conToken("USER"))
+        .set(conToken("JUGADOR"))
         .send({
           courtId: randomUUID(),
           startTime: "2000-01-01T10:00:00.000Z",
@@ -220,6 +221,15 @@ describe.skipIf(!process.env.DATABASE_URL_PRUEBA)(
       payments: VistaPago[];
     };
 
+    // Las reservas de esta prueba son del negocio principal: el dueño firma ese negocio.
+    let idNegocioPrincipal = "";
+    const tokenDuenoDePrincipal = () => ({
+      Authorization: `Bearer ${jwt.sign(
+        payloadDePrueba("DUENO", randomUUID(), idNegocioPrincipal),
+        SECRETO_DE_PRUEBA,
+      )}`,
+    });
+
     const idUsuario = randomUUID();
     const idComplejo = randomUUID();
     const idCancha = randomUUID();
@@ -259,7 +269,7 @@ describe.skipIf(!process.env.DATABASE_URL_PRUEBA)(
            "deposit_amount", "access_token_hash", "mp_preference_id", "updated_at")
         VALUES
           (${datos.id}::uuid, ${userId}::uuid, ${nombre}, ${nombre}, ${telefono}, ${nombre ? "ana@ejemplo.test" : null},
-           ${idCancha}::uuid, ${inicio}, ${fin}, 1000, ${datos.estado}::"BookingStatus", ${vence},
+           ${idCancha}::uuid, (SELECT "id" FROM "negocios" WHERE "slug" = 'principal'), ${inicio}, ${fin}, 1000, ${datos.estado}::"BookingStatus", ${vence},
            ${datos.sena}, ${hash}, ${preferencia}, now())`;
     };
 
@@ -292,6 +302,8 @@ describe.skipIf(!process.env.DATABASE_URL_PRUEBA)(
 
     beforeAll(async () => {
       vi.stubEnv("JWT_SECRET", SECRETO_DE_PRUEBA);
+
+      idNegocioPrincipal = (await prisma.negocio.findUniqueOrThrow({ where: { slug: "principal" } })).id;
 
       await prisma.$executeRaw`
         INSERT INTO "users" ("id", "email", "password_hash", "first_name", "last_name", "updated_at")
@@ -338,7 +350,7 @@ describe.skipIf(!process.env.DATABASE_URL_PRUEBA)(
       const pedirTodas = async (): Promise<VistaReserva[]> => {
         const respuesta = await request(app)
           .get("/api/v1/bookings/admin/all")
-          .set(conToken("ADMIN"));
+          .set(tokenDuenoDePrincipal());
 
         expect(respuesta.status).toBe(200);
         return respuesta.body as VistaReserva[];
@@ -412,7 +424,7 @@ describe.skipIf(!process.env.DATABASE_URL_PRUEBA)(
       it("incluye pagos, depositStatus y refundDue y omite las vencidas y las canceladas", async () => {
         const respuesta = await request(app)
           .get(`/api/v1/bookings/admin/daily?date=${FECHA}`)
-          .set(conToken("ADMIN"));
+          .set(tokenDuenoDePrincipal());
 
         expect(respuesta.status).toBe(200);
         const reservas = respuesta.body as VistaReserva[];

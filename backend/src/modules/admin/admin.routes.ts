@@ -1,14 +1,12 @@
 import { Router } from "express";
 import { AdminController } from "./admin.controller.js";
-import { authenticate } from "../../core/middlewares/auth.js";
-import { requireRole } from "../../core/middlewares/role.middleware.js";
+import { soloDueno } from "../../core/middlewares/negocio.js";
 
 const router = Router();
 const controller = new AdminController();
 
-// Todas las rutas requieren autenticación y rol ADMIN
-router.use(authenticate);
-router.use(requireRole(["ADMIN"]));
+// Todas las rutas requieren autenticación y rol DUENO (con su negocio)
+router.use(soloDueno);
 
 router.post("/courts", controller.createCourt);
 router.patch("/courts/:id", controller.updateCourt);

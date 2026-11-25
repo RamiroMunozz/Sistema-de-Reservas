@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import jwt from "jsonwebtoken";
 import request from "supertest";
+import { type RolDePrueba, payloadDePrueba } from "./ayudantes/tokens.js";
 import {
   afterAll,
   afterEach,
@@ -30,8 +31,8 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Concurrencia de reservas", () => {
   let idCancha: string;
   let idOtraCancha: string;
 
-  const conToken = (rol: "USER" | "ADMIN" = "USER") => ({
-    Authorization: `Bearer ${jwt.sign({ userId: idUsuario, role: rol }, SECRETO_DE_PRUEBA)}`,
+  const conToken = (rol: RolDePrueba = "JUGADOR") => ({
+    Authorization: `Bearer ${jwt.sign(payloadDePrueba(rol, idUsuario, idNegocio), SECRETO_DE_PRUEBA)}`,
   });
 
   const crearCancha = async (nombre: string) => {
@@ -59,7 +60,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Concurrencia de reservas", () => {
   const reservarComoAdmin = (datos: { startTime: string; endTime: string }) =>
     request(app)
       .post("/api/v1/bookings/admin/create")
-      .set(conToken("ADMIN"))
+      .set(conToken("DUENO"))
       .send({ courtId: idCancha, ...datos, paymentMethod: "CASH" });
 
   beforeAll(async () => {
@@ -130,7 +131,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Concurrencia de reservas", () => {
   it("responde 404 al cambiar el estado de una reserva inexistente", async () => {
     const respuesta = await request(app)
       .patch(`/api/v1/bookings/admin/${randomUUID()}/status`)
-      .set(conToken("ADMIN"))
+      .set(conToken("DUENO"))
       .send({ status: "CONFIRMED" });
 
     expect(respuesta.status).toBe(404);
@@ -189,7 +190,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Concurrencia de reservas", () => {
 
     const respuesta = await request(app)
       .patch(`/api/v1/bookings/admin/${cancelada.body.id}/status`)
-      .set(conToken("ADMIN"))
+      .set(conToken("DUENO"))
       .send({ status: "CONFIRMED" });
 
     expect(respuesta.status).toBe(409);
@@ -206,7 +207,7 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Concurrencia de reservas", () => {
     const reserva = await reservar(horario(10, 11));
     await request(app)
       .patch(`/api/v1/bookings/admin/${reserva.body.id}/status`)
-      .set(conToken("ADMIN"))
+      .set(conToken("DUENO"))
       .send({ status: "COMPLETED" });
 
     const respuesta = await request(app).get(
