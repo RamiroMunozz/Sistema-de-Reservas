@@ -5,6 +5,7 @@ import {
   cuerpoWebhookSchema,
   idPagoRegistradoSchema,
 } from "./payment.dto.js";
+import { obtenerIdNegocio } from "../../core/middlewares/negocio.js";
 import { PaymentService } from "./payment.service.js";
 
 export class PaymentController {
@@ -41,7 +42,10 @@ export class PaymentController {
   refundPayment = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { paymentId } = idPagoRegistradoSchema.parse(req.params);
-      const reserva = await this.paymentService.reembolsarPago(paymentId);
+      const reserva = await this.paymentService.reembolsarPago(
+        obtenerIdNegocio(req),
+        paymentId,
+      );
 
       return res.status(200).json(reserva);
     } catch (error) {

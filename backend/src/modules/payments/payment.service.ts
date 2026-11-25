@@ -26,6 +26,7 @@ import {
   reemplazarPreferenciaVigente,
 } from "../bookings/linkDePago.js";
 import { liberarReservasVencidas } from "../bookings/vencimiento.js";
+import { buscarPagoPropio } from "../negocios/pertenencia.js";
 import { armarVistaAdmin, incluirParaVistaAdmin } from "../bookings/vistaAdmin.js";
 
 const ESTADOS_PAGABLES: BookingStatus[] = [
@@ -105,12 +106,9 @@ export class PaymentService {
    * Reembolso manual de un pago registrado (PAG-024). Nunca es automático: lo
    * decide el administrador. Devuelve la reserva en vista de administrador.
    */
-  async reembolsarPago(idPago: string) {
-    const pago = await prisma.bookingPayment.findUnique({ where: { id: idPago } });
-
-    if (!pago) {
-      throw new NotFoundError("Pago no encontrado.");
-    }
+  async reembolsarPago(idNegocio: string, idPago: string) {
+    // Un pago de otro negocio responde igual que uno inexistente y no llega a Mercado Pago (NEG-007).
+    const pago = await buscarPagoPropio(idNegocio, idPago);
 
     if (pago.refundReason === null) {
       throw new ConflictError(

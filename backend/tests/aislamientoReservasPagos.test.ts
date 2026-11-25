@@ -234,6 +234,32 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Aislamiento de reservas y pagos entre nego
     });
   });
 
+  describe("reembolso (PAG-024)", () => {
+    const ruta = (id: string) => `/api/v1/payments/admin/payments/${id}/refund`;
+
+    it("de un pago de B responde igual que uno inexistente y no llama a Mercado Pago", async () => {
+      const ajeno = await request(app).post(ruta(idPagoB)).set(tokenDuenoA);
+      const inexistente = await request(app).post(ruta(randomUUID())).set(tokenDuenoA);
+
+      expect(ajeno.status).toBe(404);
+      expect(ajeno.body.detail).toBe("Pago no encontrado.");
+      expect(sinInstancia(ajeno.body)).toEqual(sinInstancia(inexistente.body));
+      expect(obtenerPago).not.toHaveBeenCalled();
+      expect(reembolsarPago).not.toHaveBeenCalled();
+      const pago = await prisma.bookingPayment.findUniqueOrThrow({ where: { id: idPagoB } });
+      expect(pago.refundedAt).toBeNull();
+    });
+
+    it("de un pago propio lo reembolsa en Mercado Pago", async () => {
+      const respuesta = await request(app).post(ruta(idPagoA)).set(tokenDuenoA);
+
+      expect(respuesta.status).toBe(200);
+      expect(reembolsarPago).toHaveBeenCalledTimes(1);
+      const pago = await prisma.bookingPayment.findUniqueOrThrow({ where: { id: idPagoA } });
+      expect(pago.refundedAt).not.toBeNull();
+    });
+  });
+
   describe("reserva del jugador (RES-005, NEG-009)", () => {
     const cuerpoDe = (courtId: string, hora: number) => ({
       courtId,

@@ -21,7 +21,7 @@ const {
 
 vi.mock("../src/core/config/prisma.js", () => ({
   prisma: {
-    bookingPayment: { findUnique: buscarPago, updateMany: marcarReembolsado },
+    bookingPayment: { findFirst: buscarPago, updateMany: marcarReembolsado },
     booking: { findUniqueOrThrow: releerReserva },
   },
 }));
@@ -150,7 +150,9 @@ describe("Reembolso manual por pago (PAG-024)", () => {
       await request(app).post(ruta()).set(conToken("DUENO"));
 
       expect(buscarPago).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: ID_PAGO } }),
+        expect.objectContaining({
+          where: { id: ID_PAGO, booking: { negocioId: ID_NEGOCIO_DE_PRUEBA } },
+        }),
       );
     });
   });
