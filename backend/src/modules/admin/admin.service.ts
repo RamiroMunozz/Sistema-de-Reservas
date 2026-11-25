@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../core/config/prisma.js";
-import { NotFoundError } from "../../core/errors/AppError.js";
 import { filtroNoVencida } from "../bookings/filtrosReserva.js";
+import { buscarCanchaPropia, buscarComplejoPropio } from "../negocios/pertenencia.js";
 import {
   CreateCourtDTO,
   UpdateCourtDTO,
@@ -10,14 +10,9 @@ import {
 } from "./admin.dto.js";
 
 export class AdminService {
-  async createCourt(dto: CreateCourtDTO) {
-    const complex = await prisma.complex.findUnique({
-      where: { id: dto.complexId },
-    });
-
-    if (!complex) {
-      throw new NotFoundError("El complejo especificado no existe");
-    }
+  async createCourt(idNegocio: string, dto: CreateCourtDTO) {
+    // Un complejo de otro negocio responde igual que uno inexistente (NEG-007).
+    await buscarComplejoPropio(idNegocio, dto.complexId, "El complejo especificado no existe");
 
     return prisma.court.create({
       data: {
@@ -32,13 +27,13 @@ export class AdminService {
     });
   }
 
-  async updateCourt(id: string, dto: UpdateCourtDTO) {
-    const existingCourt = await prisma.court.findUnique({
-      where: { id },
-    });
+  async updateCourt(idNegocio: string, id: string, dto: UpdateCourtDTO) {
+    await buscarCanchaPropia(idNegocio, id);
 
-    if (!existingCourt) {
-      throw new NotFoundError("Cancha no encontrada");
+    // Un complexId nuevo debe ser de este negocio: la cancha nunca cambia de negocio (W1 de T-2.11),
+    // y uno ajeno responde igual que uno inexistente.
+    if (dto.complexId !== undefined) {
+      await buscarComplejoPropio(idNegocio, dto.complexId, "El complejo especificado no existe");
     }
 
     return prisma.court.update({
@@ -47,21 +42,14 @@ export class AdminService {
     });
   }
 
-  async getDepositPercent(id: string) {
-    const complejo = await prisma.complex.findUnique({
-      where: { id },
-      select: { id: true, depositPercent: true },
-    });
+  async getDepositPercent(idNegocio: string, id: string) {
+    const complejo = await buscarComplejoPropio(idNegocio, id);
 
-    if (!complejo) {
-      throw new NotFoundError("Complejo no encontrado");
-    }
-
-    return complejo;
+    return { id: complejo.id, depositPercent: complejo.depositPercent };
   }
 
-  async updateDepositPercent(id: string, dto: PorcentajeSenaDTO) {
-    await this.getDepositPercent(id);
+  async updateDepositPercent(idNegocio: string, id: string, dto: PorcentajeSenaDTO) {
+    await buscarComplejoPropio(idNegocio, id);
 
     // El valor nuevo solo afecta a las reservas que se creen después (PAG-022).
     return prisma.complex.update({

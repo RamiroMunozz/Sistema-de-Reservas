@@ -4,14 +4,16 @@ import request from "supertest";
 import { ID_NEGOCIO_DE_PRUEBA, type RolDePrueba, payloadDePrueba } from "./ayudantes/tokens.js";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { buscarCancha, actualizarCancha } = vi.hoisted(() => ({
+const { buscarCancha, actualizarCancha, buscarComplejo } = vi.hoisted(() => ({
+  buscarComplejo: vi.fn(),
   buscarCancha: vi.fn(),
   actualizarCancha: vi.fn(),
 }));
 
 vi.mock("../src/core/config/prisma.js", () => ({
   prisma: {
-    court: { findUnique: buscarCancha, update: actualizarCancha },
+    complex: { findFirst: buscarComplejo },
+    court: { findUnique: buscarCancha, findFirst: buscarCancha, update: actualizarCancha },
   },
 }));
 
@@ -50,6 +52,7 @@ describe("Validación de canchas", () => {
   beforeEach(() => {
     buscarCancha.mockReset();
     actualizarCancha.mockReset();
+    buscarComplejo.mockReset();
     buscarCancha.mockResolvedValue(undefined);
     actualizarCancha.mockImplementation(
       async ({ data }: { data: Record<string, unknown> }) => ({
@@ -185,6 +188,41 @@ describe("Validación de canchas", () => {
       expect(respuesta.body.errors).toContainEqual(
         expect.objectContaining({ field: "pricePerSlot" }),
       );
+    });
+
+    it("busca la cancha por id y por el negocio del token", async () => {
+      const respuesta = await modificar({ name: "Cancha Central" });
+
+      expect(respuesta.status).toBe(200);
+      expect(buscarCancha).toHaveBeenCalledWith({
+        where: { id: ID_CANCHA, complex: { negocioId: ID_NEGOCIO_DE_PRUEBA } },
+      });
+    });
+
+    it("con un complexId verifica que el complejo sea del negocio del token y lo envía", async () => {
+      const idComplejo = randomUUID();
+      buscarComplejo.mockResolvedValue({ id: idComplejo });
+
+      const respuesta = await modificar({ complexId: idComplejo });
+
+      expect(respuesta.status).toBe(200);
+      expect(buscarComplejo).toHaveBeenCalledWith({
+        where: { id: idComplejo, negocioId: ID_NEGOCIO_DE_PRUEBA },
+      });
+      expect(actualizarCancha).toHaveBeenCalledWith({
+        where: { id: ID_CANCHA },
+        data: { complexId: idComplejo },
+      });
+    });
+
+    it("con un complexId ajeno o inexistente responde 404 del complejo y no escribe", async () => {
+      buscarComplejo.mockResolvedValue(null);
+
+      const respuesta = await modificar({ complexId: randomUUID() });
+
+      expect(respuesta.status).toBe(404);
+      expect(JSON.stringify(respuesta.body)).toContain("El complejo especificado no existe");
+      expect(actualizarCancha).not.toHaveBeenCalled();
     });
 
     it("responde 404 'Cancha no encontrada' ante un UUID inexistente", async () => {

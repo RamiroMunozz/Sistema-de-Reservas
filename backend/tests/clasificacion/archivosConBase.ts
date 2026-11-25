@@ -5,6 +5,7 @@ import path from "node:path";
 // Pruebas que usan la base de datos real (proyecto "db"). Toda prueba nueva va al
 // proyecto "unit" salvo que use la base; en ese caso se agrega a esta lista.
 export const ARCHIVOS_CON_BASE: readonly string[] = [
+  "tests/aislamientoAdmin.test.ts",
   "tests/concurrenciaReservas.test.ts",
   "tests/integration.test.ts",
   "tests/liberarAlCrearReservaBase.test.ts",

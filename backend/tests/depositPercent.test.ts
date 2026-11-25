@@ -10,7 +10,7 @@ const { buscarComplejo, actualizarComplejo } = vi.hoisted(() => ({
 }));
 
 vi.mock("../src/core/config/prisma.js", () => ({
-  prisma: { complex: { findUnique: buscarComplejo, update: actualizarComplejo } },
+  prisma: { complex: { findFirst: buscarComplejo, update: actualizarComplejo } },
 }));
 
 const { default: app } = await import("../src/app.js");
@@ -87,7 +87,7 @@ describe("Porcentaje de seña del complejo (ADM-015)", () => {
       expect(respuesta.status).toBe(200);
       expect(respuesta.body).toEqual({ id: ID_COMPLEJO, depositPercent: 30 });
       expect(buscarComplejo).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: ID_COMPLEJO } }),
+        { where: { id: ID_COMPLEJO, negocioId: ID_NEGOCIO_DE_PRUEBA } },
       );
     });
 

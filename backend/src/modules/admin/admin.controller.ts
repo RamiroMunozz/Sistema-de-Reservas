@@ -8,6 +8,7 @@ import {
   porcentajeSenaSchema,
 } from "./admin.dto.js";
 import { idCanchaSchema } from "../courts/court.dto.js";
+import { obtenerIdNegocio } from "../../core/middlewares/negocio.js";
 
 export class AdminController {
   constructor(private readonly adminService = new AdminService()) {}
@@ -19,7 +20,10 @@ export class AdminController {
   ): Promise<void> => {
     try {
       const validatedData = createCourtSchema.parse(req.body);
-      const court = await this.adminService.createCourt(validatedData);
+      const court = await this.adminService.createCourt(
+        obtenerIdNegocio(req),
+        validatedData,
+      );
       res.status(201).json(court);
     } catch (error) {
       next(error);
@@ -34,7 +38,11 @@ export class AdminController {
     try {
       const { id } = idCanchaSchema.parse(req.params);
       const validatedData = updateCourtSchema.parse(req.body);
-      const court = await this.adminService.updateCourt(id, validatedData);
+      const court = await this.adminService.updateCourt(
+        obtenerIdNegocio(req),
+        id,
+        validatedData,
+      );
       res.status(200).json(court);
     } catch (error) {
       next(error);
@@ -48,7 +56,10 @@ export class AdminController {
   ): Promise<void> => {
     try {
       const { id } = idComplejoSchema.parse(req.params);
-      const complejo = await this.adminService.getDepositPercent(id);
+      const complejo = await this.adminService.getDepositPercent(
+        obtenerIdNegocio(req),
+        id,
+      );
       res.status(200).json(complejo);
     } catch (error) {
       next(error);
@@ -63,7 +74,11 @@ export class AdminController {
     try {
       const { id } = idComplejoSchema.parse(req.params);
       const datos = porcentajeSenaSchema.parse(req.body);
-      const complejo = await this.adminService.updateDepositPercent(id, datos);
+      const complejo = await this.adminService.updateDepositPercent(
+        obtenerIdNegocio(req),
+        id,
+        datos,
+      );
       res.status(200).json(complejo);
     } catch (error) {
       next(error);
