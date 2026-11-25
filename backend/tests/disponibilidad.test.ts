@@ -17,6 +17,7 @@ const { CourtService } = await import("../src/modules/courts/court.service.js");
 const { BookingService } = await import("../src/modules/bookings/booking.service.js");
 
 const AHORA = new Date("2031-03-10T12:00:00.000Z");
+const ID_NEGOCIO = "5c0a1f0e-7d1b-4a3e-9b52-0c2f6a1d8e47";
 const FECHA = "2031-03-12";
 const ID_CANCHA = "11111111-1111-4111-8111-111111111111";
 
@@ -89,10 +90,10 @@ describe("Lectura de turnos ocupados con filtros compartidos (RES-007, RES-012, 
     });
 
     it("la agenda del día no muestra como ocupadas las vencidas (usa filtroOcupaTurno)", async () => {
-      await new BookingService().getDailyBookingsForAdmin(FECHA);
+      await new BookingService().getDailyBookingsForAdmin(ID_NEGOCIO, FECHA);
 
       const donde = buscarReservas.mock.calls[0]?.[0].where;
-      expect(donde).toMatchObject(filtroOcupaTurno(AHORA));
+      expect(donde).toMatchObject({ negocioId: ID_NEGOCIO, ...filtroOcupaTurno(AHORA) });
       expect(donde.startTime).toEqual({
         gte: new Date(`${FECHA}T00:00:00.000Z`),
         lte: new Date(`${FECHA}T23:59:59.999Z`),

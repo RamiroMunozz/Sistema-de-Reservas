@@ -45,6 +45,19 @@ describe("Métricas de administración", () => {
     buscarReservas.mockResolvedValue([]);
   });
 
+  describe("NEG-007: aislamiento por negocio", () => {
+    it("consulta solo las reservas del negocio firmado en el token", async () => {
+      await request(app)
+        .get(RUTA_METRICAS)
+        .query({ startDate: "2026-08-01", endDate: "2026-08-31" })
+        .set(tokenAdmin);
+
+      expect(buscarReservas.mock.calls[0]?.[0].where).toMatchObject({
+        negocioId: ID_NEGOCIO_DE_PRUEBA,
+      });
+    });
+  });
+
   describe("ADM-003: validación de las fechas", () => {
     it.each([
       { startDate: "2026-02-31", endDate: "2026-03-31", campo: "startDate" },

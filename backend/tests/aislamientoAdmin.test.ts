@@ -261,4 +261,84 @@ describe.skipIf(!URL_BASE_DE_PRUEBA)("Aislamiento de la administración entre ne
       expect(escritura.body.depositPercent).toBe(45);
     });
   });
+
+  describe("GET /admin/complexes (ADM-019)", () => {
+    it("devuelve solo los complejos de A, con la seña y sus canchas activas, por createdAt", async () => {
+      const respuesta = await request(app).get("/api/v1/admin/complexes").set(tokenDuenoA);
+
+      expect(respuesta.status).toBe(200);
+      const complejos = respuesta.body as Array<{
+        id: string;
+        name: string;
+        address: string;
+        depositPercent: number;
+        courts: Array<{ id: string; isActive: boolean }>;
+      }>;
+      expect(complejos.map((c) => c.id)).toEqual([idComplejoA, idComplejoA2]);
+      expect(complejos[0]).toMatchObject({ name: "Complejo A1", address: "Calle A" });
+      expect(complejos[0]?.depositPercent).toEqual(expect.any(Number));
+      const canchasDelPrimero = complejos[0]?.courts ?? [];
+      expect(canchasDelPrimero.map((c) => c.id)).toEqual([idCanchaA]);
+      expect(canchasDelPrimero.every((c) => c.isActive)).toBe(true);
+      expect(JSON.stringify(respuesta.body)).not.toContain(idComplejoB);
+      expect(JSON.stringify(respuesta.body)).not.toContain(idCanchaB);
+    });
+
+    it("un dueño de otro negocio no ve los complejos de A", async () => {
+      const respuesta = await request(app)
+        .get("/api/v1/admin/complexes")
+        .set(conToken(negocioB.id));
+
+      expect(respuesta.status).toBe(200);
+      expect((respuesta.body as Array<{ id: string }>).map((c) => c.id)).toEqual([idComplejoB]);
+    });
+
+    it("un JUGADOR recibe 403", async () => {
+      const respuesta = await request(app).get("/api/v1/admin/complexes").set(tokenJugador);
+
+      expect(respuesta.status).toBe(403);
+    });
+  });
+
+  describe("métricas, listado y agenda (ADM-001 a ADM-008)", () => {
+    const hoy = new Date();
+    const desde = new Date(hoy.getTime() - 86_400_000).toISOString().slice(0, 10);
+    const hasta = new Date(hoy.getTime() + 86_400_000).toISOString().slice(0, 10);
+
+    it("las métricas de A no incluyen reservas ni recaudación de B", async () => {
+      const respuesta = await request(app)
+        .get("/api/v1/admin/metrics")
+        .query({ startDate: desde, endDate: hasta })
+        .set(tokenDuenoA);
+
+      expect(respuesta.status).toBe(200);
+      expect(respuesta.body.summary).toMatchObject({
+        totalBookings: 1,
+        confirmedCount: 1,
+        totalRevenueARS: 1000,
+      });
+      const detalle = respuesta.body.details as Array<{ id: string }>;
+      expect(detalle.map((d) => d.id)).toEqual([idReservaA]);
+    });
+
+    it("el listado completo de A no contiene reservas de B", async () => {
+      const respuesta = await request(app).get("/api/v1/bookings/admin/all").set(tokenDuenoA);
+
+      expect(respuesta.status).toBe(200);
+      const ids = (respuesta.body as Array<{ id: string }>).map((r) => r.id);
+      expect(ids).toEqual([idReservaA]);
+    });
+
+    it("la agenda diaria de A no contiene reservas de B", async () => {
+      const respuesta = await request(app)
+        .get("/api/v1/bookings/admin/daily")
+        .query({ date: FECHA_RESERVA })
+        .set(tokenDuenoA);
+
+      expect(respuesta.status).toBe(200);
+      const ids = (respuesta.body as Array<{ id: string }>).map((r) => r.id);
+      expect(ids).toEqual([idReservaA]);
+      expect(ids).not.toContain(idReservaB);
+    });
+  });
 });

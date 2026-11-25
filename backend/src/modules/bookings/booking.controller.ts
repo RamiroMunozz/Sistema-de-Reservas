@@ -8,6 +8,7 @@ import {
   idReservaSchema,
 } from "./booking.dto.js";
 import { BookingService } from "./booking.service.js";
+import { obtenerIdNegocio } from "../../core/middlewares/negocio.js";
 
 const bookingService = new BookingService();
 
@@ -78,7 +79,10 @@ export class BookingController {
   getDailyAdmin = async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { date } = consultaDiariaSchema.parse(req.query);
-      const bookings = await bookingService.getDailyBookingsForAdmin(date);
+      const bookings = await bookingService.getDailyBookingsForAdmin(
+        obtenerIdNegocio(req),
+        date,
+      );
 
       return res.status(200).json(bookings);
     } catch (error) {
@@ -86,9 +90,11 @@ export class BookingController {
     }
   };
 
-  getAllAdmin = async (_req: Request, res: Response, next: NextFunction) => {
+  getAllAdmin = async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const bookings = await bookingService.getAllBookingsForAdmin();
+      const bookings = await bookingService.getAllBookingsForAdmin(
+        obtenerIdNegocio(req),
+      );
 
       return res.status(200).json(bookings);
     } catch (error) {

@@ -215,8 +215,9 @@ export class BookingService {
     });
   }
 
-  async getAllBookingsForAdmin() {
+  async getAllBookingsForAdmin(idNegocio: string) {
     const reservas = await prisma.booking.findMany({
+      where: { negocioId: idNegocio },
       include: incluirParaVistaAdmin,
       orderBy: {
         startTime: "desc",
@@ -227,12 +228,13 @@ export class BookingService {
     return reservas.map((reserva) => armarVistaAdmin(reserva, ahora));
   }
 
-  async getDailyBookingsForAdmin(dateStr: string) {
+  async getDailyBookingsForAdmin(idNegocio: string, dateStr: string) {
     const startOfDay = new Date(`${dateStr}T00:00:00.000Z`);
     const endOfDay = new Date(`${dateStr}T23:59:59.999Z`);
 
     const reservas = await prisma.booking.findMany({
       where: {
+        negocioId: idNegocio,
         startTime: {
           gte: startOfDay,
           lte: endOfDay,

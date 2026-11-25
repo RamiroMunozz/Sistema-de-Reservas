@@ -85,6 +85,19 @@ export class AdminController {
     }
   };
 
+  listarComplejos = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const complejos = await this.adminService.listarComplejos(obtenerIdNegocio(req));
+      res.status(200).json(complejos);
+    } catch (error) {
+      next(error);
+    }
+  };
+
   getMetrics = async (
     req: Request,
     res: Response,
@@ -92,7 +105,10 @@ export class AdminController {
   ): Promise<void> => {
     try {
       const filters = metricsQuerySchema.parse(req.query);
-      const metrics = await this.adminService.getMetrics(filters);
+      const metrics = await this.adminService.getMetrics(
+        obtenerIdNegocio(req),
+        filters,
+      );
       res.status(200).json(metrics);
     } catch (error) {
       next(error);

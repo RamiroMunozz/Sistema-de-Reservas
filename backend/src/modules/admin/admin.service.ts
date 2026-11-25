@@ -42,6 +42,23 @@ export class AdminService {
     });
   }
 
+  async listarComplejos(idNegocio: string) {
+    return prisma.complex.findMany({
+      where: { negocioId: idNegocio },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        name: true,
+        address: true,
+        depositPercent: true,
+        courts: {
+          where: { isActive: true },
+          orderBy: { name: "asc" },
+        },
+      },
+    });
+  }
+
   async getDepositPercent(idNegocio: string, id: string) {
     const complejo = await buscarComplejoPropio(idNegocio, id);
 
@@ -59,12 +76,13 @@ export class AdminService {
     });
   }
 
-  async getMetrics(dto: MetricsQueryDTO) {
+  async getMetrics(idNegocio: string, dto: MetricsQueryDTO) {
     const start = new Date(`${dto.startDate}T00:00:00.000Z`);
     const end = new Date(`${dto.endDate}T23:59:59.999Z`);
 
     const bookings = await prisma.booking.findMany({
       where: {
+        negocioId: idNegocio,
         createdAt: { gte: start, lte: end },
         ...filtroNoVencida(new Date()),
       },
