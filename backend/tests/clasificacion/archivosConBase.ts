@@ -8,6 +8,7 @@ export const ARCHIVOS_CON_BASE: readonly string[] = [
   "tests/concurrenciaReservas.test.ts",
   "tests/integration.test.ts",
   "tests/liberarAlCrearReservaBase.test.ts",
+  "tests/migracionNegocios.test.ts",
   "tests/migracionReservaInvitado.test.ts",
   "tests/rutasAdminReservas.test.ts",
   "tests/secretosJwt.test.ts",
