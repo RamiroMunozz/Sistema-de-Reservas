@@ -26,3 +26,9 @@ Registro fechado. Cada decisión indica su estado de implementación. Las decisi
 | DP-12 | El invitado consulta y cancela su reserva desde un link privado (`/reserva/<código>`). | Objetivo |
 | DP-13 | La integración con WhatsApp usa enlaces `wa.me` con mensajes armados, sin la API de WhatsApp Business. | Objetivo |
 | DP-14 | La reserva de invitado se implementa antes del multi-tenant, sobre el negocio único actual y su cuenta de Mercado Pago. Cuando llegue el multi-tenant, pasa a usar las credenciales de cada negocio. | Objetivo |
+
+## 2026-11-27
+
+| N.º | Decisión | Estado |
+|---|---|---|
+| DP-15 | Cada negocio vincula su propia cuenta de Mercado Pago con OAuth ("Conectar con Mercado Pago", modo marketplace), sin pegar credenciales a mano. La plataforma no cobra comisión por ahora (no se envía `marketplace_fee`); cobrar una comisión por reserva queda como idea a futuro, ligada a DP-03. | Objetivo (`mercadopago-por-negocio`) |

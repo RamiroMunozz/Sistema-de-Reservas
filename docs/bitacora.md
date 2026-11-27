@@ -5,7 +5,7 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 ## Estado actual
 
-- **Rama activa:** `desarrollo`. `main`, `desarrollo` y sus remotos están en `6a35114` (archivo de `multi-tenant-negocios`, integrado en `main` por el usuario el 2026-11-25), con CI en verde. UT-5 a UT-8 quedaron en un solo commit (`d1cedc8`, "Prueba push y resultado CI"), que no sigue Conventional Commits y ya está publicado. Sin commitear: esta actualización de la bitácora. El usuario commitea a mano.
+- **Rama activa:** `desarrollo`. `main`, `desarrollo` y sus remotos están en `738c1b6` (bitácora de la integración de `multi-tenant-negocios`, integrada en `main` por el usuario el 2026-11-25), con CI en verde. UT-5 a UT-8 quedaron en un solo commit (`d1cedc8`, "Prueba push y resultado CI"), que no sigue Conventional Commits y ya está publicado. Sin commitear (2026-11-27): esta bitácora, la DP-15 en `docs/producto/decisiones.md`, la hoja de ruta y `openspec/changes/mercadopago-por-negocio/exploration.md`. El usuario commitea a mano.
 - **Specs vigentes:** los 5 dominios en `openspec/specs/`, con los requisitos de `reserva-invitado` fusionados (reservas 35, pagos 26, administracion 18, canchas 15).
 - **Cambios SDD:**
   - `specs-base` hecho (su carpeta sigue en `openspec/changes/specs-base/`, sin archivar).
@@ -13,19 +13,28 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
   - `reserva-invitado` (N.º 3) hecho y archivado en `openspec/changes/archive/2026-11-19-reserva-invitado/`: 65 de 65 tareas, `verify-report.md` con la resolución de hallazgos y `archive-report.md`.
   - `calidad-ci-backend` (N.º 4) hecho y archivado en `openspec/changes/archive/2026-11-24-calidad-ci-backend/`: todas las tareas (UT-0 a UT-5), verificación PASA sin críticos, sin delta specs (archivado a mano: `gentle-ai` exige un `specs/<dominio>/spec.md`).
   - `multi-tenant-negocios` (N.º 5) hecho y archivado en `openspec/changes/archive/2026-11-25-multi-tenant-negocios/`: 64 de 64 tareas. Specs vigentes fusionadas con el puente de formato de `sdd-archive-compose` 3.7.0, verificado con `diff`. Dominio nuevo `negocios` (12 requisitos); reservas 36, autenticacion 15, administracion 19, canchas 15, pagos 26. Los Propósitos ya no dicen "single-tenant". Quedan referencias a `USER` y `ADMIN` solo en notas históricas ("Previously", "Motivo", Observaciones) y en la normativa de migración.
-  - No hay cambio activo. El siguiente de la hoja de ruta es `mercadopago-por-negocio` (N.º 6).
+  - `mercadopago-por-negocio` (N.º 6) en curso: exploración hecha (`openspec/changes/mercadopago-por-negocio/exploration.md` y Engram `sdd/mercadopago-por-negocio/explore`). Falta la propuesta. Preflight de la sesión: ritmo interactivo, artefactos híbridos y estrategia "preguntar si hay riesgo".
   - Antecedentes del archivo: `sdd-verify` hecho: PASA CON ADVERTENCIAS (0 críticos, 7 advertencias), en `openspec/changes/multi-tenant-negocios/verify-report.md`. T-8.6 cerrada: la CI pasó en verde sobre `d1cedc8`. Listo para archivar. La W1 quedó resuelta: NEG-007 se alineó al código, con un nombre de 2 a 150 caracteres.
 - **Bases de datos:** desarrollo en el contenedor `sports_booking_postgres` (puerto 5433), con M1 y M2 aplicadas el 2026-11-25 (respaldo previo de T-0.3). Quedan 1 complejo y 16 reservas en `principal`, el dueño `DUENO` con negocio y un `JUGADOR`. No se recargó la semilla, así que esta base no tiene la cuenta `SUPER_ADMIN`. Base descartable en el contenedor `reservas_prueba` (puerto 5434), con M1 y M2, la semilla nueva y datos de la prueba manual (un segundo complejo "Complejo Norte (prueba manual)"); ver `docs/operacion/variables-entorno.md`, que ahora lista las cuentas de la semilla (dueño, jugador y `plataforma@sportsbooking.com`).
 - **Tests del backend:** `npm test` corre `unit` y `db`: 650 de 650 en 45 archivos contra la base descartable (2026-11-25). `npm run test:unit` solo no necesita base. La prueba `controlClasificacion.test.ts` exige que toda prueba con `DATABASE_URL_PRUEBA` esté en `backend/tests/clasificacion/archivosConBase.ts`. `npx tsc --noEmit` sin errores. Frontend: lint y build sin errores.
-- **CI:** `.github/workflows/ci.yml` en GitHub Actions, en cada push a `desarrollo` y a mano (`workflow_dispatch`), con Node 24 (`.nvmrc`): job `backend` (PostgreSQL 15, `tsc`, `test:unit`, migraciones, semilla y `test:db`) y job `frontend` (lint y build). Última corrida, sobre `26b09d3`: en verde. `gh` tiene sesión iniciada.
+- **CI:** `.github/workflows/ci.yml` en GitHub Actions, en cada push a `desarrollo` y a mano (`workflow_dispatch`), con Node 24 (`.nvmrc`): job `backend` (PostgreSQL 15, `tsc`, `test:unit`, migraciones, semilla y `test:db`) y job `frontend` (lint y build). Última corrida, sobre `738c1b6` (2026-11-25): en verde, igual que las de `d1cedc8` y `6a35114`. `gh` tiene sesión iniciada.
 - **Mercado Pago:** credenciales de prueba y webhook (evento "Pagos (legacy)") cargados en `backend/.env`; `BACKEND_URL` apunta a un túnel rápido de cloudflared, cuya URL cambia en cada arranque. Si el webhook no llega, revisar que `BACKEND_URL` coincida con la URL actual del túnel y reiniciar el backend. Sin sesión de comprador, se paga con la tarjeta de prueba `APRO`.
 - **Flujo de trabajo:** solo SDD, con los comandos globales `/gentle-sdd-*` y sus agentes. No se crean comandos ni agentes SDD propios del proyecto.
 - **Código:** multi-tenant (ADR 0002). Negocio como unidad de aislamiento, roles `JUGADOR`, `DUENO` y `SUPER_ADMIN`, pertenencia "ajeno ≡ inexistente", alta de negocio por `SUPER_ADMIN` (`POST /api/v1/plataforma/negocios`) y rutas públicas por slug (`/api/v1/negocios/:slug/...`; las rutas sin slug se retiraron). El frontend sirve `/:slug` y `/` redirige a `/principal`. Falta el Mercado Pago propio por negocio (N.º 6).
 
 ## Próximo paso
 
-1. Commitear esta bitácora.
-2. Empezar `mercadopago-por-negocio` (N.º 6) con `/gentle-sdd-new`. Tener en cuenta las advertencias abiertas del `verify-report.md` archivado:
+1. Commitear los documentos de esta sesión en `desarrollo`.
+2. `mercadopago-por-negocio` (N.º 6): responder las 7 decisiones abiertas de la exploración (sección "Huecos de decisión de producto"). Recomendaciones propuestas, sin confirmar todavía:
+   1. Un negocio sin conexión bloquea la reserva de invitado con seña con un 503 claro.
+   2. W7 entra solo en lo mínimo: un negocio inactivo no conecta ni renueva.
+   3. Se permite desconectar, con una advertencia.
+   4. `principal` se reconecta a mano.
+   5. Sin PKCE.
+   6. Túnel con dominio fijo en desarrollo.
+   7. Una conexión por negocio.
+
+   Después, seguir con `/gentle-sdd-continue mercadopago-por-negocio` (propuesta). Antes de probar OAuth de punta a punta hay que crear la aplicación en el panel de desarrolladores de Mercado Pago. Advertencias abiertas del `verify-report.md` archivado (según la exploración, solo W7 encaja en este cambio):
    - W6: el jugador recibe la fila completa de la reserva.
    - W7: el dueño de un negocio inactivo sigue operando con su token.
    - S3: el `update` de cancha y de seña filtra solo por `id`.
@@ -45,7 +54,34 @@ Se actualiza al cerrar cada sesión con `/cerrar-sesion`.
 
 La más reciente primero. Se mantienen unas 10 entradas; las más antiguas se resumen en una línea al final.
 
-### 2026-11-25: `multi-tenant-negocios`, de UT-5 a UT-8
+### 2026-11-27: Puesta al día y exploración de `mercadopago-por-negocio`
+
+- **Objetivo:** retomar el contexto y arrancar el cambio N.º 6.
+- **Hecho:**
+  - Puesta al día:
+    - `main`, `desarrollo` y sus remotos en `738c1b6`.
+    - La CI en verde en las últimas 5 corridas.
+    - Bitácora corregida, que todavía decía `6a35114`.
+  - DP-15 registrada en `docs/producto/decisiones.md` y en Engram (`producto/mercadopago-oauth`).
+  - Preflight SDD y `sdd-explore` de `mercadopago-por-negocio`. La exploración quedó en `openspec/changes/mercadopago-por-negocio/exploration.md`; la escribió el orquestador porque el agente no escribe archivos.
+  - Hoja de ruta: N.º 6 en curso.
+- **Decisiones:**
+  - DP-15: cada negocio conecta su cuenta de Mercado Pago con OAuth (modo marketplace).
+  - Sin comisión por ahora (no se envía `marketplace_fee`); la comisión queda como idea a futuro, ligada a DP-03.
+  - El usuario todavía no tiene negocios contratados: el objetivo es dejar el sistema listo para ofrecerlo.
+- **Hallazgos:**
+  - Las funciones de Mercado Pago de `core/integraciones/mercadoPago.ts` usan la cuenta global del `.env`.
+  - `processWebhook` consulta el pago antes de conocer la reserva, así que no sabe con qué token hacerlo.
+  - El SDK `mercadopago` 3.6.0 trae `OAuth.create`, `refresh` y `getAuthorizationURL`, sin soporte de PKCE.
+  - Tokens de Mercado Pago:
+    - El access token dura 180 días.
+    - El refresh token rota en cada renovación, así que hay que serializarla.
+    - El secreto del webhook es uno por aplicación, no por vendedor.
+  - La `redirect_uri` debe coincidir exacto con la registrada en la aplicación, y la URL del túnel de cloudflared cambia en cada arranque.
+  - La evaluación de Gentle AI clasifica los cambios solo de documentación como pasivos: no corresponde revisión.
+- **Commits:** ninguno en la sesión.
+
+### 2026-11-25: `multi-tenant-negocios`, de UT-5 al archivo e integración
 
 - **Objetivo:** terminar todas las tareas de `multi-tenant-negocios`.
 - **Hecho:**
@@ -56,6 +92,10 @@ La más reciente primero. Se mantienen unas 10 entradas; las más antiguas se re
   - UT-8: renombre de roles en las specs vigentes (solo en los requisitos que las deltas no reemplazan), ADR 0002, skills, glosario, `variables-entorno.md`, hoja de ruta, `AGENTS.md`, `CLAUDE.md` y `openspec/config.yaml`.
   - Pruebas manuales T-2.10 y T-7.6 con chrome-devtools, todas correctas.
   - Verificación: `npm test` 650 de 650 en 45 archivos, `tsc` sin errores, y lint y build del frontend correctos.
+  - `sdd-verify`: PASA CON ADVERTENCIAS (0 críticos). W1 resuelta: NEG-007 alineada al código, con un nombre de 2 a 150 caracteres. T-8.6 cerrada con la CI en verde sobre `d1cedc8`.
+  - M1 y M2 aplicadas a la base de desarrollo (5433) sin recargar la semilla.
+  - Cambio archivado en `openspec/changes/archive/2026-11-25-multi-tenant-negocios/` con las specs fusionadas (dominio nuevo `negocios`) y la hoja de ruta N.º 5 en "hecho".
+  - Integración en `main` hecha por el usuario: `main` en `6a35114`, con CI en verde.
 - **Decisiones:**
   - Preflight SDD de la sesión: ritmo interactivo, artefactos híbridos y estrategia "preguntar si hay riesgo". El usuario pidió después terminar todas las tareas sin frenar.
   - T-8.1 renombra los roles solo fuera de los requisitos modificados por las deltas, para no romper la fusión al archivar.
@@ -65,7 +105,7 @@ La más reciente primero. Se mantienen unas 10 entradas; las más antiguas se re
   - No hay ruta de alta de complejo: para probar el selector se insertó un complejo por SQL en la base descartable.
   - La línea base T-0.2 previa a los cambios no se registró al empezar; se cerró con la corrida completa actual.
   - Una corrida de `test:unit` en paralelo con `tsc` mostró 2 fallos que no se repitieron. Probablemente es un tiempo de espera bajo carga.
-- **Commits:** `d1cedc8` del usuario, que agrupa UT-5 a UT-8 ("Prueba push y resultado CI", no sigue Conventional Commits). CI en verde. Los mensajes por unidad que se habían sugerido quedan como referencia:
+- **Commits:** del usuario. `d1cedc8` agrupa UT-5 a UT-8 ("Prueba push y resultado CI", no sigue Conventional Commits), `6a35114` es el archivo (`docs(negocios): ...`) y `738c1b6` la bitácora. Los tres tienen CI en verde y están integrados en `main`. Los mensajes por unidad que se habían sugerido quedan como referencia:
   1. `feat(negocios): agregar el formato del slug, los slugs reservados y el esquema de alta`
   2. `feat(negocios): permitir al SUPER_ADMIN crear un negocio con su dueño`
   3. `fix(semilla): abortar la semilla cuando NODE_ENV es production`
